@@ -73,12 +73,129 @@ struct ProverData<C: Ciphersuite> {
   V: Vec<PedersenCommitment<C>>,
 }
 
+/// The constraints of a circuit, folded into a single constraint as they're produced.
+///
+/// Constraint `k` (zero-indexed) is weighted by `z^k`. `ArithmeticCircuitStatement::verify` weights
+/// constraint `k` by `z^(k + 1)`, so a statement with solely the folded constraint is verified
+/// against `z * sum(z^k constraint_k) = sum(z^(k + 1) constraint_k)`, the same weighted combination
+/// it verifies a statement with every constraint against.
+#[derive(Clone, PartialEq, Eq, Debug)]
+struct FoldedConstraints<C: Ciphersuite> {
+  z: C::F,
+  next_weight: C::F,
+  constraints: usize,
+  WL: Vec<C::F>,
+  WR: Vec<C::F>,
+  WO: Vec<C::F>,
+  WCG: Vec<Vec<C::F>>,
+  WV: Vec<C::F>,
+  c: C::F,
+}
+
+impl<C: Ciphersuite> FoldedConstraints<C> {
+  fn new(z: C::F) -> Self {
+    Self {
+      z,
+      next_weight: C::F::ONE,
+      constraints: 0,
+      WL: vec![],
+      WR: vec![],
+      WO: vec![],
+      WCG: vec![],
+      WV: vec![],
+      c: C::F::ZERO,
+    }
+  }
+
+  // `dense += sparse * weight`, growing `dense` as needed.
+  fn accumulate(dense: &mut Vec<C::F>, sparse: &[(usize, C::F)], weight: C::F) {
+    for (i, value) in sparse {
+      if dense.len() <= *i {
+        dense.resize(*i + 1, C::F::ZERO);
+      }
+      dense[*i] += *value * weight;
+    }
+  }
+
+  fn fold(&mut self, constraint: &LinComb<C::F>) {
+    let weight = self.next_weight;
+    Self::accumulate(&mut self.WL, constraint.WL(), weight);
+    Self::accumulate(&mut self.WR, constraint.WR(), weight);
+    Self::accumulate(&mut self.WO, constraint.WO(), weight);
+    for (i, values) in constraint.WCG() {
+      if self.WCG.len() <= *i {
+        self.WCG.resize(*i + 1, vec![]);
+      }
+      Self::accumulate(&mut self.WCG[*i], values, weight);
+    }
+    Self::accumulate(&mut self.WV, constraint.WV(), weight);
+    self.c += constraint.c() * weight;
+    self.next_weight *= self.z;
+    self.constraints += 1;
+  }
+
+  // The folded constraint.
+  //
+  // Every index referenced by any constraint is present, even if its folded weight is zero, so the
+  // statement bounds-checks the same highest indices it would have for the individual constraints.
+  fn into_lincomb(self) -> LinComb<C::F> {
+    let mut res = LinComb::empty().constant(self.c);
+    for (i, weight) in self.WL.into_iter().enumerate() {
+      res = res.term(weight, Variable::aL(i));
+    }
+    for (i, weight) in self.WR.into_iter().enumerate() {
+      res = res.term(weight, Variable::aR(i));
+    }
+    for (i, weight) in self.WO.into_iter().enumerate() {
+      res = res.term(weight, Variable::aO(i));
+    }
+    for (commitment, weights) in self.WCG.into_iter().enumerate() {
+      for (index, weight) in weights.into_iter().enumerate() {
+        res = res.term(weight, Variable::CG { commitment, index });
+      }
+    }
+    for (i, weight) in self.WV.into_iter().enumerate() {
+      res = res.term(weight, Variable::V(i));
+    }
+    res
+  }
+}
+
+/// How a circuit handles the constraints it's given.
+#[derive(Clone, PartialEq, Eq, Debug)]
+enum Constraints<C: Ciphersuite> {
+  /// Every constraint is stored.
+  Stored(Vec<LinComb<C::F>>),
+  /// The constraints are counted, not stored.
+  Discarded(usize),
+  /// The constraints are folded into one as they're produced.
+  Folded(FoldedConstraints<C>),
+}
+
+/// An error incurred when obtaining the statement for a circuit.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CircuitStatementError {
+  /// The circuit discarded its constraints, so no statement can be formed from it.
+  ConstraintsDiscarded,
+  /// The circuit folded its constraints yet was given Pedersen commitments, which folding doesn't
+  /// support (the statement's check that each is individually constrained needs the individual
+  /// constraints).
+  FoldedWithPedersenCommitments,
+  /// An error from constructing the arithmetic circuit statement.
+  AcStatementError(AcStatementError),
+}
+impl From<AcStatementError> for CircuitStatementError {
+  fn from(err: AcStatementError) -> Self {
+    CircuitStatementError::AcStatementError(err)
+  }
+}
+
 /// A struct representing a circuit.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Circuit<C: Ciphersuite> {
   muls: usize,
   // A series of linear combinations which must evaluate to 0.
-  constraints: Vec<LinComb<C::F>>,
+  constraints: Constraints<C>,
   prover: Option<ProverData<C>>,
 }
 
@@ -86,6 +203,15 @@ impl<C: Ciphersuite> Circuit<C> {
   /// Returns the amount of multiplications used by this circuit.
   pub fn muls(&self) -> usize {
     self.muls
+  }
+
+  /// Returns the amount of constraints given to this circuit.
+  pub fn constraints(&self) -> usize {
+    match &self.constraints {
+      Constraints::Stored(constraints) => constraints.len(),
+      Constraints::Discarded(constraints) => *constraints,
+      Constraints::Folded(folded) => folded.constraints,
+    }
   }
 
   /// Create an instance to prove satisfaction of a circuit with.
@@ -96,14 +222,37 @@ impl<C: Ciphersuite> Circuit<C> {
   ) -> Self {
     Self {
       muls: 0,
-      constraints: vec![],
+      constraints: Constraints::Stored(vec![]),
       prover: Some(ProverData { aL: vec![], aR: vec![], C: vector_commitments, V: commitments }),
     }
   }
 
   /// Create an instance to verify a proof with.
   pub fn verify() -> Self {
-    Self { muls: 0, constraints: vec![], prover: None }
+    Self { muls: 0, constraints: Constraints::Stored(vec![]), prover: None }
+  }
+
+  /// Create an instance to verify a proof with which counts its constraints without storing them.
+  ///
+  /// No statement can be obtained from it. This allows advancing a transcript through the
+  /// construction of a circuit without the memory to store its constraints, as needed before
+  /// `Circuit::verify_folding` can be used.
+  pub fn verify_discarding() -> Self {
+    Self { muls: 0, constraints: Constraints::Discarded(0), prover: None }
+  }
+
+  /// Create an instance to verify a proof with which folds its constraints into one as they're
+  /// produced, weighting constraint `k` (zero-indexed) by `z^k`.
+  ///
+  /// `z` MUST be the challenge `ArithmeticCircuitStatement::verify` will sample for this proof
+  /// (see `generalized_bulletproofs::arithmetic_circuit_proof::peek_z`). The statement obtained
+  /// then has that single constraint, which `verify` weights by `z`, verifying against the same
+  /// weighted combination of constraints as it would for the individual constraints, while only
+  /// the folded constraint is ever held in memory.
+  ///
+  /// Pedersen commitments (`V`) aren't supported in this mode.
+  pub fn verify_folding(z: C::F) -> Self {
+    Self { muls: 0, constraints: Constraints::Folded(FoldedConstraints::new(z)), prover: None }
   }
 
   /// Evaluate a linear combination.
@@ -175,7 +324,11 @@ impl<C: Ciphersuite> Circuit<C> {
   ///
   /// May panic if the linear combination references non-existent terms.
   pub fn constrain_equal_to_zero(&mut self, lincomb: LinComb<C::F>) {
-    self.constraints.push(lincomb);
+    match &mut self.constraints {
+      Constraints::Stored(constraints) => constraints.push(lincomb),
+      Constraints::Discarded(constraints) => *constraints += 1,
+      Constraints::Folded(folded) => folded.fold(&lincomb),
+    }
   }
 }
 
@@ -187,6 +340,8 @@ where
   ///
   /// If configured as the prover, the witness to use is also returned if one was successfully
   /// constructed.
+  ///
+  /// A circuit which folded its constraints yields a statement with the single, folded constraint.
   #[allow(clippy::type_complexity)]
   pub fn statement(
     self,
@@ -194,9 +349,19 @@ where
     commitments: Commitments<C>,
   ) -> Result<
     (ArithmeticCircuitStatement<'_, C>, Option<ArithmeticCircuitWitness<C>>),
-    AcStatementError,
+    CircuitStatementError,
   > {
-    let statement = ArithmeticCircuitStatement::new(generators, self.constraints, commitments)?;
+    let constraints = match self.constraints {
+      Constraints::Stored(constraints) => constraints,
+      Constraints::Discarded(_) => return Err(CircuitStatementError::ConstraintsDiscarded),
+      Constraints::Folded(folded) => {
+        if !commitments.V().is_empty() {
+          return Err(CircuitStatementError::FoldedWithPedersenCommitments);
+        }
+        vec![folded.into_lincomb()]
+      }
+    };
+    let statement = ArithmeticCircuitStatement::new(generators, constraints, commitments)?;
 
     let witness = self.prover.and_then(|mut prover| {
       // We can't deconstruct the witness as it implements Drop (per ZeroizeOnDrop)

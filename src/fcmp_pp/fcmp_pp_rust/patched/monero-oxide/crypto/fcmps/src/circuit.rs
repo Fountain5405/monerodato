@@ -5,13 +5,13 @@ use ciphersuite::{group::ff::FromUniformBytes, Ciphersuite};
 use generalized_bulletproofs::{
   PedersenVectorCommitment, ProofGenerators,
   transcript::Commitments,
-  arithmetic_circuit_proof::{
-    AcStatementError, ArithmeticCircuitStatement, ArithmeticCircuitWitness,
-  },
+  arithmetic_circuit_proof::{ArithmeticCircuitStatement, ArithmeticCircuitWitness},
 };
 pub(crate) use generalized_bulletproofs::arithmetic_circuit_proof::{Variable, LinComb};
 
-use generalized_bulletproofs_circuit_abstraction::Circuit as UnderlyingCircuit;
+use generalized_bulletproofs_circuit_abstraction::{
+  Circuit as UnderlyingCircuit, CircuitStatementError,
+};
 pub(crate) use generalized_bulletproofs_circuit_abstraction::Transcript;
 
 use crate::*;
@@ -48,13 +48,29 @@ impl<C: Ciphersuite> Circuit<C> {
     self.0.muls()
   }
 
+  pub(crate) fn constraints(&self) -> usize {
+    self.0.constraints()
+  }
+
   #[allow(clippy::type_complexity)]
   pub(crate) fn prove(commitments: Vec<PedersenVectorCommitment<C>>) -> Self {
     Self(UnderlyingCircuit::prove(commitments, vec![]))
   }
 
+  /// Create a verifier circuit which stores its constraints, as the verifier historically did.
+  ///
+  /// `Fcmp::verify` folds its constraints instead; this remains for `Fcmp::verify_stored`.
+  #[cfg(test)]
   pub(crate) fn verify() -> Self {
     Self(UnderlyingCircuit::verify())
+  }
+
+  pub(crate) fn verify_discarding() -> Self {
+    Self(UnderlyingCircuit::verify_discarding())
+  }
+
+  pub(crate) fn verify_folding(z: C::F) -> Self {
+    Self(UnderlyingCircuit::verify_folding(z))
   }
 
   pub(crate) fn eval(&self, lincomb: &LinComb<C::F>) -> Option<C::F> {
@@ -192,7 +208,7 @@ where
     commitments: Commitments<C>,
   ) -> Result<
     (ArithmeticCircuitStatement<'_, C>, Option<ArithmeticCircuitWitness<C>>),
-    AcStatementError,
+    CircuitStatementError,
   > {
     self.0.statement(generators, commitments)
   }

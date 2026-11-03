@@ -192,6 +192,30 @@ where
   }
 }
 
+/// Sample the `z` challenge `ArithmeticCircuitStatement::verify` will sample for the proof at the
+/// head of a transcript, without advancing the transcript.
+///
+/// `verify` reads the proof's `AI`, `AO`, and `S` commitments, then samples `y` and `z`. This
+/// performs the same operations on a clone of the transcript and returns `z`.
+///
+/// This lets a caller fold its constraints with `z` before constructing the statement. `verify`
+/// weights constraint `k` (zero-indexed) by `z^(k + 1)`, so a statement with the single constraint
+/// `sum(z^k constraint_k)` is verified against the same weighted combination of constraints as the
+/// statement with every constraint, without every constraint having to be held in memory. The
+/// constraints must still be deterministic to the context, as documented by
+/// `ArithmeticCircuitStatement::new`.
+pub fn peek_z<C: Ciphersuite>(transcript: &VerifierTranscript<'_>) -> Result<C::F, AcVerifyError>
+where
+  C::F: FromUniformBytes<64>,
+{
+  let mut transcript = transcript.clone();
+  for _ in 0 .. 3 {
+    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+  }
+  let _y = transcript.challenge::<C>();
+  Ok(transcript.challenge::<C>())
+}
+
 struct YzChallenges<C: Ciphersuite> {
   y_inv: ScalarVector<C::F>,
   z: ScalarVector<C::F>,

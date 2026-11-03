@@ -131,6 +131,7 @@ impl Transcript {
 }
 
 /// A transcript for verifying proofs.
+#[derive(Clone)]
 pub struct VerifierTranscript<'a> {
   digest: Blake2b512,
   transcript: &'a [u8],

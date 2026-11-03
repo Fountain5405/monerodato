@@ -24,10 +24,11 @@ use ciphersuite::{
 };
 
 use ec_divisors::DivisorCurve;
+use generalized_bulletproofs_circuit_abstraction::CircuitStatementError;
 use generalized_bulletproofs::{
   BatchVerifier, PedersenVectorCommitment,
   transcript::{Transcript as ProverTranscript, VerifierTranscript, Commitments},
-  arithmetic_circuit_proof::{AcStatementError, AcProveError, AcVerifyError},
+  arithmetic_circuit_proof::{AcStatementError, AcProveError, AcVerifyError, peek_z},
 };
 
 mod gadgets;
@@ -170,6 +171,16 @@ where
   commitment_blind_claims_2: Vec<PointWithDlog<C::C1Parameters>>,
 }
 
+/// How `Fcmp::verify` handles the circuits' constraints.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum ConstraintHandling {
+  /// Fold the constraints with each proof's `z` challenge as they're produced, never storing them.
+  Fold,
+  /// Store the constraints and form the statements from them, as `Fcmp::verify` historically did.
+  #[cfg(test)]
+  Store,
+}
+
 /// An error encountered while working with FCMPs.
 #[derive(Debug)]
 pub enum FcmpError {
@@ -189,6 +200,15 @@ pub enum FcmpError {
   AcProveError(AcProveError),
   /// A propagated arithmetic circuit verifier error.
   AcVerifyError(AcVerifyError),
+  /// A propagated circuit statement error.
+  CircuitStatementError(CircuitStatementError),
+  /// Rebuilding the verifier's circuits didn't reproduce their original construction.
+  InconsistentCircuitReplay,
+}
+impl From<CircuitStatementError> for FcmpError {
+  fn from(err: CircuitStatementError) -> Self {
+    FcmpError::CircuitStatementError(err)
+  }
 }
 impl From<io::Error> for FcmpError {
   fn from(err: io::Error) -> Self {
@@ -982,6 +1002,59 @@ where
     layers: usize,
     inputs: &[Input<<C::C1 as Ciphersuite>::F>],
   ) -> Result<(), FcmpError> {
+    self.verify_inner(
+      ConstraintHandling::Fold,
+      rng,
+      verifier_1,
+      verifier_2,
+      params,
+      tree,
+      layers,
+      inputs,
+    )
+  }
+
+  /// Verify an FCMP while storing the circuits' constraints, as `Fcmp::verify` historically did.
+  ///
+  /// This performs the exact same transcript operations, and samples the same randomness, as
+  /// `Fcmp::verify`. It solely differs in how the constraints are handled, letting tests compare
+  /// the two.
+  #[cfg(test)]
+  #[allow(clippy::too_many_arguments)]
+  pub(crate) fn verify_stored<R: RngCore + CryptoRng>(
+    &self,
+    rng: &mut R,
+    verifier_1: &mut BatchVerifier<C::C1>,
+    verifier_2: &mut BatchVerifier<C::C2>,
+    params: &FcmpParams<C>,
+    tree: TreeRoot<C::C1, C::C2>,
+    layers: usize,
+    inputs: &[Input<<C::C1 as Ciphersuite>::F>],
+  ) -> Result<(), FcmpError> {
+    self.verify_inner(
+      ConstraintHandling::Store,
+      rng,
+      verifier_1,
+      verifier_2,
+      params,
+      tree,
+      layers,
+      inputs,
+    )
+  }
+
+  #[allow(clippy::too_many_arguments)]
+  fn verify_inner<R: RngCore + CryptoRng>(
+    &self,
+    handling: ConstraintHandling,
+    rng: &mut R,
+    verifier_1: &mut BatchVerifier<C::C1>,
+    verifier_2: &mut BatchVerifier<C::C2>,
+    params: &FcmpParams<C>,
+    tree: TreeRoot<C::C1, C::C2>,
+    layers: usize,
+    inputs: &[Input<<C::C1 as Ciphersuite>::F>],
+  ) -> Result<(), FcmpError> {
     if (layers == 0) || inputs.is_empty() {
       Err(FcmpError::EmptyProof)?;
     }
@@ -1043,8 +1116,59 @@ where
     };
 
     // Create the circuits
-    let mut c1_circuit = Circuit::<C::C1>::verify();
-    let mut c2_circuit = Circuit::<C::C2>::verify();
+    let c1_generators =
+      params.curve_1_generators.reduce(c1_padded_pow_2).ok_or(FcmpError::NotEnoughGenerators)?;
+    let c2_generators =
+      params.curve_2_generators.reduce(c2_padded_pow_2).ok_or(FcmpError::NotEnoughGenerators)?;
+
+    match handling {
+      #[cfg(test)]
+      ConstraintHandling::Store => {
+        // Build the circuits once, storing their constraints, and form the statements from those
+        let mut c1_circuit = Circuit::<C::C1>::verify();
+        let mut c2_circuit = Circuit::<C::C2>::verify();
+        Self::build_verifier_circuits(
+          params,
+          layers,
+          inputs,
+          layout,
+          &proof_1_vcs,
+          &proof_2_vcs,
+          &mut transcript,
+          &mut c1_circuit,
+          &mut c2_circuit,
+        )?;
+        debug_assert!(c1_circuit.muls() <= c1_padded_pow_2);
+        debug_assert!(c2_circuit.muls() <= c2_padded_pow_2);
+
+        let (c1_statement, _witness) = c1_circuit.statement(c1_generators, proof_1_vcs)?;
+        c1_statement.verify(rng, verifier_1, &mut transcript)?;
+        let (c2_statement, _witness) = c2_circuit.statement(c2_generators, proof_2_vcs)?;
+        c2_statement.verify(rng, verifier_2, &mut transcript)?;
+        return Ok(());
+      }
+      ConstraintHandling::Fold => {}
+    }
+
+    /*
+      Each statement only uses its circuit's constraints folded with the proof's `z` challenge,
+      which is sampled after the challenges the circuits' construction samples. Rather than store
+      the constraints until `z` is known (hundreds of MB for the largest proofs), the circuits are
+      built three times from the same transcript state:
+
+      1) discarding the constraints, which advances the transcript exactly as storing them would;
+      2) folding the first circuit's constraints with its `z` (peeked from the transcript). The
+         first statement is then verified, advancing the transcript to the second proof;
+      3) folding the second circuit's constraints with its `z`.
+
+      The construction is deterministic to its arguments and the transcript, so every build yields
+      the same constraints. Each rebuild is checked to have performed the same multiplications,
+      constraints, and transcript operations as the first build regardless.
+    */
+    let transcript_before_circuits = transcript.clone();
+
+    let mut c1_circuit = Circuit::<C::C1>::verify_discarding();
+    let mut c2_circuit = Circuit::<C::C2>::verify_discarding();
     Self::build_verifier_circuits(
       params,
       layers,
@@ -1056,24 +1180,99 @@ where
       &mut c1_circuit,
       &mut c2_circuit,
     )?;
-
-    // Escape to the raw weights to form a GBP with
     debug_assert!(c1_circuit.muls() <= c1_padded_pow_2);
     debug_assert!(c2_circuit.muls() <= c2_padded_pow_2);
+    let transcript_after_circuits = transcript.clone();
+    let original =
+      (c1_circuit.muls(), c1_circuit.constraints(), c2_circuit.muls(), c2_circuit.constraints());
 
-    let (c1_statement, _witness) = c1_circuit.statement(
-      params.curve_1_generators.reduce(c1_padded_pow_2).ok_or(FcmpError::NotEnoughGenerators)?,
-      proof_1_vcs,
+    let z1 = peek_z::<C::C1>(&transcript)?;
+    let (c1_circuit, _) = Self::rebuild_verifier_circuits(
+      params,
+      tree,
+      layers,
+      inputs,
+      &proof_1_vcs,
+      &proof_2_vcs,
+      &transcript_before_circuits,
+      &transcript_after_circuits,
+      original,
+      Some(z1),
+      None,
     )?;
+    let (c1_statement, _witness) = c1_circuit.statement(c1_generators, proof_1_vcs.clone())?;
     c1_statement.verify(rng, verifier_1, &mut transcript)?;
 
-    let (c2_statement, _witness) = c2_circuit.statement(
-      params.curve_2_generators.reduce(c2_padded_pow_2).ok_or(FcmpError::NotEnoughGenerators)?,
-      proof_2_vcs,
+    let z2 = peek_z::<C::C2>(&transcript)?;
+    let (_, c2_circuit) = Self::rebuild_verifier_circuits(
+      params,
+      tree,
+      layers,
+      inputs,
+      &proof_1_vcs,
+      &proof_2_vcs,
+      &transcript_before_circuits,
+      &transcript_after_circuits,
+      original,
+      None,
+      Some(z2),
     )?;
+    let (c2_statement, _witness) = c2_circuit.statement(c2_generators, proof_2_vcs)?;
     c2_statement.verify(rng, verifier_2, &mut transcript)?;
 
     Ok(())
+  }
+
+  /// Rebuild the verifier's circuits from the transcript state prior to their construction,
+  /// folding the constraints of each circuit whose `z` challenge is provided (and discarding the
+  /// other's), then check the construction was consistent with the original one.
+  #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+  fn rebuild_verifier_circuits(
+    params: &FcmpParams<C>,
+    tree: TreeRoot<C::C1, C::C2>,
+    layers: usize,
+    inputs: &[Input<<C::C1 as Ciphersuite>::F>],
+    proof_1_vcs: &Commitments<C::C1>,
+    proof_2_vcs: &Commitments<C::C2>,
+    transcript_before_circuits: &VerifierTranscript<'_>,
+    transcript_after_circuits: &VerifierTranscript<'_>,
+    original: (usize, usize, usize, usize),
+    z1: Option<<C::C1 as Ciphersuite>::F>,
+    z2: Option<<C::C2 as Ciphersuite>::F>,
+  ) -> Result<(Circuit<C::C1>, Circuit<C::C2>), FcmpError> {
+    let layout = Self::verifier_layout(tree, layers, inputs.len());
+    let mut transcript = transcript_before_circuits.clone();
+    let mut c1_circuit = match z1 {
+      Some(z1) => Circuit::<C::C1>::verify_folding(z1),
+      None => Circuit::<C::C1>::verify_discarding(),
+    };
+    let mut c2_circuit = match z2 {
+      Some(z2) => Circuit::<C::C2>::verify_folding(z2),
+      None => Circuit::<C::C2>::verify_discarding(),
+    };
+    Self::build_verifier_circuits(
+      params,
+      layers,
+      inputs,
+      layout,
+      proof_1_vcs,
+      proof_2_vcs,
+      &mut transcript,
+      &mut c1_circuit,
+      &mut c2_circuit,
+    )?;
+
+    let rebuilt =
+      (c1_circuit.muls(), c1_circuit.constraints(), c2_circuit.muls(), c2_circuit.constraints());
+    if rebuilt != original {
+      Err(FcmpError::InconsistentCircuitReplay)?;
+    }
+    // Sampling a challenge from clones of the transcripts yields the same result solely if they're
+    // in the same state (having read the same bytes and sampled the same challenges)
+    if transcript.clone().challenge_bytes() != transcript_after_circuits.clone().challenge_bytes() {
+      Err(FcmpError::InconsistentCircuitReplay)?;
+    }
+    Ok((c1_circuit, c2_circuit))
   }
 
   /// Read an FCMP.

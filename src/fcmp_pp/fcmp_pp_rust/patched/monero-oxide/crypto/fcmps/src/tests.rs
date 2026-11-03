@@ -724,3 +724,310 @@ fn proof_sizes() {
     );
   }
 }
+
+// Tests for verifying with the constraints folded as they're produced (`Fcmp::verify`) against
+// verifying from the stored constraints (`Fcmp::verify_stored`, the historical flow, whose
+// `ArithmeticCircuitStatement::verify` is unchanged).
+
+/// A deterministic RNG, so two verifications sample the same batch-verifier weights.
+///
+/// This is solely for these tests and is not secure for any other purpose.
+#[derive(Clone)]
+struct DeterministicRng {
+  seed: [u8; 32],
+  counter: u64,
+}
+impl DeterministicRng {
+  fn new() -> Self {
+    let mut seed = [0; 32];
+    OsRng.fill_bytes(&mut seed);
+    Self { seed, counter: 0 }
+  }
+}
+impl RngCore for DeterministicRng {
+  fn next_u32(&mut self) -> u32 {
+    rand_core::impls::next_u32_via_fill(self)
+  }
+  fn next_u64(&mut self) -> u64 {
+    rand_core::impls::next_u64_via_fill(self)
+  }
+  fn fill_bytes(&mut self, dest: &mut [u8]) {
+    use blake2::{Digest as _, Blake2b512};
+    for chunk in dest.chunks_mut(64) {
+      let block = Blake2b512::new()
+        .chain_update(self.seed)
+        .chain_update(self.counter.to_le_bytes())
+        .finalize();
+      self.counter += 1;
+      chunk.copy_from_slice(&block[.. chunk.len()]);
+    }
+  }
+  fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+    self.fill_bytes(dest);
+    Ok(())
+  }
+}
+impl CryptoRng for DeterministicRng {}
+
+fn assert_verifiers_eq<C: Ciphersuite>(
+  a: &generalized_bulletproofs::BatchVerifier<C>,
+  b: &generalized_bulletproofs::BatchVerifier<C>,
+) {
+  assert_eq!(a.g, b.g);
+  assert_eq!(a.h, b.h);
+  assert_eq!(a.g_bold, b.g_bold);
+  assert_eq!(a.h_bold, b.h_bold);
+  assert_eq!(a.h_sum, b.h_sum);
+  // As these circuits don't use Pedersen commitments, the order is identical as well
+  assert_eq!(a.additional, b.additional);
+}
+
+#[allow(clippy::type_complexity)]
+fn random_proof(
+  params: &FcmpParams<MoneroCurves>,
+  (G, T, U, V): (
+    <Ed25519 as Ciphersuite>::G,
+    <Ed25519 as Ciphersuite>::G,
+    <Ed25519 as Ciphersuite>::G,
+    <Ed25519 as Ciphersuite>::G,
+  ),
+  paths: usize,
+  layers: usize,
+) -> (Fcmp<MoneroCurves>, TreeRoot<Selene, Helios>, Vec<Input<<Selene as Ciphersuite>::F>>) {
+  let (paths, root) = random_paths(params, layers, paths);
+
+  let mut output_blinds = vec![];
+  for _ in 0 .. paths.len() {
+    output_blinds.push(random_output_blinds(G, T, U, V));
+  }
+
+  let mut inputs = vec![];
+  for (path, output_blinds) in paths.iter().zip(&output_blinds) {
+    inputs.push(output_blinds.blind(&path.output).unwrap());
+  }
+
+  let branches = Branches::new(paths).unwrap();
+  let proof =
+    Fcmp::prove(&mut OsRng, params, blind_branches(params, branches, output_blinds)).unwrap();
+  (proof, root, inputs)
+}
+
+/// The result of a verification, and the batch verifiers after it.
+type VerificationResult = (
+  Result<(), FcmpError>,
+  generalized_bulletproofs::BatchVerifier<Selene>,
+  generalized_bulletproofs::BatchVerifier<Helios>,
+);
+
+/// Verify a proof with the constraints folded (`Fcmp::verify`) and stored (`Fcmp::verify_stored`),
+/// using the same randomness.
+fn verify_both(
+  proof: &Fcmp<MoneroCurves>,
+  params: &FcmpParams<MoneroCurves>,
+  root: TreeRoot<Selene, Helios>,
+  layers: usize,
+  inputs: &[Input<<Selene as Ciphersuite>::F>],
+) -> (VerificationResult, VerificationResult) {
+  let rng = DeterministicRng::new();
+
+  let mut folded_1 = generalized_bulletproofs::Generators::batch_verifier();
+  let mut folded_2 = generalized_bulletproofs::Generators::batch_verifier();
+  let folded =
+    proof.verify(&mut rng.clone(), &mut folded_1, &mut folded_2, params, root, layers, inputs);
+
+  let mut stored_1 = generalized_bulletproofs::Generators::batch_verifier();
+  let mut stored_2 = generalized_bulletproofs::Generators::batch_verifier();
+  let stored = proof.verify_stored(
+    &mut rng.clone(),
+    &mut stored_1,
+    &mut stored_2,
+    params,
+    root,
+    layers,
+    inputs,
+  );
+
+  ((folded, folded_1, folded_2), (stored, stored_1, stored_2))
+}
+
+fn batch_verifies(
+  params: &FcmpParams<MoneroCurves>,
+  verifier_1: &generalized_bulletproofs::BatchVerifier<Selene>,
+  verifier_2: &generalized_bulletproofs::BatchVerifier<Helios>,
+) -> bool {
+  params.curve_1_generators.verify(verifier_1.clone()) &&
+    params.curve_2_generators.verify(verifier_2.clone())
+}
+
+#[test]
+fn test_folded_verify_matches_stored() {
+  let (G, T, U, V, params) = random_params(4);
+
+  // Both C1 and C2 roots, with and without branches on either curve
+  for (paths, layers) in [(1, 1), (1, 2), (1, 3), (1, 5), (2, 1), (2, 4), (3, 2), (3, 3)] {
+    println!("Comparing verifiers for a proof with {paths} inputs and {layers} layers");
+    let (proof, root, inputs) = random_proof(&params, (G, T, U, V), paths, layers);
+
+    let ((folded, folded_1, folded_2), (stored, stored_1, stored_2)) =
+      verify_both(&proof, &params, root, layers, &inputs);
+    folded.unwrap();
+    stored.unwrap();
+    assert_verifiers_eq(&folded_1, &stored_1);
+    assert_verifiers_eq(&folded_2, &stored_2);
+    assert!(batch_verifies(&params, &folded_1, &folded_2));
+    assert!(batch_verifies(&params, &stored_1, &stored_2));
+  }
+}
+
+#[test]
+fn test_folded_verify_matches_stored_on_tampered_proofs() {
+  // The test generators must be a power of two in count: `random_params(4)`
+  let (G, T, U, V, params) = random_params(4);
+  let mut rng = DeterministicRng::new();
+
+  // Both C1 and C2 roots, with branches on both curves
+  for (paths, layers) in [(1, 1), (1, 2), (2, 3), (3, 2)] {
+    let (proof, root, inputs) = random_proof(&params, (G, T, U, V), paths, layers);
+    let mut buf = vec![];
+    proof.write(&mut buf).unwrap();
+
+    // Single-bit flips at random positions throughout the serialized proof
+    let mut cases = vec![];
+    for _ in 0 .. 64 {
+      let offset = usize::try_from(rng.next_u64() % u64::try_from(buf.len()).unwrap()).unwrap();
+      let bit = rng.next_u32() % 8;
+      let mut flipped = buf.clone();
+      flipped[offset] ^= 1 << bit;
+      cases.push((flipped, inputs.clone(), offset, bit));
+    }
+    // The genuine proof, for a different statement (the inputs in a different order)
+    if paths >= 2 {
+      let mut swapped = inputs.clone();
+      swapped.swap(0, 1);
+      cases.push((buf.clone(), swapped, usize::MAX, 0));
+    }
+
+    for (bytes, inputs, offset, bit) in cases {
+      let tampered = Fcmp::<MoneroCurves>::read(&mut bytes.as_slice(), paths, layers).unwrap();
+      let ((folded, folded_1, folded_2), (stored, stored_1, stored_2)) =
+        verify_both(&tampered, &params, root, layers, &inputs);
+      // The same transcript operations are performed, so the same proofs are well-formed
+      assert_eq!(folded.is_ok(), stored.is_ok(), "{paths} {layers} {offset} {bit}");
+      if folded.is_ok() {
+        assert_verifiers_eq(&folded_1, &stored_1);
+        assert_verifiers_eq(&folded_2, &stored_2);
+        assert!(!batch_verifies(&params, &folded_1, &folded_2), "{paths} {layers} {offset} {bit}");
+      }
+    }
+  }
+}
+
+#[test]
+fn test_discarded_and_folded_circuit_statements() {
+  use generalized_bulletproofs::transcript::VerifierTranscript;
+  use generalized_bulletproofs_circuit_abstraction::{
+    Circuit as UnderlyingCircuit, CircuitStatementError,
+  };
+
+  let (_, _, _, _, params) = random_params(1);
+
+  // A circuit which discarded its constraints can't yield a statement
+  let no_commitments =
+    VerifierTranscript::new([0; 32], &[]).read_commitments::<Selene>(0, 0).unwrap();
+  assert_eq!(
+    UnderlyingCircuit::<Selene>::verify_discarding()
+      .statement(params.curve_1_generators.reduce(1).unwrap(), no_commitments)
+      .err(),
+    Some(CircuitStatementError::ConstraintsDiscarded),
+  );
+
+  // A circuit which folds its constraints refuses Pedersen commitments
+  let point = <Selene as Ciphersuite>::G::random(&mut OsRng).to_bytes();
+  let one_commitment =
+    VerifierTranscript::new([0; 32], point.as_ref()).read_commitments::<Selene>(0, 1).unwrap();
+  let z = <Selene as Ciphersuite>::F::random(&mut OsRng);
+  assert_eq!(
+    UnderlyingCircuit::<Selene>::verify_folding(z)
+      .statement(params.curve_1_generators.reduce(1).unwrap(), one_commitment)
+      .err(),
+    Some(CircuitStatementError::FoldedWithPedersenCommitments),
+  );
+}
+
+// A measurement, not a check: the peak heap of one verification with the constraints stored (the
+// historical flow) and folded, per proof size. Run alone: `-- --test-threads=1 --nocapture`.
+mod verify_memory {
+  use core::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+  use std::alloc::{GlobalAlloc, Layout, System};
+
+  pub(super) static ALLOCATED: AtomicUsize = AtomicUsize::new(0);
+  pub(super) static PEAK: AtomicUsize = AtomicUsize::new(0);
+
+  struct CountingAllocator;
+  unsafe impl GlobalAlloc for CountingAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+      let ptr = unsafe { System.alloc(layout) };
+      if !ptr.is_null() {
+        let now = ALLOCATED.fetch_add(layout.size(), Relaxed) + layout.size();
+        PEAK.fetch_max(now, Relaxed);
+      }
+      ptr
+    }
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+      unsafe { System.dealloc(ptr, layout) };
+      ALLOCATED.fetch_sub(layout.size(), Relaxed);
+    }
+  }
+  #[global_allocator]
+  static GLOBAL: CountingAllocator = CountingAllocator;
+}
+
+#[test]
+fn verify_memory_benchmark() {
+  use core::sync::atomic::Ordering::Relaxed;
+  use verify_memory::{ALLOCATED, PEAK};
+
+  // `random_paths` can produce at most `LAYER_TWO_LEN` (18) paths, so this stops at 16 inputs; the
+  // node-level measurements cover the 128-input proofs.
+  for inputs in [1, 2, 8, 16] {
+    let (G, T, U, V, params) = random_params(inputs);
+    let (proof, root, input_vec) = random_proof(&params, (G, T, U, V), inputs, TARGET_LAYERS);
+    let rng = DeterministicRng::new();
+
+    for (name, stored) in [("stored", true), ("folded", false)] {
+      let mut verifier_1 = generalized_bulletproofs::Generators::batch_verifier();
+      let mut verifier_2 = generalized_bulletproofs::Generators::batch_verifier();
+      let before = ALLOCATED.load(Relaxed);
+      PEAK.store(before, Relaxed);
+      let start = std::time::Instant::now();
+      let res = if stored {
+        proof.verify_stored(
+          &mut rng.clone(),
+          &mut verifier_1,
+          &mut verifier_2,
+          &params,
+          root,
+          TARGET_LAYERS,
+          &input_vec,
+        )
+      } else {
+        proof.verify(
+          &mut rng.clone(),
+          &mut verifier_1,
+          &mut verifier_2,
+          &params,
+          root,
+          TARGET_LAYERS,
+          &input_vec,
+        )
+      };
+      let elapsed = start.elapsed().as_millis();
+      let peak = PEAK.load(Relaxed) - before;
+      res.unwrap();
+      assert!(batch_verifies(&params, &verifier_1, &verifier_2));
+      println!(
+        "VERIFY_MEMORY inputs={inputs} layers={TARGET_LAYERS} {name}: peak_heap_bytes={peak} ms={elapsed}"
+      );
+    }
+  }
+}
