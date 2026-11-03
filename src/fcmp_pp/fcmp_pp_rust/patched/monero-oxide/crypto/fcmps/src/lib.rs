@@ -28,7 +28,9 @@ use generalized_bulletproofs_circuit_abstraction::CircuitStatementError;
 use generalized_bulletproofs::{
   BatchVerifier, PedersenVectorCommitment,
   transcript::{Transcript as ProverTranscript, VerifierTranscript, Commitments},
-  arithmetic_circuit_proof::{AcStatementError, AcProveError, AcVerifyError, peek_z},
+  arithmetic_circuit_proof::{
+    AcStatementError, AcProveError, AcVerifyError, peek_z, skip_verify_transcript,
+  },
 };
 
 mod gadgets;
@@ -1154,16 +1156,18 @@ where
       Each statement only uses its circuit's constraints folded with the proof's `z` challenge,
       which is sampled after the challenges the circuits' construction samples. Rather than store
       the constraints until `z` is known (hundreds of MB for the largest proofs), the circuits are
-      built three times from the same transcript state:
+      built twice from the same transcript state:
 
       1) discarding the constraints, which advances the transcript exactly as storing them would;
-      2) folding the first circuit's constraints with its `z` (peeked from the transcript). The
-         first statement is then verified, advancing the transcript to the second proof;
-      3) folding the second circuit's constraints with its `z`.
+      2) folding each circuit's constraints with its `z`. The first proof's `z` is peeked from the
+         transcript directly. The second proof's `z` is peeked after skipping past the first proof
+         on a clone, which is possible as `verify`'s transcript operations depend solely on the
+         statement's size, not its constraints.
 
-      The construction is deterministic to its arguments and the transcript, so every build yields
-      the same constraints. Each rebuild is checked to have performed the same multiplications,
-      constraints, and transcript operations as the first build regardless.
+      The construction is deterministic to its arguments and the transcript, so both builds yield
+      the same constraints. The rebuild is checked to have performed the same multiplications,
+      constraints, and transcript operations as the first build regardless, and the real
+      transcript is checked to arrive where the skip did once the first proof is verified.
     */
     let transcript_before_circuits = transcript.clone();
 
@@ -1187,7 +1191,11 @@ where
       (c1_circuit.muls(), c1_circuit.constraints(), c2_circuit.muls(), c2_circuit.constraints());
 
     let z1 = peek_z::<C::C1>(&transcript)?;
-    let (c1_circuit, _) = Self::rebuild_verifier_circuits(
+    let mut transcript_after_c1 = transcript.clone();
+    skip_verify_transcript::<C::C1>(&mut transcript_after_c1, c1_padded_pow_2, proof_1_vcs.C().len())?;
+    let z2 = peek_z::<C::C2>(&transcript_after_c1)?;
+
+    let (c1_circuit, c2_circuit) = Self::rebuild_verifier_circuits(
       params,
       tree,
       layers,
@@ -1198,25 +1206,17 @@ where
       &transcript_after_circuits,
       original,
       Some(z1),
-      None,
-    )?;
-    let (c1_statement, _witness) = c1_circuit.statement(c1_generators, proof_1_vcs.clone())?;
-    c1_statement.verify(rng, verifier_1, &mut transcript)?;
-
-    let z2 = peek_z::<C::C2>(&transcript)?;
-    let (_, c2_circuit) = Self::rebuild_verifier_circuits(
-      params,
-      tree,
-      layers,
-      inputs,
-      &proof_1_vcs,
-      &proof_2_vcs,
-      &transcript_before_circuits,
-      &transcript_after_circuits,
-      original,
-      None,
       Some(z2),
     )?;
+
+    let (c1_statement, _witness) = c1_circuit.statement(c1_generators, proof_1_vcs)?;
+    c1_statement.verify(rng, verifier_1, &mut transcript)?;
+    // The second proof's `z` was peeked on a transcript skipped past the first proof. Verifying the
+    // first proof must have brought the real transcript to the same state.
+    if transcript.clone().challenge_bytes() != transcript_after_c1.challenge_bytes() {
+      Err(FcmpError::InconsistentCircuitReplay)?;
+    }
+
     let (c2_statement, _witness) = c2_circuit.statement(c2_generators, proof_2_vcs)?;
     c2_statement.verify(rng, verifier_2, &mut transcript)?;
 

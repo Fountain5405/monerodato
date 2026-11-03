@@ -11,6 +11,7 @@ use generalized_bulletproofs::{
   transcript::*,
   arithmetic_circuit_proof::{
     Variable, LinComb, ArithmeticCircuitStatement, ArithmeticCircuitWitness,
+    skip_verify_transcript,
   },
   tests::insecure_test_generators,
 };
@@ -217,7 +218,12 @@ fn fuzz_test_arithmetic_circuit() {
     let mut transcript = VerifierTranscript::new([0; 32], &proof);
     let verifier_commmitments = transcript.read_commitments(C.len(), V.len());
     assert_eq!(commitments, verifier_commmitments.unwrap());
+    // `skip_verify_transcript` must leave a transcript exactly where `verify` leaves it
+    let mut skipped = transcript.clone();
+    skip_verify_transcript::<Ristretto>(&mut skipped, 16, C.len()).unwrap();
     statement.verify(&mut OsRng, &mut verifier, &mut transcript).unwrap();
+    assert_eq!(skipped.clone().challenge_bytes(), transcript.clone().challenge_bytes());
+    assert_eq!(skipped.complete(), transcript.complete());
     assert!(generators.verify(verifier));
   }
 }

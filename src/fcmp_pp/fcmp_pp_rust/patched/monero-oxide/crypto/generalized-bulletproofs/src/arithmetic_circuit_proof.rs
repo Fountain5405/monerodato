@@ -216,6 +216,63 @@ where
   Ok(transcript.challenge::<C>())
 }
 
+/// Advance a transcript past the proof of a statement with `n` generators and `c` vector
+/// commitments, performing exactly the reads and challenges `verify` performs, without verifying
+/// anything.
+///
+/// `verify`'s transcript operations depend solely on `n` and `c`, never on the constraints, so a
+/// caller may skip past one proof to peek at the next proof's challenges (`peek_z`) before either
+/// proof's constraints exist. The skipped proof MUST still be verified on the real transcript, and
+/// the caller SHOULD check the real transcript then matches the skipped one.
+pub fn skip_verify_transcript<C: Ciphersuite>(
+  transcript: &mut VerifierTranscript<'_>,
+  n: usize,
+  c: usize,
+) -> Result<(), AcVerifyError>
+where
+  C::F: FromUniformBytes<64>,
+{
+  let ni = (2 * c) + 2;
+  let t_poly_len = (2 * (ni + 1)) + 1;
+
+  // AI, AO, S, then y and z
+  for _ in 0 .. 3 {
+    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+  }
+  let _y = transcript.challenge::<C>();
+  let _z = transcript.challenge::<C>();
+
+  // T, before and after `ni`, then x
+  for _ in (ni / 2) .. ni {
+    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+  }
+  for _ in (ni + 1) .. t_poly_len {
+    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+  }
+  let _x = transcript.challenge::<C>();
+
+  // tau_x, mu, t_caret
+  for _ in 0 .. 3 {
+    transcript.read_scalar::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+  }
+
+  // The inner-product argument: its challenge, `log2(n)` rounds of L, R and a challenge, then a, b
+  let _ip_x = transcript.challenge::<C>();
+  let mut lr_len = 0;
+  while (1 << lr_len) < n {
+    lr_len += 1;
+  }
+  for _ in 0 .. lr_len {
+    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+    let _x = transcript.challenge::<C>();
+  }
+  for _ in 0 .. 2 {
+    transcript.read_scalar::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+  }
+  Ok(())
+}
+
 struct YzChallenges<C: Ciphersuite> {
   y_inv: ScalarVector<C::F>,
   z: ScalarVector<C::F>,
