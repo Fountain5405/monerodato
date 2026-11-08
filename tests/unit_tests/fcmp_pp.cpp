@@ -1673,6 +1673,22 @@ struct BatchVerifyFixture
             v.emplace_back(input((bad && i == bad_at) ? *bad : proof));
         return v;
     }
+    // true if this proof alone passes the per-proof checks of fcmp_pp::verify_prepare
+    bool passes_prepare(const std::vector<uint8_t> &p) const
+    {
+        std::vector<fcmp_pp::FcmpPpVerifyInput> one;
+        one.emplace_back(input(p));
+        ::FcmpPpBatchStateUnsafe *state = fcmp_pp::verify_prepare(one);
+        if (!state)
+            return false;
+        fcmp_pp::batch_state_free(state);
+        return true;
+    }
+    // the verdict of the single-proof path
+    bool single_path(const std::vector<uint8_t> &p) const
+    {
+        return fcmp_pp::verify(signable_tx_hash, p, n_layers, tree_root, pseudo_outs, key_images);
+    }
 };
 
 // at least one batch per pool thread
@@ -1711,4 +1727,39 @@ TEST(fcmp_pp, batch_verify_early_exit_waits_for_tasks)
     EXPECT_GE(early_exits, 1u) << "the interrupt never reached waiter.wait(); the early-exit path was not exercised";
     // The pool must still work after the early exits.
     ASSERT_TRUE(rct::batchVerifyFcmpPpProofs(f.inputs(n_proofs)));
+}
+
+TEST(fcmp_pp, batch_verify_rejects_one_bad_proof_among_valid)
+{
+    const BatchVerifyFixture f;
+    const std::size_t n_proofs = batch_verify_n_proofs();
+    MGINFO("batch verify: " << n_proofs << " proofs of 128 inputs per call, proof " << f.proof.size() << " bytes");
+    ASSERT_TRUE(f.single_path(f.proof));
+    ASSERT_TRUE(rct::batchVerifyFcmpPpProofs(f.inputs(n_proofs)));
+
+    // Single-bit changes spread over the proof. Keep those that pass the per-proof checks, so that only the merged
+    // multiexp can reject them; the call must then give the single-proof path's verdict wherever the bad proof sits.
+    const std::size_t slots = 97;
+    const std::size_t stride = std::max<std::size_t>(1, f.proof.size() / slots);
+    std::size_t tried = 0, deferred = 0, rejected = 0;
+    for (std::size_t k = 0; k < slots && rejected < 3; ++k)
+    {
+        const std::size_t pos = (k * stride + stride / 2) % f.proof.size();
+        std::vector<uint8_t> bad = f.proof;
+        bad[pos] ^= 0x01;
+        ++tried;
+        if (!f.passes_prepare(bad))
+            continue;
+        ++deferred;
+        const bool single_verdict = f.single_path(bad);
+        if (!single_verdict)
+            ++rejected;
+        for (const std::size_t at : {std::size_t{0}, n_proofs / 2, n_proofs - 1})
+            EXPECT_EQ(rct::batchVerifyFcmpPpProofs(f.inputs(n_proofs, at, &bad)), single_verdict)
+                << "bit 0 of byte " << pos << ", bad proof at " << at << " of " << n_proofs;
+        MGINFO("batch verify: byte " << pos << " passes the per-proof checks; single-proof path "
+            << (single_verdict ? "accepts" : "rejects"));
+    }
+    MGINFO("batch verify: tried " << tried << ", passed the per-proof checks " << deferred << ", rejected " << rejected);
+    EXPECT_GE(rejected, 1u) << "no single-bit change reached the merged multiexp as an invalid proof";
 }

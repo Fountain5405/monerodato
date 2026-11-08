@@ -1773,12 +1773,20 @@ done:
       }
       CHECK_AND_ASSERT_MES(batches.size() <= n_batches, false, "Too many batches");
 
-      std::deque<bool> results;
-      results.resize(batches.size());
+      // Each batch runs its per-proof checks and returns its Selene/Helios verifier state. The states are
+      // merged below into one multiexp per curve for the whole call, so the generator terms all batches
+      // share are counted once instead of once per batch. The holder frees any state left behind by an
+      // early return or a throw.
+      struct BatchStates
+      {
+        std::vector<::FcmpPpBatchStateUnsafe *> v;
+        ~BatchStates() { for (auto *s : v) if (s) fcmp_pp::batch_state_free(s); }
+      } states;
+      states.v.assign(batches.size(), nullptr);
       // If this call leaves early (a throw from waiter.wait(), e.g. on a thread interrupt, or from
-      // tpool.submit) while tasks are still queued or running, those tasks would write into `results`
+      // tpool.submit) while tasks are still queued or running, those tasks would write into `states`
       // and read `batches` after both are destroyed: the waiter's own destructor waits too, but it is
-      // declared before them, so it runs after. This guard waits first. It is declared after `results`,
+      // declared before them, so it runs after. This guard waits first. It is declared after `states`,
       // so it is destroyed before it, and it is disarmed once waiter.wait() has returned, when every
       // task has finished.
       struct WaitGuard
@@ -1796,14 +1804,14 @@ done:
 
         if (!multithreaded)
         {
-          results[i] = fcmp_pp::verify(batches[i].batch);
+          states.v[i] = fcmp_pp::verify_prepare(batches[i].batch);
           continue;
         }
 
         tpool.submit(&waiter,
-            [&batches, &results, i]()
+            [&batches, &states, i]()
             {
-              results[i] = fcmp_pp::verify(batches[i].batch);
+              states.v[i] = fcmp_pp::verify_prepare(batches[i].batch);
 
               MDEBUG("Finished verifying FCMP++ batch " << (i+1) << " / " << batches.size());
             },
@@ -1836,11 +1844,11 @@ done:
       }
 #endif
 
-      for (bool r : results) {
-        if (!r)
+      for (const auto *s : states.v)
+        if (!s)
           return false;
-      }
-      return true;
+      // one multiexp per curve for the whole call, split over the pool threads
+      return fcmp_pp::verify_finish(states.v, pool_threads);
     }
 
     void limitMaxMemArenas()
