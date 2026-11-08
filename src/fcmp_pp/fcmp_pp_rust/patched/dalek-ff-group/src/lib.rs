@@ -140,22 +140,26 @@ macro_rules! math_op {
   ) => {
     impl $Op<$Other> for $Value {
       type Output = $Value;
+      #[inline]
       fn $op_fn(self, other: $Other) -> Self::Output {
         Self($function(self.0, other.0))
       }
     }
     impl $Assign<$Other> for $Value {
+      #[inline]
       fn $assign_fn(&mut self, other: $Other) {
         self.0 = $function(self.0, other.0);
       }
     }
     impl<'a> $Op<&'a $Other> for $Value {
       type Output = $Value;
+      #[inline]
       fn $op_fn(self, other: &'a $Other) -> Self::Output {
         Self($function(self.0, other.0))
       }
     }
     impl<'a> $Assign<&'a $Other> for $Value {
+      #[inline]
       fn $assign_fn(&mut self, other: &'a $Other) {
         self.0 = $function(self.0, other.0);
       }
