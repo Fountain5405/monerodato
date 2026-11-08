@@ -349,3 +349,17 @@ fn s64_gate_differential() {
   eprintln!("s64 gate differential: {cases}+ cases, failures {f}");
   assert_eq!(f, 0, "s64 differential failures");
 }
+
+// Added in monerodato, 2026-11-08, at the coordinator's request: the oracle must be the
+// renamed pristine crate. A registry dependency renamed to the oracle's name would be redirected by
+// the fork's [patch.crates-io] to the patched crate, making O and N the same type.
+#[test]
+fn oracle_is_the_pristine_path_crate() {
+  let (oracle, s64) = (std::any::type_name::<O>(), std::any::type_name::<N>());
+  assert_ne!(oracle, s64, "the oracle and the s64 FieldElement are the same type: the differential would be vacuous");
+  assert!(
+    oracle.starts_with("dalek_ff_group_orig::"),
+    "the oracle's FieldElement is {oracle}, not the renamed pristine crate's"
+  );
+  eprintln!("oracle: {oracle}; s64: {s64}");
+}
