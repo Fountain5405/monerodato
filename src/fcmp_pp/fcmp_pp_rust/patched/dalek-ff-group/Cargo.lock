@@ -183,11 +183,29 @@ dependencies = [
  "ciphersuite",
  "crypto-bigint",
  "curve25519-dalek",
+ "dalek-ff-group-orig",
  "digest",
  "ff",
  "ff-group-tests",
  "group",
  "hex",
+ "rand_core",
+ "rustversion",
+ "sha2",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "dalek-ff-group-orig"
+version = "0.5.0"
+dependencies = [
+ "ciphersuite",
+ "crypto-bigint",
+ "curve25519-dalek",
+ "digest",
+ "ff",
+ "group",
  "rand_core",
  "rustversion",
  "sha2",

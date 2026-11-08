@@ -121,7 +121,7 @@ version = "0.4"
 
 [dev-dependencies.rand_core]
 version = "0.6"
-features = ["std"]
+features = ["std", "getrandom"]
 default-features = false
 
 [lints.clippy]
@@ -177,3 +177,11 @@ unused_async = "deny"
 unused_self = "deny"
 unwrap_or_default = "allow"
 zero_sized_map_values = "deny"
+
+[dev-dependencies]
+dalek-ff-group-orig = { path = "../dalek-ff-group-orig" }
+ff = "0.13"
+subtle = "2"
+
+[[test]]
+name = "s64_differential"
