@@ -39,6 +39,7 @@ using namespace epee;
 #include <unordered_set>
 #include <thread>
 #include "cryptonote_core.h"
+#include "ringct/rctSigs.h"
 #include "common/util.h"
 #include "common/updates.h"
 #include "common/download.h"
@@ -1624,6 +1625,7 @@ namespace cryptonote
     m_block_rate_interval.do_call(boost::bind(&core::check_block_rate, this));
     m_blockchain_pruning_interval.do_call(boost::bind(&core::update_blockchain_pruning, this));
     m_diff_recalc_interval.do_call(boost::bind(&core::recalculate_difficulties, this));
+    m_fcmp_idle_trim_interval.do_call([]{ rct::idleTrimFcmpPp(5000); return true; });
     m_miner.on_idle();
     m_mempool.on_idle();
     return true;

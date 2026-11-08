@@ -135,6 +135,9 @@ namespace rct {
     bool verRctSemanticsSimple(const rctSig & rv);
     bool verRctSemanticsSimple(const std::vector<const rctSig*> & rv);
     bool verRctNonSemanticsSimple(const rctSig & rv);
+    // Return freed FCMP++ verifier memory to the OS once no batch verification has run for idle_ms.
+    // Returns true if a trim was performed. No-op on non-glibc builds.
+    bool idleTrimFcmpPp(std::int64_t idle_ms);
     static inline bool verRctSimple(const rctSig & rv) { return verRctSemanticsSimple(rv) && verRctNonSemanticsSimple(rv); }
     xmr_amount decodeRct(const rctSig & rv, const key & sk, unsigned int i, key & mask, hw::device &hwdev);
     xmr_amount decodeRct(const rctSig & rv, const key & sk, unsigned int i, hw::device &hwdev);

@@ -37,6 +37,7 @@
 #include "common/perf_timer.h"
 #include "common/threadpool.h"
 #include <boost/thread/thread.hpp>
+#include <chrono>
 #include "common/util.h"
 #include "fcmp_pp/fcmp_pp_crypto.h"
 #include "fcmp_pp/fcmp_pp_types.h"
@@ -1665,6 +1666,36 @@ done:
       return true;
     }
 
+    // When the last FCMP++ batch verification ran, and when the last trim ran (steady_clock ms).
+    // Written by batchVerifyFcmpPpProofs, read by idleTrimFcmpPp from the core idle loop.
+    static std::atomic<std::int64_t> s_fcmp_last_verify_ms{0};
+    static std::atomic<std::int64_t> s_fcmp_last_trim_ms{0};
+
+    static inline std::int64_t steadyNowMs()
+    {
+      return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+
+    bool idleTrimFcmpPp(std::int64_t idle_ms)
+    {
+#if defined(__GLIBC__)
+      const std::int64_t last_verify = s_fcmp_last_verify_ms.load(std::memory_order_relaxed);
+      if (last_verify == 0 || s_fcmp_last_trim_ms.load(std::memory_order_relaxed) >= last_verify)
+        return false; // nothing verified since the last trim
+      const std::int64_t now_ms = steadyNowMs();
+      if (now_ms - last_verify < idle_ms)
+        return false; // still verifying
+      s_fcmp_last_trim_ms.store(now_ms, std::memory_order_relaxed);
+      malloc_trim(0);
+      MGINFO("FCMP++ verification idle for " << (now_ms - last_verify) / 1000 << " s: returned freed verifier memory to the OS");
+      return true;
+#else
+      (void)idle_ms;
+      return false;
+#endif
+    }
+
     bool batchVerifyFcmpPpProofs(std::vector<fcmp_pp::FcmpPpVerifyInput> &&fcmp_pp_verify_inputs) {
       const std::size_t n_proofs = fcmp_pp_verify_inputs.size();
       if (n_proofs == 0)
@@ -1770,6 +1801,24 @@ done:
 
       if (multithreaded)
         CHECK_AND_ASSERT_THROW_MES(waiter.wait(), "Failed to batch verify FCMP++ proofs");
+
+      // Each batch just freed its large transient working set. glibc keeps freed memory in each
+      // thread's arena, so without a trim RSS grows to (threads that ever ran a batch) x (their
+      // high-water mark) and stays there after sync. Trim after every heavy call, which just freed
+      // large working sets; otherwise at most once every 10 s, since a trim after every light block
+      // costs wall time. The verification is recorded first, so that a trim here counts as "after
+      // the last verification" and the idle trim does not repeat it.
+#if defined(__GLIBC__)
+      {
+        const std::int64_t now_ms = steadyNowMs();
+        s_fcmp_last_verify_ms.store(now_ms, std::memory_order_relaxed);
+        if (heavy_call || now_ms - s_fcmp_last_trim_ms.load(std::memory_order_relaxed) >= 10000)
+        {
+          s_fcmp_last_trim_ms.store(now_ms, std::memory_order_relaxed);
+          malloc_trim(0);
+        }
+      }
+#endif
 
       for (bool r : results) {
         if (!r)
