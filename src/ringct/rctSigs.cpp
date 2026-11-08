@@ -36,6 +36,7 @@
 #include "misc_log_ex.h"
 #include "common/perf_timer.h"
 #include "common/threadpool.h"
+#include <boost/thread/thread.hpp>
 #include "common/util.h"
 #include "fcmp_pp/fcmp_pp_crypto.h"
 #include "fcmp_pp/fcmp_pp_types.h"
@@ -1675,7 +1676,18 @@ done:
 
       tools::threadpool &tpool = tools::threadpool::getInstanceForCompute();
       tools::threadpool::waiter waiter(tpool);
-      const std::size_t n_threads = std::max<std::size_t>(1, tpool.get_max_concurrency());
+      // Each concurrently verifying batch holds a large transient working set (the circuits of its
+      // proofs; about 200 MB per batch for many-input proofs on stressnet), so peak memory grows with
+      // the number of batches. Verifying many-input proofs is compute-bound and SMT siblings slow it
+      // down, so calls whose largest proof has HEAVY_PROOF_MIN_INPUTS or more inputs run at most one
+      // batch per physical core. Calls with only few-input proofs keep the whole pool, where SMT
+      // helps. The inputs are sorted by input count, descending, above, so the first one decides.
+      // If the physical core count is unknown, the pool size is used.
+      static constexpr std::size_t HEAVY_PROOF_MIN_INPUTS = 8;
+      const bool heavy_call = fcmp_pp::n_inputs_in_fcmp_pp(fcmp_pp_verify_inputs.front()) >= HEAVY_PROOF_MIN_INPUTS;
+      const std::size_t pool_threads = std::max<std::size_t>(1, tpool.get_max_concurrency());
+      const std::size_t physical_cores = boost::thread::physical_concurrency();
+      const std::size_t n_threads = (heavy_call && physical_cores > 0) ? std::min(pool_threads, physical_cores) : pool_threads;
       const bool multithreaded = n_threads > 1;
 
       // 1 batch per thread
