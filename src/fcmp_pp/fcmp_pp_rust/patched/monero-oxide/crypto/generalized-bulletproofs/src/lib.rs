@@ -87,6 +87,31 @@ pub struct BatchVerifier<C: Ciphersuite> {
   pub additional: Vec<(C::F, C::G)>,
 }
 
+impl<C: Ciphersuite> BatchVerifier<C> {
+  /// Add `other` into `self`.
+  ///
+  /// Both must be batch verifiers for the same `Generators`. Scalars on the same generator add and the
+  /// additional terms concatenate, so the merged multiexp is the sum of the two. Each proof was added
+  /// with its own random weight, so verifying the merged batch verifier checks every proof either one
+  /// held, except with negligible probability, as for any batch verification.
+  pub fn merge(&mut self, other: Self) {
+    fn add<F: ciphersuite::group::ff::Field>(a: &mut Vec<F>, b: Vec<F>) {
+      if a.len() < b.len() {
+        a.resize(b.len(), F::ZERO);
+      }
+      for (x, y) in a.iter_mut().zip(b) {
+        *x += y;
+      }
+    }
+    self.g += other.g;
+    self.h += other.h;
+    add(&mut self.g_bold, other.g_bold);
+    add(&mut self.h_bold, other.h_bold);
+    add(&mut self.h_sum, other.h_sum);
+    self.additional.extend(other.additional);
+  }
+}
+
 impl<C: Ciphersuite> fmt::Debug for Generators<C> {
   fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
     let g = self.g.to_bytes();
@@ -210,6 +235,38 @@ impl<C: Ciphersuite> Generators<C> {
     )
     .is_identity()
     .into()
+  }
+
+  /// Verify as `verify` does, with the multiexp's terms split into up to `parts` disjoint chunks of at
+  /// least 1,024 terms, each run on its own scoped thread. The partial sums are added before the
+  /// identity check, so the terms and the result are those of `verify`.
+  ///
+  /// This function executes in variable time.
+  #[cfg(feature = "std")]
+  #[must_use]
+  pub fn verify_split(&self, verifier: BatchVerifier<C>, parts: usize) -> bool {
+    let terms = [(verifier.g, self.g), (verifier.h, self.h)]
+      .into_iter()
+      .chain(verifier.g_bold.into_iter().zip(self.g_bold.iter().copied()))
+      .chain(verifier.h_bold.into_iter().zip(self.h_bold.iter().copied()))
+      .chain(verifier.h_sum.into_iter().zip(self.h_sum.iter().copied()))
+      .chain(verifier.additional)
+      .collect::<Vec<_>>();
+    let parts = parts.min(terms.len() / 1024).max(1);
+    if parts == 1 {
+      return multiexp_vartime(&terms).is_identity().into();
+    }
+    let chunk = terms.len().div_ceil(parts);
+    let sum = std::thread::scope(|scope| {
+      let handles = terms
+        .chunks(chunk)
+        .map(|part| scope.spawn(move || multiexp_vartime(part)))
+        .collect::<Vec<_>>();
+      handles
+        .into_iter()
+        .fold(C::G::identity(), |acc, handle| acc + handle.join().expect("multiexp thread panicked"))
+    });
+    sum.is_identity().into()
   }
 
   /// The `g` generator.

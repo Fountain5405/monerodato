@@ -597,6 +597,153 @@ fn test_multiple_inputs() {
 }
 
 #[test]
+fn merged_batch_verifiers() {
+  use ciphersuite::group::ff::Field;
+  let (G, T, U, V, params) = random_params(2);
+  let mut parts = vec![];
+  for inputs in [1, 2, 1] {
+    let (proof, root, input_vec) = random_proof(&params, (G, T, U, V), inputs, TARGET_LAYERS);
+    let mut verifier_1 = generalized_bulletproofs::Generators::batch_verifier();
+    let mut verifier_2 = generalized_bulletproofs::Generators::batch_verifier();
+    proof
+      .verify(
+        &mut rand_core::OsRng,
+        &mut verifier_1,
+        &mut verifier_2,
+        &params,
+        root,
+        TARGET_LAYERS,
+        &input_vec,
+      )
+      .unwrap();
+    parts.push((verifier_1, verifier_2));
+  }
+  let merged = |parts: &[(_, _)]| {
+    let mut m: (generalized_bulletproofs::BatchVerifier<_>, generalized_bulletproofs::BatchVerifier<_>) =
+      parts[0].clone();
+    for p in &parts[1 ..] {
+      m.0.merge(p.0.clone());
+      m.1.merge(p.1.clone());
+    }
+    m
+  };
+  let check = |m: (_, _), split: usize| {
+    if split > 1 {
+      params.curve_1_generators.verify_split(m.0, split) && params.curve_2_generators.verify_split(m.1, split)
+    } else {
+      params.curve_1_generators.verify(m.0) && params.curve_2_generators.verify(m.1)
+    }
+  };
+  for split in [1, 2, 4] {
+    for p in &parts {
+      assert!(check(p.clone(), split), "a single batch must verify (split {split})");
+    }
+    assert!(check(merged(&parts), split), "the merged batches must verify (split {split})");
+    for (curve, i) in [(1, 0), (2, 1), (1, 2)] {
+      let mut bad = parts.clone();
+      if curve == 1 {
+        bad[i].0.g += helioselene::Field25519::ONE;
+      } else {
+        bad[i].1.additional[0].0 += helioselene::HelioseleneField::ONE;
+      }
+      assert!(!check(bad[i].clone(), split), "the corrupted batch alone must fail (split {split})");
+      assert!(!check(merged(&bad), split), "a merge holding a corrupted batch must fail (split {split})");
+    }
+  }
+}
+
+#[test]
+fn merged_batches_reject_malleated_proofs() {
+  // Every single-byte malleation of real proofs (as test_malleated_proofs) that still passes the per-proof checks is put,
+  // as its own batch, between two batches of valid proofs; the merged batch verifier must then fail, serially and split.
+  // The unmodified proof merged the same way must verify.
+  let (G, T, U, V, params) = random_params(2);
+  let mut others = vec![];
+  for inputs in [1, 2] {
+    let (proof, root, input_vec) = random_proof(&params, (G, T, U, V), inputs, TARGET_LAYERS);
+    let mut verifier_1 = generalized_bulletproofs::Generators::batch_verifier();
+    let mut verifier_2 = generalized_bulletproofs::Generators::batch_verifier();
+    proof
+      .verify(&mut OsRng, &mut verifier_1, &mut verifier_2, &params, root, TARGET_LAYERS, &input_vec)
+      .unwrap();
+    others.push((verifier_1, verifier_2));
+  }
+  let merged_check = |v1: generalized_bulletproofs::BatchVerifier<Selene>,
+                      v2: generalized_bulletproofs::BatchVerifier<Helios>,
+                      split: usize| {
+    let mut m1 = others[0].0.clone();
+    let mut m2 = others[0].1.clone();
+    m1.merge(v1);
+    m2.merge(v2);
+    m1.merge(others[1].0.clone());
+    m2.merge(others[1].1.clone());
+    if split > 1 {
+      params.curve_1_generators.verify_split(m1, split) && params.curve_2_generators.verify_split(m2, split)
+    } else {
+      params.curve_1_generators.verify(m1) && params.curve_2_generators.verify(m2)
+    }
+  };
+  let (mut merged_rejected, mut per_proof_rejected, mut unreadable) = (0usize, 0usize, 0usize);
+  for paths in [1, 2] {
+    for layers in [1, 2] {
+      let (paths, root) = random_paths(&params, layers, paths);
+      let mut output_blinds = vec![];
+      for _ in 0 .. paths.len() {
+        output_blinds.push(random_output_blinds(G, T, U, V));
+      }
+      let mut inputs = vec![];
+      for (path, output_blinds) in paths.iter().zip(&output_blinds) {
+        inputs.push(output_blinds.blind(&path.output).unwrap());
+      }
+      let branches = Branches::new(paths.clone()).unwrap();
+      let mut buf = vec![];
+      {
+        let proof =
+          Fcmp::prove(&mut OsRng, &params, blind_branches(&params, branches, output_blinds)).unwrap();
+        proof.write(&mut buf).unwrap();
+      }
+      {
+        let proof = Fcmp::read(&mut buf.as_slice(), paths.len(), layers).unwrap();
+        let mut verifier_1 = generalized_bulletproofs::Generators::batch_verifier();
+        let mut verifier_2 = generalized_bulletproofs::Generators::batch_verifier();
+        proof.verify(&mut OsRng, &mut verifier_1, &mut verifier_2, &params, root, layers, &inputs).unwrap();
+        for split in [1, 4] {
+          assert!(merged_check(verifier_1.clone(), verifier_2.clone(), split), "valid proofs merged must verify");
+        }
+      }
+      for i in 0 .. buf.len() {
+        let mut buf = buf.clone();
+        let existing_byte = buf[i];
+        while buf[i] == existing_byte {
+          buf[i] = u8::try_from(OsRng.next_u64() & u64::from(u8::MAX)).unwrap();
+        }
+        let Ok(proof) = Fcmp::read(&mut buf.as_slice(), paths.len(), layers) else {
+          unreadable += 1;
+          continue;
+        };
+        let mut verifier_1 = generalized_bulletproofs::Generators::batch_verifier();
+        let mut verifier_2 = generalized_bulletproofs::Generators::batch_verifier();
+        if proof.verify(&mut OsRng, &mut verifier_1, &mut verifier_2, &params, root, layers, &inputs).is_err() {
+          per_proof_rejected += 1;
+          continue;
+        }
+        for split in [1, 4] {
+          assert!(
+            !merged_check(verifier_1.clone(), verifier_2.clone(), split),
+            "merged batches accepted a malleated proof (byte {i}, split {split})"
+          );
+        }
+        merged_rejected += 1;
+      }
+    }
+  }
+  println!(
+    "merged-batch malleation: {merged_rejected} malleated proofs passed the per-proof checks and were rejected after merging (serial and split); {per_proof_rejected} rejected by the per-proof checks; {unreadable} unreadable"
+  );
+  assert!(merged_rejected > 0);
+}
+
+#[test]
 fn test_malleated_proofs() {
   let (G, T, U, V, params) = random_params(2);
 
