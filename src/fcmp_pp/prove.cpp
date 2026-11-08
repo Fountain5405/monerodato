@@ -278,6 +278,25 @@ bool verify(const std::vector<fcmp_pp::FcmpPpVerifyInput> &fcmp_pp_verify_inputs
     return ::fcmp_pp_verify(fcmp_pp_verify_inputs_slice);
 }
 //----------------------------------------------------------------------------------------------------------------------
+::FcmpPpBatchStateUnsafe *verify_prepare(const std::vector<fcmp_pp::FcmpPpVerifyInput> &fcmp_pp_verify_inputs)
+{
+    MAKE_TEMP_FFI_SLICE(FcmpPpVerifyInput, fcmp_pp_verify_inputs, fcmp_pp_verify_inputs_slice);
+    return ::fcmp_pp_verify_prepare(fcmp_pp_verify_inputs_slice);
+}
+//----------------------------------------------------------------------------------------------------------------------
+bool verify_finish(std::vector<::FcmpPpBatchStateUnsafe *> &states, std::size_t split)
+{
+    const ::FcmpPpBatchStateSliceUnsafe slice{states.data(), states.size()};
+    const bool r = ::fcmp_pp_verify_finish(slice, split);
+    std::fill(states.begin(), states.end(), nullptr);
+    return r;
+}
+//----------------------------------------------------------------------------------------------------------------------
+void batch_state_free(::FcmpPpBatchStateUnsafe *state)
+{
+    ::destroy_fcmp_pp_batch_state(state);
+}
+//----------------------------------------------------------------------------------------------------------------------
 bool verify(const crypto::hash &signable_tx_hash,
     const fcmp_pp::FcmpPpProof &fcmp_pp_proof,
     const std::size_t n_tree_layers,

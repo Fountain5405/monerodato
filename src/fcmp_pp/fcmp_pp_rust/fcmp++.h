@@ -192,6 +192,15 @@ struct FcmpPpVerifyInputSliceUnsafe
   uintptr_t len;
 };
 
+// The Selene and Helios batch-verifier state of one batch after its per-proof checks; see fcmp_pp_verify_finish
+struct FcmpPpBatchStateUnsafe;
+
+struct FcmpPpBatchStateSliceUnsafe
+{
+  struct FcmpPpBatchStateUnsafe * const *buf;
+  uintptr_t len;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -370,6 +379,15 @@ bool fcmp_pp_verify_membership(struct InputSlice inputs,
 uintptr_t fcmp_pp_n_inputs(const struct FcmpPpVerifyInputUnsafe *fcmp_pp_verify_input);
 
 bool fcmp_pp_verify(const struct FcmpPpVerifyInputSliceUnsafe fcmp_pp_verify_inputs);
+
+// Two-step batch verification. prepare runs one batch's per-proof checks and its ed25519 check and returns the
+// batch's state, or null if any check fails. finish merges all states, runs one multiexp per curve, split over up to
+// `split` threads, and consumes every state whatever the result. destroy frees a state that never reached finish.
+struct FcmpPpBatchStateUnsafe *fcmp_pp_verify_prepare(const struct FcmpPpVerifyInputSliceUnsafe fcmp_pp_verify_inputs);
+
+bool fcmp_pp_verify_finish(const struct FcmpPpBatchStateSliceUnsafe states, uintptr_t split);
+
+void destroy_fcmp_pp_batch_state(struct FcmpPpBatchStateUnsafe *state);
 
 #ifdef __cplusplus
 } //extern "C"

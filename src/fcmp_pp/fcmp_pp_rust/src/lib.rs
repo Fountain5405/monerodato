@@ -1195,6 +1195,88 @@ pub unsafe extern "C" fn fcmp_pp_verify(inputs: Slice<*const FcmpPpVerifyInput>)
         && HELIOS_FCMP_GENERATORS.generators.verify(c2_verifier)
 }
 
+/// The Selene and Helios batch-verifier state of one batch after its per-proof checks. States are merged
+/// across batches by `fcmp_pp_verify_finish`, so each curve needs one multiexp per call, not one per batch.
+pub struct FcmpPpBatchState {
+    c1: generalized_bulletproofs::BatchVerifier<Selene>,
+    c2: generalized_bulletproofs::BatchVerifier<Helios>,
+}
+
+/// # Safety
+///
+/// This function assumes that the inputs are from fcmp_pp_verify_input_new. Returns null if any proof
+/// in the batch fails its per-proof checks or the batch's ed25519 check; otherwise a state to pass to
+/// fcmp_pp_verify_finish or destroy_fcmp_pp_batch_state.
+#[no_mangle]
+pub unsafe extern "C" fn fcmp_pp_verify_prepare(
+    inputs: Slice<*const FcmpPpVerifyInput>,
+) -> *mut FcmpPpBatchState {
+    let inputs: &[*const FcmpPpVerifyInput] = inputs.into();
+
+    let mut ed_verifier = multiexp::BatchVerifier::new(inputs.len());
+    let mut c1_verifier = generalized_bulletproofs::Generators::batch_verifier();
+    let mut c2_verifier = generalized_bulletproofs::Generators::batch_verifier();
+
+    for &input in inputs {
+        let fcmp_pp_verify_input = &*input;
+
+        let Ok(_) = fcmp_pp_verify_input.fcmp_pp.verify(
+            &mut OsRng,
+            &mut ed_verifier,
+            &mut c1_verifier,
+            &mut c2_verifier,
+            fcmp_pp_verify_input.tree_root,
+            fcmp_pp_verify_input.n_tree_layers,
+            fcmp_pp_verify_input.signable_tx_hash,
+            fcmp_pp_verify_input.key_images.clone(),
+        ) else {
+            return core::ptr::null_mut();
+        };
+    }
+
+    if !ed_verifier.verify_vartime() {
+        return core::ptr::null_mut();
+    }
+    Box::into_raw(Box::new(FcmpPpBatchState { c1: c1_verifier, c2: c2_verifier }))
+}
+
+/// # Safety
+///
+/// Every state must come from fcmp_pp_verify_prepare and be non-null. All of them are consumed,
+/// whatever the result. `split` > 1 runs each curve's multiexp in up to `split` parts on threads.
+#[no_mangle]
+pub unsafe extern "C" fn fcmp_pp_verify_finish(
+    states: Slice<*mut FcmpPpBatchState>,
+    split: usize,
+) -> bool {
+    let states: &[*mut FcmpPpBatchState] = states.into();
+    let mut states = states.iter().map(|&state| *Box::from_raw(state)).collect::<Vec<_>>();
+    let Some(mut merged) = states.pop() else {
+        return true;
+    };
+    for state in states {
+        merged.c1.merge(state.c1);
+        merged.c2.merge(state.c2);
+    }
+    if split > 1 {
+        SELENE_FCMP_GENERATORS.generators.verify_split(merged.c1, split)
+            && HELIOS_FCMP_GENERATORS.generators.verify_split(merged.c2, split)
+    } else {
+        SELENE_FCMP_GENERATORS.generators.verify(merged.c1)
+            && HELIOS_FCMP_GENERATORS.generators.verify(merged.c2)
+    }
+}
+
+/// # Safety
+///
+/// The state must come from fcmp_pp_verify_prepare and not have been passed to fcmp_pp_verify_finish.
+#[no_mangle]
+pub unsafe extern "C" fn destroy_fcmp_pp_batch_state(state: *mut FcmpPpBatchState) {
+    if !state.is_null() {
+        drop(Box::from_raw(state));
+    }
+}
+
 // https://github.com/rust-lang/rust/issues/79609
 #[cfg(all(target_os = "windows", target_arch = "x86"))]
 #[no_mangle]

@@ -86,6 +86,11 @@ bool verify_membership(const FcmpMembershipProof &fcmp_proof,
     const std::vector<FcmpInputCompressed> &inputs);
 
 bool verify(const std::vector<fcmp_pp::FcmpPpVerifyInput> &fcmp_pp_verify_inputs);
+// Two-step batch verification: the per-batch checks, returning the batch's verifier state (nullptr if they fail) ...
+::FcmpPpBatchStateUnsafe *verify_prepare(const std::vector<fcmp_pp::FcmpPpVerifyInput> &fcmp_pp_verify_inputs);
+// ... then one multiexp per curve over all states. Consumes the states (sets them to nullptr).
+bool verify_finish(std::vector<::FcmpPpBatchStateUnsafe *> &states, std::size_t split);
+void batch_state_free(::FcmpPpBatchStateUnsafe *state);
 
 bool verify(const crypto::hash &signable_tx_hash,
     const fcmp_pp::FcmpPpProof &fcmp_pp_proof,
