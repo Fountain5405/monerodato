@@ -53,8 +53,13 @@
 #include "string_tools.h"
 #include "wallet/tx_builder.h"
 
+#include <atomic>
+#include <chrono>
+#include <thread>
 #include <utility>
 #include <vector>
+
+#include <boost/thread/thread.hpp>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "unit_tests.fcmp_pp"
@@ -1635,3 +1640,75 @@ TEST(fcmp_pp, tx_sizes_and_verification_times)
     }
 }
 //----------------------------------------------------------------------------------------------------------------------
+
+//----------------------------------------------------------------------------------------------------------------------
+// batchVerifyFcmpPpProofs: the batch path a block's FCMP++ proofs take
+//----------------------------------------------------------------------------------------------------------------------
+namespace
+{
+struct BatchVerifyFixture
+{
+    crypto::hash signable_tx_hash;
+    std::vector<uint8_t> proof;
+    uint8_t n_layers;
+    fcmp_pp::TreeRootShared tree_root;
+    std::vector<crypto::ec_point> pseudo_outs;
+    std::vector<crypto::key_image> key_images;
+
+    BatchVerifyFixture()
+    {
+        unit_test::read_fcmp_pp_verify_input_from_file(128,
+            signable_tx_hash, proof, n_layers, tree_root, pseudo_outs, key_images);
+    }
+    fcmp_pp::FcmpPpVerifyInput input(const std::vector<uint8_t> &p) const
+    {
+        return fcmp_pp::fcmp_pp_verify_input_new(signable_tx_hash, p, n_layers, tree_root, pseudo_outs, key_images);
+    }
+    // n copies of the valid proof, with `bad` in place of copy `bad_at` if given
+    std::vector<fcmp_pp::FcmpPpVerifyInput> inputs(std::size_t n, std::size_t bad_at = 0, const std::vector<uint8_t> *bad = nullptr) const
+    {
+        std::vector<fcmp_pp::FcmpPpVerifyInput> v;
+        v.reserve(n);
+        for (std::size_t i = 0; i < n; ++i)
+            v.emplace_back(input((bad && i == bad_at) ? *bad : proof));
+        return v;
+    }
+};
+
+// at least one batch per pool thread
+std::size_t batch_verify_n_proofs()
+{
+    return std::max<std::size_t>(4, tools::threadpool::getInstanceForCompute().get_max_concurrency());
+}
+}
+
+TEST(fcmp_pp, batch_verify_early_exit_waits_for_tasks)
+{
+    const BatchVerifyFixture f;
+    const std::size_t n_proofs = batch_verify_n_proofs();
+    std::size_t early_exits = 0, returned = 0;
+    for (int attempt = 0; attempt < 20 && early_exits < 3; ++attempt)
+    {
+        std::vector<fcmp_pp::FcmpPpVerifyInput> inputs = f.inputs(n_proofs);
+        std::atomic<int> outcome{0}; // 1 returned true, 2 returned false, 3 interrupted, 4 other exception
+        boost::thread t([&]()
+        {
+            try { outcome = rct::batchVerifyFcmpPpProofs(std::move(inputs)) ? 1 : 2; }
+            catch (const boost::thread_interrupted &) { outcome = 3; }
+            catch (...) { outcome = 4; }
+        });
+        std::this_thread::sleep_for(std::chrono::milliseconds(20 + 10 * attempt));
+        t.interrupt();
+        t.join();
+        ASSERT_NE(outcome.load(), 2) << "valid proofs rejected";
+        ASSERT_NE(outcome.load(), 4) << "unexpected exception";
+        if (outcome.load() == 3)
+            ++early_exits;
+        else
+            ++returned;
+    }
+    MGINFO("batch verify early exit: " << early_exits << " early exits, " << returned << " normal returns");
+    EXPECT_GE(early_exits, 1u) << "the interrupt never reached waiter.wait(); the early-exit path was not exercised";
+    // The pool must still work after the early exits.
+    ASSERT_TRUE(rct::batchVerifyFcmpPpProofs(f.inputs(n_proofs)));
+}

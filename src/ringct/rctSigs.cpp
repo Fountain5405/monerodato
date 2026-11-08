@@ -1775,6 +1775,18 @@ done:
 
       std::deque<bool> results;
       results.resize(batches.size());
+      // If this call leaves early (a throw from waiter.wait(), e.g. on a thread interrupt, or from
+      // tpool.submit) while tasks are still queued or running, those tasks would write into `results`
+      // and read `batches` after both are destroyed: the waiter's own destructor waits too, but it is
+      // declared before them, so it runs after. This guard waits first. It is declared after `results`,
+      // so it is destroyed before it, and it is disarmed once waiter.wait() has returned, when every
+      // task has finished.
+      struct WaitGuard
+      {
+        tools::threadpool::waiter &w;
+        bool armed;
+        ~WaitGuard() { if (armed) { try { w.wait(); } catch (...) {} } }
+      } wait_guard{waiter, multithreaded};
       for (std::size_t i = 0; i < batches.size(); ++i)
       {
         CHECK_AND_ASSERT_MES(batches[i].batch.size(), false, "Empty batch in batchVerifyFcmpPpProofs");
@@ -1800,7 +1812,11 @@ done:
       }
 
       if (multithreaded)
-        CHECK_AND_ASSERT_THROW_MES(waiter.wait(), "Failed to batch verify FCMP++ proofs");
+      {
+        const bool waited_ok = waiter.wait();
+        wait_guard.armed = false; // every task has finished
+        CHECK_AND_ASSERT_THROW_MES(waited_ok, "Failed to batch verify FCMP++ proofs");
+      }
 
       // Each batch just freed its large transient working set. glibc keeps freed memory in each
       // thread's arena, so without a trim RSS grows to (threads that ever ran a batch) x (their
