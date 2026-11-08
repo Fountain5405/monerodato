@@ -11,7 +11,9 @@ use subtle::{
   ConditionallySelectable,
 };
 
-use crypto_bigint::{Encoding, NonZero, U256, U512};
+use crypto_bigint::{Encoding, U256};
+#[cfg(test)]
+use crypto_bigint::U512;
 
 use group::ff::{Field, PrimeField, FieldBits, PrimeFieldBits, FromUniformBytes};
 
@@ -20,6 +22,7 @@ use crate::{u8_from_bool, constant_time, math_op, math};
 // 2 ** 255 - 19
 // Uses saturating_sub because checked_sub isn't available at compile time
 const MODULUS: U256 = U256::from_u8(1).shl_vartime(255).saturating_sub(&U256::from_u8(19));
+#[cfg(test)]
 const WIDE_MODULUS: U512 = U256::ZERO.concat(&MODULUS);
 
 /// An element of the field as four saturated 64-bit limbs, little-endian: any value below
@@ -290,10 +293,6 @@ const MOD_5_8: FieldElement = FieldElement::from_u256(&U256::from_be_hex(
   "0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd",
 ));
 
-fn reduce(x: U512) -> U256 {
-  U256::from_le_slice(&x.rem(&NonZero::new(WIDE_MODULUS).unwrap()).to_le_bytes()[.. 32])
-}
-
 constant_time!(FieldElement, Limbs);
 
 math!(
@@ -342,7 +341,7 @@ impl Field for FieldElement {
   fn random(mut rng: impl RngCore) -> Self {
     let mut bytes = [0; 64];
     rng.fill_bytes(&mut bytes);
-    Self::from_u256(&reduce(U512::from_le_bytes(bytes)))
+    Self::wide_reduce(bytes)
   }
 
   #[inline]
@@ -505,7 +504,14 @@ impl FieldElement {
   ///
   /// The bytes are interpreted in little-endian format.
   pub fn wide_reduce(value: [u8; 64]) -> Self {
-    Self::from_u256(&reduce(U512::from_le_bytes(value)))
+    // Eight 64-bit words, folded with 2**256 = 38 as a product would be
+    let mut words = [0; 8];
+    for (i, word) in words.iter_mut().enumerate() {
+      let mut le = [0; 8];
+      le.copy_from_slice(&value[(i * 8) .. ((i + 1) * 8)]);
+      *word = u64::from_le_bytes(le);
+    }
+    FieldElement(Limbs::reduce_wide(words))
   }
 
   /// Perform an exponentiation.
