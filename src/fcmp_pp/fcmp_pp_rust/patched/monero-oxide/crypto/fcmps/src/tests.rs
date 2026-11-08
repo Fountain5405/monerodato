@@ -1178,3 +1178,7 @@ fn verify_memory_benchmark() {
     }
   }
 }
+
+// Added by the second reviewer 2026-11-07: structured differential fuzz of the
+// folded verifier against the stored verifier. See tests/differential_fuzz.rs.
+mod differential_fuzz;
