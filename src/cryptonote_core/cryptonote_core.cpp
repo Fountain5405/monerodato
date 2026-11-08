@@ -40,6 +40,7 @@ using namespace epee;
 #include <thread>
 #include "cryptonote_core.h"
 #include "ringct/rctSigs.h"
+#include "net/levin_base.h"
 #include "common/util.h"
 #include "common/updates.h"
 #include "common/download.h"
@@ -958,6 +959,27 @@ namespace cryptonote
       {
         res = batch_max_weight / projected_blocksize;
         MINFO("projected blocksize is " << projected_blocksize << " bytes, sync " << res << " blocks in next batch");
+      }
+    }
+
+    // Neither branch above bounds the request by what a peer can send in one response. The
+    // estimate only looks backward, at blocks we already have, so after a run of near-empty blocks
+    // it asks for BLOCKS_MAX_WINDOW blocks even if the next blocks are large; an explicit
+    // --block-sync-size is used as given. The peer's NOTIFY_RESPONSE_GET_OBJECTS can then exceed
+    // the levin packet limit: the connection is dropped and the same request is retried forever.
+    // Bound the request by the consensus block weight limit instead. A block's serialized size is
+    // about its weight or less, so N blocks at the limit fit in about N * limit bytes; the 10%
+    // margin covers per-block and per-tx overhead, and FCMP++ proofs against a tree deeper than
+    // the 7 layers their weight assumes.
+    const uint64_t weight_limit = m_blockchain_storage.get_current_cumulative_block_weight_limit();
+    if (weight_limit > 0)
+    {
+      const uint64_t budget = LEVIN_DEFAULT_MAX_PACKET_SIZE / 10 * 9;
+      const size_t cap = std::max<uint64_t>(1, budget / weight_limit);
+      if (res > cap)
+      {
+        MINFO("capping block sync size from " << res << " to " << cap << " blocks (block weight limit " << weight_limit << " bytes)");
+        res = cap;
       }
     }
 
