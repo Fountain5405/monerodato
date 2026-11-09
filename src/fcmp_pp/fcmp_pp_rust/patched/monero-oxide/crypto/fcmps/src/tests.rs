@@ -1182,3 +1182,7 @@ fn verify_memory_benchmark() {
 // Added by the second reviewer 2026-11-07: structured differential fuzz of the
 // folded verifier against the stored verifier. See tests/differential_fuzz.rs.
 mod differential_fuzz;
+
+// Added by the second reviewer 2026-11-08: G009 structured fuzz of BatchVerifier::merge and
+// Generators::verify_split against per-batch verification. See tests/g009_fuzz.rs.
+mod g009_fuzz;
