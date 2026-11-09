@@ -45,6 +45,10 @@
 #include "rpc/rpc_args.h"
 #include "daemon/command_line_args.h"
 #include "version.h"
+#include <boost/thread/thread.hpp>
+#if defined(__unix__) || defined(__APPLE__)
+#include <unistd.h>
+#endif
 
 #ifdef STACK_TRACE
 #include "common/stack_trace.h"
@@ -121,6 +125,35 @@ bool isFat32(const wchar_t* root_path)
   return wcscmp(L"FAT32", &fs[0]) == 0;
 }
 #endif
+
+namespace
+{
+  // monerodato (fork-only): this build is made for machines with little memory and few cores. On a
+  // machine with plenty of memory, more than four physical cores and AVX2, the reference monerod,
+  // reviewed and maintained upstream, is the better choice, so say so once at startup. A warning
+  // only: nothing depends on it. RAM is read with sysconf, so builds without it (Windows) never show
+  // the notice.
+  void monerodato_hardware_notice()
+  {
+    static constexpr uint64_t NOTICE_MIN_RAM_BYTES = 12000000000; // 12 GB
+    static constexpr unsigned NOTICE_MIN_PHYSICAL_CORES = 5;
+    uint64_t ram_bytes = 0;
+#if defined(_SC_PHYS_PAGES) && defined(_SC_PAGESIZE)
+    const long pages = sysconf(_SC_PHYS_PAGES);
+    const long page_size = sysconf(_SC_PAGESIZE);
+    if (pages > 0 && page_size > 0)
+      ram_bytes = uint64_t(pages) * uint64_t(page_size);
+#endif
+    const unsigned physical_cores = boost::thread::physical_concurrency();
+    bool avx2 = false;
+#if (defined(__x86_64__) || defined(__i386__)) && (defined(__GNUC__) || defined(__clang__))
+    avx2 = __builtin_cpu_supports("avx2");
+#endif
+    if (ram_bytes >= NOTICE_MIN_RAM_BYTES && physical_cores >= NOTICE_MIN_PHYSICAL_CORES && avx2)
+      MWARNING("monerodato is built for low-spec machines. This one has " << ram_bytes / 1000000000
+        << " GB of RAM, " << physical_cores << " physical cores and AVX2: the reference monerod can run here.");
+  }
+}
 
 int main(int argc, char const * argv[])
 {
@@ -296,6 +329,7 @@ int main(int argc, char const * argv[])
 
     // logging is now set up
     MGINFO("Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")");
+    monerodato_hardware_notice();
 
     // If there are positional options, we're running a daemon command
     {
