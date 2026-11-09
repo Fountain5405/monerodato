@@ -1281,3 +1281,8 @@ pub unsafe extern "C" fn destroy_fcmp_pp_batch_state(state: *mut FcmpPpBatchStat
 #[cfg(all(target_os = "windows", target_arch = "x86"))]
 #[no_mangle]
 pub extern "C" fn _Unwind_Resume() {}
+
+// Added by the second reviewer 2026-11-08: G009 FFI test of prepare, finish and destroy on the
+// tests/data vectors. See g009_ffi_tests.rs.
+#[cfg(test)]
+mod g009_ffi_tests;
