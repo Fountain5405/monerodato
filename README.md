@@ -1,3 +1,37 @@
+```text
+             /\
+            /  \
+           /    \
+          /  ##  \             __        ___    ____  _   _ ___ _   _  ____
+         /   ##   \            \ \      / / \  |  _ \| \ | |_ _| \ | |/ ___|
+        /    ##    \            \ \ /\ / / _ \ | |_) |  \| || ||  \| | |  _
+       /     ##     \            \ V  V / ___ \|  _ <| |\  || || |\  | |_| |
+      /      ##      \            \_/\_/_/   \_\_| \_\_| \_|___|_| \_|\____|
+     /                \
+    /        ##        \
+   /                    \
+  /______________________\
+
+   LLM-GENERATED OPTIMIZATIONS.  NOT VERIFIED CORRECT BY HUMANS.
+   FCMP++ STRESSNET ONLY.  NOT AN OFFICIAL MONERO RELEASE.
+```
+
+# This is monerodato, not Monero
+
+This branch holds **monerodato**: an unofficial, low-spec build of monerod for the FCMP++ stressnet, on
+seraphis-migration/monero `v0.19.0.0-beta.3.1`. LLM agents wrote and tested its changes. Differential tests, reviews
+by a second agent and stressnet runs are not a human review.
+
+- **Use it on the FCMP++ stressnet only.** Never on mainnet, and never with funds that matter.
+- **What changed, and why:** [MONERODATO.md](MONERODATO.md).
+- **Every check run on each release:** [VERIFICATION.md](https://github.com/Fountain5405/monerodato/blob/main/VERIFICATION.md) on `main`.
+- **Building:** follow the [Building](https://github.com/Fountain5405/monerodato/blob/main/README.md#building) section of `main`'s README. That section is tested on a clean machine; the build notes in upstream's text below are not.
+- **Problems:** report them in this repository. Not to the Monero Project, and not to seraphis-migration.
+
+Everything below this line is upstream Monero's README, unchanged.
+
+---
+
 # Monero
 
 Copyright (c) 2014-2026, The Monero Project  
