@@ -1,0 +1,5 @@
+# Upstream base of each tree in this directory. Read by scripts/check-vendor-rev.sh.
+# tree           kind      upstream / version                            revision / crate sha256
+monero-oxide     git       https://github.com/monero-oxide/monero-oxide 31c26d96eaadbba910ffe3613ad8b4cf9c598a93
+dalek-ff-group   crates.io 0.5.0                                         26103554e8f7857b6015a4a9ef551c6ce0669f6caa040785d4394bf52041ccaf
+multiexp         crates.io 0.5.2                                         04d18b701213424f6cc2800ee2ff6159c3bc9c79910a2bcd31e09895d06feada
