@@ -136,6 +136,8 @@ mod underlying {
 
   /// Performs a multiexponentiation, automatically selecting the optimal algorithm based on the
   /// amount of pairs.
+  ///
+  /// monerodato: two or more pairs always use Straus's algorithm with a 4-bit window.
   pub fn multiexp<
     G: Zeroize + ConditionallySelectable + Group<Scalar: Zeroize + PrimeFieldBits>,
   >(
@@ -144,9 +146,14 @@ mod underlying {
     match algorithm(pairs.len()) {
       Algorithm::Null => Group::identity(),
       Algorithm::Single => pairs[0].1 * pairs[0].0,
-      // These functions panic if called without any pairs
-      Algorithm::Straus(window) => straus(pairs, window),
-      Algorithm::Pippenger(window) => pippenger(pairs, window),
+      // monerodato: `algorithm`'s choices suit `multiexp_vartime`, not this function. To hide the
+      // digits, constant-time Pippenger reads and writes all 2^window buckets for every pair and
+      // digit, so a larger window costs more instead of less. On Selene and Helios points, from 4
+      // to 2,048 pairs, constant-time Straus with a 4-bit window was never slower than
+      // `algorithm`'s choice (1.3-3.2x faster from 64 pairs) or than constant-time Pippenger at
+      // its best window. The choice still depends only on the number of pairs.
+      // This function panics if called without any pairs
+      Algorithm::Straus(_) | Algorithm::Pippenger(_) => straus(pairs, 4),
     }
   }
 

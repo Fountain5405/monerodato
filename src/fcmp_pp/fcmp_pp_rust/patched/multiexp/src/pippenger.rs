@@ -10,6 +10,8 @@ use crate::prep_bits;
 
 // Pippenger's algorithm for multiexponentiation, as published in the SIAM Journal on Computing
 // DOI: 10.1137/0209022
+// monerodato: `multiexp` no longer uses this; the tests and the benchmark do
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn pippenger<G: Zeroize + ConditionallySelectable + Group<Scalar: PrimeFieldBits>>(
   pairs: &[(G::Scalar, G)],
   window: u8,

@@ -15,6 +15,8 @@ use crate::{straus, straus_vartime, pippenger, pippenger_vartime, multiexp, mult
 
 #[cfg(feature = "batch")]
 mod batch;
+
+mod constant_time_straus;
 #[cfg(feature = "batch")]
 use batch::test_batch;
 
