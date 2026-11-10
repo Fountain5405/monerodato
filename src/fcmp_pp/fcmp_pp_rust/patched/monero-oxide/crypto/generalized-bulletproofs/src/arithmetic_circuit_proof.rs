@@ -579,6 +579,8 @@ where
           }
         }
         cg.0.truncate(cg_hi + 1);
+        // `new(n)` allocated the full length; keep only what is used
+        cg.0.shrink_to_fit();
         cg
       };
 
