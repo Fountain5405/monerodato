@@ -639,8 +639,16 @@ where
       }
       res
     };
-    let l = poly_eval(&l, &x);
-    let r = poly_eval(&r, &x);
+    let l_eval = poly_eval(&l, &x);
+    let r_eval = poly_eval(&r, &x);
+    // The coefficient vectors hold witness values and are no longer needed: wipe and free them now, instead of keeping
+    // them to the end of this function, through the inner-product argument
+    l.zeroize();
+    r.zeroize();
+    drop(l);
+    drop(r);
+    let l = l_eval;
+    let r = r_eval;
 
     let t_caret = l.inner_product(r.0.iter());
 
