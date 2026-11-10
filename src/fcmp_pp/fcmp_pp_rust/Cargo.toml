@@ -27,6 +27,19 @@ std-shims = { version = "0.1.5", default-features = false }
 
 [patch.crates-io]
 crypto-bigint = { git = "https://github.com/kayabaNerve/crypto-bigint", branch = "c-repr" }
+# monerodato: Field25519 as four saturated 64-bit limbs
+dalek-ff-group = { path = "patched/dalek-ff-group" }
+# monerodato: constant-time multiexp uses Straus with a 4-bit window at every length
+multiexp = { path = "patched/multiexp" }
+
+# monerodato: FCMP++ verification with folded constraints
+[patch."https://github.com/monero-oxide/monero-oxide"]
+generalized-bulletproofs = { path = "patched/monero-oxide/crypto/generalized-bulletproofs" }
+generalized-bulletproofs-circuit-abstraction = { path = "patched/monero-oxide/crypto/fcmps/circuit-abstraction" }
+full-chain-membership-proofs = { path = "patched/monero-oxide/crypto/fcmps" }
+# Path dependencies of the above, which must resolve to the same packages as the other crates use
+generalized-bulletproofs-ec-gadgets = { path = "patched/monero-oxide/crypto/fcmps/ec-gadgets" }
+ec-divisors = { path = "patched/monero-oxide/crypto/divisors" }
 
 [profile.dev]
 lto = "off"
