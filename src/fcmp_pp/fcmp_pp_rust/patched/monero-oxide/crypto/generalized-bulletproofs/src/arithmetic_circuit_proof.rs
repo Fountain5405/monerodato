@@ -569,7 +569,7 @@ where
       coefficients of `r` decreasing from `ni` (skipping `jlr`).
     */
 
-    for (i, c) in witness.c.iter().enumerate() {
+    for (i, c) in witness.c.iter_mut().enumerate() {
       let cg_weights = {
         let mut cg = ScalarVector::new(n);
         let mut cg_hi = 0;
@@ -587,7 +587,8 @@ where
       let i = 1 + i;
       let j = ni - i;
 
-      l[j] = ScalarVector::from(c.g_values.clone());
+      // Move the values instead of copying them: only `mask` is read after this, and `l` is wiped once evaluated
+      l[j] = ScalarVector::from(core::mem::take(&mut c.g_values));
       r[i] = cg_weights;
       // This does not set `r[j]` as our prover does not populate the right-hand of the VCs
     }
