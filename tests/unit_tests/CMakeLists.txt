@@ -64,6 +64,7 @@ set(unit_tests_sources
   expect.cpp
   fake_pruned_blockchain.cpp
   fcmp_pp.cpp
+  monerodato_guards.cpp
   json_serialization.cpp
   get_xtype_from_string.cpp
   hashchain.cpp

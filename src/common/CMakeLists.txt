@@ -36,6 +36,7 @@ set(common_sources
   error.cpp
   expect.cpp
   util.cpp
+  monerodato_guards.cpp
   notify.cpp
   password.cpp
   perf_timer.cpp
