@@ -1,0 +1,57 @@
+From e74c7b3bec6bbfe36a7961d174f02b6c98186dba Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 04:43:15 +0000
+Subject: [PATCH 10/11] cryptonote_core: start the index warm-up at the end of
+ core::init
+
+core::init calls BlockchainDB::warm_indexes() once, as its last step,
+after the database is open and after the rest of core::init (Blockchain
+and txpool init, the hard fork state) has read its own tables. In monerod
+that is before P2P starts (its constructor binds the ports) and before
+RPC, but the warm-up runs in a thread of its own, so neither waits for it.
+
+Why last. Started right after db->open(), the warm-up's read-ahead requests
+were ahead of those other reads in the disk queue, and P2P and RPC still
+waited for it. On a 12-core Ryzen 9 3900X (16 GB RAM, SATA SSD) with the
+stressnet DB out of the page cache, "Core initialized OK" then came only
+after the warm-up ended: 4.1 s after "Initializing core" on the SSD instead
+of 1.1 s, and 57 s with reads limited to 15 MB/s, the same as
+monerodato.5's synchronous warm-up (57 s).
+
+Started last, after those reads, RPC answered 1.4 s after launch on the
+SSD and 1.9 s under the limit (monerodato.5: 57 s), while the warm-up
+went on to read the same 829 MB in 3.2-5.5 s and 55 s.
+
+The first, synchronous version of the warm-up (monerodato.5) delayed the
+node's start by the warm-up: on the stressnet chain about a minute on a
+5,400 rpm disk and about 3 s on a SATA SSD (prototype figures). It was
+chosen over a background thread for simplicity, and so that the effect
+measures cleanly. The sync that follows starts warm in either version.
+
+monero-blockchain-import runs a core, so it warms too. The other tools open
+the database directly and do not.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/cryptonote_core/cryptonote_core.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/cryptonote_core/cryptonote_core.cpp b/src/cryptonote_core/cryptonote_core.cpp
+index 7d00ca1cc..bc076c1bf 100644
+--- a/src/cryptonote_core/cryptonote_core.cpp
++++ b/src/cryptonote_core/cryptonote_core.cpp
+@@ -749,6 +749,11 @@ namespace cryptonote
+       }
+     }
+ 
++    // Start reading the hash indexes into the page cache, in the background: much faster than the
++    // random reads a sync would otherwise make for the same pages on a spinning disk. It starts last,
++    // so that the reads above do not queue behind it, and P2P and RPC start without waiting for it
++    m_blockchain_storage.get_db().warm_indexes();
++
+     return load_state_data();
+   }
+   //-----------------------------------------------------------------------------------------------
+-- 
+2.43.0
+

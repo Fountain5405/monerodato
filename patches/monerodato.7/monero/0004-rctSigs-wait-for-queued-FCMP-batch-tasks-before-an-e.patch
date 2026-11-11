@@ -1,0 +1,174 @@
+From 412d6c9d3828ca737fbdf2effb297d2de01c0f58 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 19:59:57 +0000
+Subject: [PATCH 4/11] rctSigs: wait for queued FCMP++ batch tasks before an
+ early exit
+
+batchVerifyFcmpPpProofs submits one task per batch to the compute pool.
+The tasks write into `results` and read `batches`, both locals of the call.
+If the call leaves early while tasks are still queued or running, the tasks
+outlive both. That happens on a throw from waiter.wait() (a thread
+interrupt) or from tpool.submit. The waiter's own destructor does wait, but
+the waiter is declared before `batches` and `results`, so it runs after
+they are destroyed.
+
+A small guard, declared after `results`, now waits for the tasks first,
+swallowing exceptions. It is disarmed once waiter.wait() has returned, when
+every task has finished, so the normal path is unchanged.
+
+Found during the second reviewer's review of the merged
+verification in a later commit, where the same tasks write verifier states.
+On that code, with the guard removed, ASan shows a pool thread writing into
+the freed vector (heap-use-after-free). With the guard in place it reports
+nothing. The lifetimes are the same for `results` here, which this commit
+fixes on its own.
+
+Residual: if the guard's own wait() is interrupted again, the old behaviour
+returns for that call.
+
+Test: batch_verify_early_exit_waits_for_tasks interrupts a verifying thread
+after 20 to 210 ms, up to 20 times, until 3 calls have left early. It
+checks that valid proofs are never rejected, and that the pool still
+verifies afterwards. In a normal build a use-after-free here is silent; the
+test shows it under ASan.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/ringct/rctSigs.cpp       | 18 ++++++++-
+ tests/unit_tests/fcmp_pp.cpp | 77 ++++++++++++++++++++++++++++++++++++
+ 2 files changed, 94 insertions(+), 1 deletion(-)
+
+diff --git a/src/ringct/rctSigs.cpp b/src/ringct/rctSigs.cpp
+index a5d123cb4..f4fa3224d 100644
+--- a/src/ringct/rctSigs.cpp
++++ b/src/ringct/rctSigs.cpp
+@@ -1775,6 +1775,18 @@ done:
+ 
+       std::deque<bool> results;
+       results.resize(batches.size());
++      // If this call leaves early (a throw from waiter.wait(), e.g. on a thread interrupt, or from
++      // tpool.submit) while tasks are still queued or running, those tasks would write into `results`
++      // and read `batches` after both are destroyed: the waiter's own destructor waits too, but it is
++      // declared before them, so it runs after. This guard waits first. It is declared after `results`,
++      // so it is destroyed before it, and it is disarmed once waiter.wait() has returned, when every
++      // task has finished.
++      struct WaitGuard
++      {
++        tools::threadpool::waiter &w;
++        bool armed;
++        ~WaitGuard() { if (armed) { try { w.wait(); } catch (...) {} } }
++      } wait_guard{waiter, multithreaded};
+       for (std::size_t i = 0; i < batches.size(); ++i)
+       {
+         CHECK_AND_ASSERT_MES(batches[i].batch.size(), false, "Empty batch in batchVerifyFcmpPpProofs");
+@@ -1800,7 +1812,11 @@ done:
+       }
+ 
+       if (multithreaded)
+-        CHECK_AND_ASSERT_THROW_MES(waiter.wait(), "Failed to batch verify FCMP++ proofs");
++      {
++        const bool waited_ok = waiter.wait();
++        wait_guard.armed = false; // every task has finished
++        CHECK_AND_ASSERT_THROW_MES(waited_ok, "Failed to batch verify FCMP++ proofs");
++      }
+ 
+       // Each batch just freed its large transient working set. glibc keeps freed memory in each
+       // thread's arena, so without a trim RSS grows to (threads that ever ran a batch) x (their
+diff --git a/tests/unit_tests/fcmp_pp.cpp b/tests/unit_tests/fcmp_pp.cpp
+index 4a3298ee1..c65c6b964 100644
+--- a/tests/unit_tests/fcmp_pp.cpp
++++ b/tests/unit_tests/fcmp_pp.cpp
+@@ -53,9 +53,14 @@
+ #include "string_tools.h"
+ #include "wallet/tx_builder.h"
+ 
++#include <atomic>
++#include <chrono>
++#include <thread>
+ #include <utility>
+ #include <vector>
+ 
++#include <boost/thread/thread.hpp>
++
+ #undef MONERO_DEFAULT_LOG_CATEGORY
+ #define MONERO_DEFAULT_LOG_CATEGORY "unit_tests.fcmp_pp"
+ 
+@@ -1635,3 +1640,75 @@ TEST(fcmp_pp, tx_sizes_and_verification_times)
+     }
+ }
+ //----------------------------------------------------------------------------------------------------------------------
++
++//----------------------------------------------------------------------------------------------------------------------
++// batchVerifyFcmpPpProofs: the batch path a block's FCMP++ proofs take
++//----------------------------------------------------------------------------------------------------------------------
++namespace
++{
++struct BatchVerifyFixture
++{
++    crypto::hash signable_tx_hash;
++    std::vector<uint8_t> proof;
++    uint8_t n_layers;
++    fcmp_pp::TreeRootShared tree_root;
++    std::vector<crypto::ec_point> pseudo_outs;
++    std::vector<crypto::key_image> key_images;
++
++    BatchVerifyFixture()
++    {
++        unit_test::read_fcmp_pp_verify_input_from_file(128,
++            signable_tx_hash, proof, n_layers, tree_root, pseudo_outs, key_images);
++    }
++    fcmp_pp::FcmpPpVerifyInput input(const std::vector<uint8_t> &p) const
++    {
++        return fcmp_pp::fcmp_pp_verify_input_new(signable_tx_hash, p, n_layers, tree_root, pseudo_outs, key_images);
++    }
++    // n copies of the valid proof, with `bad` in place of copy `bad_at` if given
++    std::vector<fcmp_pp::FcmpPpVerifyInput> inputs(std::size_t n, std::size_t bad_at = 0, const std::vector<uint8_t> *bad = nullptr) const
++    {
++        std::vector<fcmp_pp::FcmpPpVerifyInput> v;
++        v.reserve(n);
++        for (std::size_t i = 0; i < n; ++i)
++            v.emplace_back(input((bad && i == bad_at) ? *bad : proof));
++        return v;
++    }
++};
++
++// at least one batch per pool thread
++std::size_t batch_verify_n_proofs()
++{
++    return std::max<std::size_t>(4, tools::threadpool::getInstanceForCompute().get_max_concurrency());
++}
++}
++
++TEST(fcmp_pp, batch_verify_early_exit_waits_for_tasks)
++{
++    const BatchVerifyFixture f;
++    const std::size_t n_proofs = batch_verify_n_proofs();
++    std::size_t early_exits = 0, returned = 0;
++    for (int attempt = 0; attempt < 20 && early_exits < 3; ++attempt)
++    {
++        std::vector<fcmp_pp::FcmpPpVerifyInput> inputs = f.inputs(n_proofs);
++        std::atomic<int> outcome{0}; // 1 returned true, 2 returned false, 3 interrupted, 4 other exception
++        boost::thread t([&]()
++        {
++            try { outcome = rct::batchVerifyFcmpPpProofs(std::move(inputs)) ? 1 : 2; }
++            catch (const boost::thread_interrupted &) { outcome = 3; }
++            catch (...) { outcome = 4; }
++        });
++        std::this_thread::sleep_for(std::chrono::milliseconds(20 + 10 * attempt));
++        t.interrupt();
++        t.join();
++        ASSERT_NE(outcome.load(), 2) << "valid proofs rejected";
++        ASSERT_NE(outcome.load(), 4) << "unexpected exception";
++        if (outcome.load() == 3)
++            ++early_exits;
++        else
++            ++returned;
++    }
++    MGINFO("batch verify early exit: " << early_exits << " early exits, " << returned << " normal returns");
++    EXPECT_GE(early_exits, 1u) << "the interrupt never reached waiter.wait(); the early-exit path was not exercised";
++    // The pool must still work after the early exits.
++    ASSERT_TRUE(rct::batchVerifyFcmpPpProofs(f.inputs(n_proofs)));
++}
+-- 
+2.43.0
+

@@ -1,0 +1,19 @@
+rc 0
+[==========] Running 57 tests from 8 test suites.
+[  SKIPPED ] fcmp_pp.force_init_gen_u_v (0 ms)
+[  SKIPPED ] lmdb_warm.background_warm_up_in_progress_gives_way_to_close_and_resize (0 ms)
+[==========] 57 tests from 8 test suites ran. (641933 ms total)
+[  PASSED  ] 55 tests.
+[  SKIPPED ] 2 tests, listed below:
+[  SKIPPED ] fcmp_pp.force_init_gen_u_v
+[  SKIPPED ] lmdb_warm.background_warm_up_in_progress_gives_way_to_close_and_resize
+[  SKIPPED ] fcmp_pp.force_init_gen_u_v (0 ms)
+[       OK ] monerodato_guards.shipped_constant (0 ms)
+[       OK ] monerodato_guards.network_shipped (0 ms)
+[       OK ] monerodato_guards.network_test_build (0 ms)
+[       OK ] monerodato_guards.refusal_exits_with_status_1 (2463 ms)
+[  SKIPPED ] lmdb_warm.background_warm_up_in_progress_gives_way_to_close_and_resize (0 ms)
+[  SKIPPED ] 2 tests, listed below:
+[  SKIPPED ] fcmp_pp.force_init_gen_u_v
+[  SKIPPED ] lmdb_warm.background_warm_up_in_progress_gives_way_to_close_and_resize
+UT7_DONE 2026-11-11T19:57:36Z

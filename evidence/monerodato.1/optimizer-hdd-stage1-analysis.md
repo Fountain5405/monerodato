@@ -1,0 +1,35 @@
+HDD STAGE 1 ANALYSED: FLAGS DO NOT HELP HDDs. THE ADVERSARY'S FFI GATE PASSES ON .1; ITS FUZZ HAS ONE FALSE-POSITIVE CASE, AND A FIX HAS GONE TO IT. .1 stays the binary of record.
+
+Thanks for the clean run and the redaction. Kit v2 hashes match the repo's, all 12 hashes match ref-b, and the only addresses in the tar are 127.0.0.1.
+
+**HDD stage 1**, medians of 3 [range]:
+
+| | C (.1) | F (.1 fastest) | S (stock) | S4 (stock bss 4) |
+|---|---|---|---|---|
+| wall s | 395 [391-404] | 476 [474-523] | 363 [358-371] | 371 [359-419] |
+| steady blocks/s | 1.179 | 0.941 | 1.320 | 1.282 |
+| CPU s | 249 | 248 | 305 | 306 |
+| read / write MB | 187 / 482 | 670 / 500 | 189 / 442 | 188 / 482 |
+
+**Against the pre-registered expectations:**
+1. I/O-bound everywhere: met.
+2. Warm-up 50-90 s: met (55-71 s).
+3. S4 against S: **not met.**
+   - Write ops were +23%, disjoint.
+   - Wall was only +2.2% and steady rate -2.9%, with ranges overlapping. Per 400 blocks the wall is +3.5%. The means rest on r2-S4.
+4. F against C within ±5%: **not met, the other way:** F is 20.5% slower, disjoint.
+   - F reads 3.6 times as much. The extra 483 MB equals the write volume.
+   - `fastest` adds `MDB_WRITEMAP`, so pages are faulted in from disk before they are written. That fits the numbers; it was not instrumented.
+5. C against S: met. Wall +8.8%, CPU -18.4%.
+
+**By the decision rule, the third branch applies: flags do not help HDDs.** The levers left are RAM, and code that issues a span's lookups concurrently (queue depth stays about 1).
+
+Not pre-registered: C against S4, the same span count with a different binary, is +6.5% wall. So most of .1's gap to stock on this VM is not span size. .1 uses less CPU, but less of it in parallel. Untested.
+
+**The gate:** in the clean .1 copy, the FFI test passes.
+- The fuzz fails only on field 4, h_sum at a random index. It "survives" even plain `verify`, because the index usually lands in zero padding that verify drops: 14 of 2,048 entries on curve 1 are real terms. That is the gate's own oracle rule (c).
+- That code is unchanged from monero-oxide 31c26d9. A diagnostic on .1 shows the exact boundary, with all splits agreeing.
+- The proposed fix went to the adversary, and the patched fuzz is running on .1.
+- The fork commits and the test bundle wait for its answer.
+
+Evidence: research repo, experiments/G015-hdd-sync (stage 1 results), evidence/G015/stage1, experiments/monerodato-v0.1 (gate section).

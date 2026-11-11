@@ -1,0 +1,160 @@
+<FieldElement>::wide_reduce
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 45 instructions, 1 conditional jumps
+    0x7f jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # a2 <<dalek_ff_group::field::FieldElement>::wide_reduce+0xa2>	9e: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement>::pow22501
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 2890 instructions, 28 conditional jumps
+    0x1ca jb    panic-guard: panic_const_add_overflow
+    0x364 jb    panic-guard: panic_const_add_overflow
+    0x4f2 jb    panic-guard: panic_const_add_overflow
+    0x6fd jb    panic-guard: panic_const_add_overflow
+    0x919 jb    panic-guard: panic_const_add_overflow
+    0xaba jb    panic-guard: panic_const_add_overflow
+    0xcbc jb    panic-guard: panic_const_add_overflow
+    0xe6f jb    panic-guard: panic_const_add_overflow
+    0xe7b jne   loop
+    0x1085 jb    panic-guard: panic_const_add_overflow
+    0x1230 jb    panic-guard: panic_const_add_overflow
+    0x123c jne   loop
+    0x144e jb    panic-guard: panic_const_add_overflow
+    0x15ed jb    panic-guard: panic_const_add_overflow
+    0x15f9 jne   loop
+    0x180e jb    panic-guard: panic_const_add_overflow
+    0x199e jb    panic-guard: panic_const_add_overflow
+    0x19aa jne   loop
+    0x1bb2 jb    panic-guard: panic_const_add_overflow
+    0x1d5f jb    panic-guard: panic_const_add_overflow
+    0x1d6b jne   loop
+    0x1f72 jb    panic-guard: panic_const_add_overflow
+    0x211d jb    panic-guard: panic_const_add_overflow
+    0x2129 jne   loop
+    0x2334 jb    panic-guard: panic_const_add_overflow
+    0x24be jb    panic-guard: panic_const_add_overflow
+    0x24ca jne   loop
+    0x26d2 jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 2731 <<dalek_ff_group::field::FieldElement>::pow22501+0x2731>	272d: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement as core::cmp::PartialEq>::eq
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 6 instructions, 0 conditional jumps
+  calls: *0x0(%rip)        # 7 <<dalek_ff_group::field::FieldElement as core::cmp::PartialEq>::eq+0x7>	3: R_X86_64_GOTPCREL	<dalek_ff_group::field::FieldElement as subtle::ConstantTimeEq>::ct_eq
+<FieldElement as core::fmt::Debug>::fmt
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 115 instructions, 7 conditional jumps
+    0xcc je    other
+    0xe3 jne   other
+    0xf9 jne   loop
+    0x10a jne   loop
+    0x125 jne   loop
+    0x170 jne   loop
+    0x191 jne   loop
+  calls: *%r13; *0x18(%rax); 108 <<dalek_ff_group::field::FieldElement as core::fmt::Debug>::fmt+0x108>	104: R_X86_64_PLT32	<[u8; 32] as core::fmt::Debug>::fmt; 16e <<dalek_ff_group::field::FieldElement as core::fmt::Debug>::fmt+0x16e>	16a: R_X86_64_PLT32	<[u8; 32] as core::fmt::Debug>::fmt
+<&FieldElement as core::ops::arith::Neg>::neg
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 38 instructions, 1 conditional jumps
+    0x66 jb    panic-guard: panic_const_sub_overflow
+  calls: *0x0(%rip)        # 89 <<&dalek_ff_group::field::FieldElement as core::ops::arith::Neg>::neg+0x89>	85: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_sub_overflow
+<FieldElement as ff::Field>::sqrt
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 851 instructions, 6 conditional jumps
+    0x1be jb    panic-guard: panic_const_add_overflow
+    0x3e7 jb    panic-guard: panic_const_add_overflow
+    0x578 jb    panic-guard: panic_const_add_overflow
+    0x7cf jb    panic-guard: panic_const_add_overflow
+    0x96b jb    panic-guard: panic_const_add_overflow
+    0xb7f jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 998 <<dalek_ff_group::field::FieldElement as ff::Field>::sqrt+0x998>	994: R_X86_64_GOTPCREL	<dalek_ff_group::field::FieldElement as subtle::ConstantTimeEq>::ct_eq; *0x0(%rip)        # ba8 <<dalek_ff_group::field::FieldElement as ff::Field>::sqrt+0xba8>	ba4: R_X86_64_GOTPCREL	<dalek_ff_group::field::FieldElement as subtle::ConstantTimeEq>::ct_eq; *0x0(%rip)        # bf5 <<dalek_ff_group::field::FieldElement as ff::Field>::sqrt+0xbf5>	bf1: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow; 25 <<dalek_ff_group::field::FieldElement as ff::Field>::sqrt+0x25>	21: R_X86_64_PLT32	.text._RNvMs9_NtCscwDgJWlywq7_14dalek_ff_group5fieldNtB5_12FieldElement8pow22501
+<FieldElement as ff::Field>::invert
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 316 instructions, 3 conditional jumps
+    0x202 jb    panic-guard: panic_const_add_overflow
+    0x20e jne   loop
+    0x419 jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 42d <<dalek_ff_group::field::FieldElement as ff::Field>::invert+0x42d>	429: R_X86_64_GOTPCREL	<dalek_ff_group::field::FieldElement as subtle::ConstantTimeEq>::ct_eq; *0x0(%rip)        # 43a <<dalek_ff_group::field::FieldElement as ff::Field>::invert+0x43a>	436: R_X86_64_GOTPCREL	subtle::black_box::<u8>; *0x0(%rip)        # 473 <<dalek_ff_group::field::FieldElement as ff::Field>::invert+0x473>	46f: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow; 25 <<dalek_ff_group::field::FieldElement as ff::Field>::invert+0x25>	21: R_X86_64_PLT32	.text._RNvMs9_NtCscwDgJWlywq7_14dalek_ff_group5fieldNtB5_12FieldElement8pow22501
+<FieldElement as ff::PrimeField>::is_odd
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 22 instructions, 0 conditional jumps
+<FieldElement as ff::PrimeField>::to_repr
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 39 instructions, 0 conditional jumps
+<FieldElement as ff::PrimeField>::from_repr
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 47 instructions, 0 conditional jumps
+  calls: *0x0(%rip)        # 7a <<dalek_ff_group::field::FieldElement as ff::PrimeField>::from_repr+0x7a>	76: R_X86_64_GOTPCREL	subtle::black_box::<u8>
+<FieldElement as ff::PrimeFieldBits>::to_le_bits
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 39 instructions, 0 conditional jumps
+<FieldElement as core::convert::From<u64>>::from
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 6 instructions, 0 conditional jumps
+<FieldElement as ff::FromUniformBytes<64>>::from_uniform_bytes
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 45 instructions, 1 conditional jumps
+    0x7f jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # a2 <<dalek_ff_group::field::FieldElement as ff::FromUniformBytes<64>>::from_uniform_bytes+0xa2>	9e: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement as zeroize::Zeroize>::zeroize
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 8 instructions, 0 conditional jumps
+<FieldElement as subtle::ConstantTimeEq>::ct_eq
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 82 instructions, 1 conditional jumps
+    0x6c jb    panic-guard: panic_const_sub_overflow
+  calls: *%rbp; *0x0(%rip)        # f9 <<dalek_ff_group::field::FieldElement as subtle::ConstantTimeEq>::ct_eq+0xf9>	f5: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_sub_overflow
+<FieldElement as subtle::ConditionallySelectable>::conditional_select
+  member fcmp_pp_rust-aa9f2521161d31c1.dalek_ff_group-d15d68b8864fec43.dalek_ff_group.91e6ef3244559015-cgu.0.rcgu.o.rcgu.o, 19 instructions, 0 conditional jumps
+<FieldElement as core::ops::arith::MulAssign>::mul_assign
+  member fcmp_pp_rust-aa9f2521161d31c1.ec_divisors-b39e283102644589.ec_divisors.8b85ca05f050620-cgu.0.rcgu.o.rcgu.o, 180 instructions, 1 conditional jumps
+    0x22b jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 25d <.Lanon.88ea47d683f99211d420af677e5bcc95.14+0x14b>	259: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement as core::ops::arith::Mul>::mul
+  member fcmp_pp_rust-aa9f2521161d31c1.ec_divisors-b39e283102644589.ec_divisors.8b85ca05f050620-cgu.0.rcgu.o.rcgu.o, 179 instructions, 1 conditional jumps
+    0x239 jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 266 <.Lanon.88ea47d683f99211d420af677e5bcc95.14+0x154>	262: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement as alloc::vec::spec_from_elem::SpecFromElem>::from_elem::<alloc::alloc::Global>
+  member fcmp_pp_rust-aa9f2521161d31c1.fcmp_pp_rust.e1a55c00e419e19a-cgu.0.rcgu.o, 72 instructions, 7 conditional jumps
+    0xe je    other
+    0x27 je    other
+    0x34 je    other
+    0x4e jb    other
+    0xc2 jne   loop
+    0xc7 je    other
+    0xde jne   loop
+  calls: *0x0(%rip)        # 115 <.LCPI142_1+0x15>	111: R_X86_64_GOTPCREL	alloc::raw_vec::handle_error; *0x0(%rip)        # 24 <<dalek_ff_group::field::FieldElement as alloc::vec::spec_from_elem::SpecFromElem>::from_elem::<alloc::alloc::Global>+0x24>	20: R_X86_64_GOTPCREL	malloc
+<FieldElement as ff::Field>::random::<&mut rand_core::os::OsRng>
+  member fcmp_pp_rust-aa9f2521161d31c1.fcmp_pp_rust.e1a55c00e419e19a-cgu.0.rcgu.o, 77 instructions, 3 conditional jumps
+    0x2e jne   other
+    0xba jb    panic-guard: panic_const_add_overflow
+    0xe1 je    other
+  calls: *0x0(%rip)        # 125 <<dalek_ff_group::field::FieldElement as ff::Field>::random::<&mut rand_core::os::OsRng>+0x125>	121: R_X86_64_GOTPCREL	core::panicking::panic_fmt; *0x0(%rip)        # 132 <<dalek_ff_group::field::FieldElement as ff::Field>::random::<&mut rand_core::os::OsRng>+0x132>	12e: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow; *0x0(%rip)        # 142 <.LCPI258_0+0x2>	13e: R_X86_64_GOTPCREL	alloc::alloc::handle_alloc_error; *0x0(%rip)        # 2c <<dalek_ff_group::field::FieldElement as ff::Field>::random::<&mut rand_core::os::OsRng>+0x2c>	28: R_X86_64_GOTPCREL	getrandom::imp::getrandom_inner; *0x0(%rip)        # de <<dalek_ff_group::field::FieldElement as ff::Field>::random::<&mut rand_core::os::OsRng>+0xde>	da: R_X86_64_GOTPCREL	malloc
+<&FieldElement as core::fmt::Debug>::fmt
+  member fcmp_pp_rust-aa9f2521161d31c1.fcmp_pp_rust.e1a55c00e419e19a-cgu.0.rcgu.o, 2 instructions, 0 conditional jumps
+<FieldElement as ff::Field>::square
+  member fcmp_pp_rust-aa9f2521161d31c1.fcmp_pp_rust.e1a55c00e419e19a-cgu.0.rcgu.o, 140 instructions, 1 conditional jumps
+    0x1a0 jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 1cd <.Lanon.12e03b13f31e0368e4911efeaad3ce2c.446+0x4d>	1c9: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement as core::ops::arith::MulAssign>::mul_assign
+  member fcmp_pp_rust-aa9f2521161d31c1.fcmp_pp_rust.e1a55c00e419e19a-cgu.0.rcgu.o, 180 instructions, 1 conditional jumps
+    0x22b jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 25d <.Lanon.12e03b13f31e0368e4911efeaad3ce2c.446+0xdd>	259: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement as core::ops::arith::Mul<&FieldElement>>::mul
+  member fcmp_pp_rust-aa9f2521161d31c1.fcmp_pp_rust.e1a55c00e419e19a-cgu.0.rcgu.o, 179 instructions, 1 conditional jumps
+    0x239 jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 266 <.Lanon.12e03b13f31e0368e4911efeaad3ce2c.446+0xe6>	262: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement as core::ops::arith::MulAssign<&FieldElement>>::mul_assign
+  member fcmp_pp_rust-aa9f2521161d31c1.fcmp_pp_rust.e1a55c00e419e19a-cgu.0.rcgu.o, 180 instructions, 1 conditional jumps
+    0x22b jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 25d <.Lanon.12e03b13f31e0368e4911efeaad3ce2c.446+0xdd>	259: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement as core::ops::arith::AddAssign>::add_assign
+  member fcmp_pp_rust-aa9f2521161d31c1.fcmp_pp_rust.e1a55c00e419e19a-cgu.0.rcgu.o, 28 instructions, 1 conditional jumps
+    0x48 jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 68 <.Lanon.12e03b13f31e0368e4911efeaad3ce2c.402+0x8>	64: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement as core::ops::arith::Sub>::sub
+  member fcmp_pp_rust-aa9f2521161d31c1.fcmp_pp_rust.e1a55c00e419e19a-cgu.0.rcgu.o, 39 instructions, 1 conditional jumps
+    0x69 jb    panic-guard: panic_const_sub_overflow
+  calls: *0x0(%rip)        # 89 <.Lanon.12e03b13f31e0368e4911efeaad3ce2c.443+0x9>	85: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_sub_overflow
+<FieldElement as core::ops::arith::SubAssign>::sub_assign
+  member fcmp_pp_rust-aa9f2521161d31c1.fcmp_pp_rust.e1a55c00e419e19a-cgu.0.rcgu.o, 39 instructions, 1 conditional jumps
+    0x69 jb    panic-guard: panic_const_sub_overflow
+  calls: *0x0(%rip)        # 89 <.Lanon.12e03b13f31e0368e4911efeaad3ce2c.443+0x9>	85: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_sub_overflow
+<FieldElement as core::ops::arith::Mul>::mul
+  member fcmp_pp_rust-aa9f2521161d31c1.fcmp_pp_rust.e1a55c00e419e19a-cgu.0.rcgu.o, 179 instructions, 1 conditional jumps
+    0x239 jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 266 <.Lanon.12e03b13f31e0368e4911efeaad3ce2c.446+0xe6>	262: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement as core::ops::arith::MulAssign>::mul_assign
+  member fcmp_pp_rust-aa9f2521161d31c1.helioselene-5b7d76afc9116603.helioselene.9b4ab405b4abf22b-cgu.0.rcgu.o.rcgu.o, 180 instructions, 1 conditional jumps
+    0x22b jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 25d <anon.975438dd7c5b591b6d58d0dccd0d735b.20.llvm.8757579302068530976+0xac>	259: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement as core::ops::arith::Mul>::mul
+  member fcmp_pp_rust-aa9f2521161d31c1.helioselene-5b7d76afc9116603.helioselene.9b4ab405b4abf22b-cgu.0.rcgu.o.rcgu.o, 179 instructions, 1 conditional jumps
+    0x239 jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 266 <anon.975438dd7c5b591b6d58d0dccd0d735b.20.llvm.8757579302068530976+0xb5>	262: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow
+<FieldElement as core::ops::arith::Mul>::mul
+  member fcmp_pp_rust-aa9f2521161d31c1.monero_fcmp_plus_plus-2e576c61634c5351.monero_fcmp_plus_plus.57257e43983cb094-cgu.0.rcgu.o.rcgu.o, 179 instructions, 1 conditional jumps
+    0x239 jb    panic-guard: panic_const_add_overflow
+  calls: *0x0(%rip)        # 266 <.Lanon.10d1610622bb8ac67fadd50c0bd3cd85.98+0x206>	262: R_X86_64_GOTPCREL	core::panicking::panic_const::panic_const_add_overflow

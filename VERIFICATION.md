@@ -1,0 +1,309 @@
+# Verification record
+
+**No human has checked that these optimisations are correct.** Coding agents in the lab ran, reviewed or wrote
+everything below. A human decided that the release is tagged, but has not reviewed the code. The checks lower the
+risk; they do not prove correctness.
+
+**One release, several working builds.** The only release in this repository is monerodato.7. monerodato.0 to .6 were
+working builds in the lab and were not published; .7 contains all of their changes. Most checks were run on the
+working build that introduced a change, so the sections below are kept per build, newest first. The tags and commit
+ids that the older reports name belong to the lab's working history and are not in this repository: .7's history was
+rebuilt as 45 commits, and its tree was compared with the last working build's (see the first table).
+
+**Who did what:**
+- **optimizer:** the agent that wrote and built the fork.
+- **adversary:** a second agent whose job is to break it. It designed the release gate, wrote the differential tests
+  and fuzzers, ran the transaction corpus, and reviewed each commit series.
+- **coordinator:** the lab-coordinator agent. It ran the chain replays on a separate machine and relays between the
+  agents.
+- **owner:** the human. Decides tags and pushes.
+
+The code branch's own docs call the optimizer "the fork's author" and the adversary "the second reviewer".
+
+**The reference** is the stock seraphis-migration monerod v0.19.0.0-beta.3.1 that the fork is based on. The gate is
+described in [MONERODATO-GATE.md](https://github.com/Fountain5405/monerodato/blob/monerodato-v0/MONERODATO-GATE.md),
+and the changes themselves in
+[MONERODATO.md](https://github.com/Fountain5405/monerodato/blob/monerodato-v0/MONERODATO.md), on branch
+`monerodato-v0`.
+
+**The evidence** is under [evidence/](evidence/): the agents' reports as written, except that machine names, network
+addresses and local paths are replaced. The release bundles and binaries are not in this repository.
+
+## monerodato.7, the release
+
+Tag `v0.19.0.0-beta.3.1-monerodato.7`, commit `f3c4ea5d9`. No binaries are published.
+
+**What changed against the working build .6:**
+- **Added code:** the testnet-only check: one small module, one call in monerod, one in the wallets' shared startup
+  and one in each of the eight blockchain utilities, with a unit test.
+- **Docs and comments:** lab-internal names removed; the docs rewritten to describe one release.
+- **The history:** rebuilt as 45 commits under the owner's GitHub identity. The first table shows how the rebuilt
+  tree was compared with .6's.
+- **Not re-run:** the corpus, the chain replay and the Rust gates. Outside the check and nine comment lines, the
+  code is byte-identical to .6's.
+
+| Check | By | Result | Evidence |
+|---|---|---|---|
+| The rebuilt tree against the working build .6's tree, file by file | coordinator | 25 files differ, none renamed or deleted: the check's module, its calls and its unit test; nine comment lines in six Rust test files; four docs files; the version suffix. `vendor/` and every other file are byte-identical. Every code hunk was read. | [check output](evidence/monerodato.7/coordinator-verify.txt) |
+| The same comparison, independently, and a review of the check at every call site | adversary | approved; the final tag's one-line difference from the reviewed tree confirmed | [clearance](evidence/monerodato.7/adversary-final-clearance.md), [first reply](evidence/monerodato.7/adversary-review-v7-retag-ack.md) |
+| History: 45 commits on `d80596ad1811`, linear; one author and committer; no lab-internal names in messages or fork files | coordinator | pass | [check output](evidence/monerodato.7/coordinator-verify.txt) |
+| The check refuses before anything is written: 12 guarded programs on mainnet, stagenet and regtest, by argument and by config file, each in an empty home directory | optimizer | 62 cases; 0 failures: exit status 1, the refusal line, no file created. The testnet controls start and create files. A first round found that seven utilities checked only after creating a log file or a data directory; fixed before the tag. | [summary](evidence/monerodato.7/guard-summary.txt) |
+| The same on an independent clean build: monerod and both wallets | coordinator | 13 cases; all pass | [output](evidence/monerodato.7/coordinator-guard-check.txt) |
+| Unit tests | optimizer | 57 ran; 55 passed; 2 skipped; 0 failed. The four `monerodato_guards` tests pass. | [unit tests](evidence/monerodato.7/unit-tests.txt) |
+| The allowed path against .6: cold start | optimizer | RPC up after 1.6 s (.6) and 1.8 s (.7); warm-up 202,493 pages in 3.3 s in both; 0 ERROR lines | [parity](evidence/monerodato.7/parity.txt) |
+| The allowed path against .6: wallet creation and refresh | optimizer | 300 blocks received by both; 0 ERROR lines | [parity](evidence/monerodato.7/parity.txt) |
+| Vendored and patched crates against .6 | optimizer | `vendor/`, the lock files and the licence files identical; 4 test files differ in comment lines only | [checks](evidence/monerodato.7/checks.txt) |
+| Clean build from the tag in a fresh Ubuntu 24.04 container | coordinator | monerod and both wallets build and report `v0.19.0.0-beta.3.1-monerodato.7-release` | this file |
+| Scan of that build's three binaries for lab names, addresses and paths | coordinator | no lab name, address or path: the only path is the container's build directory. The adversary accepted this as closing its last gate item, given that no binaries are published. | [clearance](evidence/monerodato.7/adversary-final-clearance.md) |
+| Cold start and a sync of 404 blocks from 3,106,400 on a 5,400 rpm disk (4-vCPU, 4 GB VM), one run | coordinator | RPC answered 23.2 s after launch; top reached after 188.2 s; warm-up 829 MB in 86.0 s, in the background; hash at 3,106,800 equal to the reference node's; 0 ERROR lines | this file |
+
+- **Which tagging the tests ran on:** the tag was made three times. The second and third changed four docs lines and
+  no code (checked by tree comparison each time). The optimizer's tests ran on the first; the coordinator's build and
+  runs are of the second.
+- **Slower than the .6 runs:** the hard-disk run's 188.2 s and 86.0 s are at or above the top of .6's three runs
+  below (178–188 s and 72–80 s). It is one run.
+
+## Working build monerodato.6
+
+Against .5: the index warm-up runs in a background thread and reads at most 64 pages ahead, so RPC and P2P start
+without waiting for it.
+
+**Hard-disk tests** in a 4-vCPU, 4 GB VM on a 5,400 rpm disk: a cold start, then a sync of 400 blocks from 3,106,400
+from one peer. Arm M is the .5 monerod. Arm B is a build with the background warm-up: without the read-ahead bound
+in the first test, with it (as shipped) in the second. Three runs per arm.
+
+| Check | By | Result | Evidence |
+|---|---|---|---|
+| Background warm-up without the read-ahead bound | coordinator | launch to RPC: M 85.1, 80.2, 80.0 s; B 87.2, 83.4, 112.0 s. RPC came no earlier: the start's own reads queued behind the warm-up's. Not shipped. | [results](evidence/monerodato.6/hddvm-g015-stage4c-results.txt) |
+| Background warm-up with the read-ahead bound, as shipped | coordinator | launch to RPC: M 84.4, 79.2, 84.4 s; B 24.7, 31.2, 30.1 s. Launch to the top: M 173.5, 162.9, 168.5 s; B 187.9, 178.3, 179.1 s. Warm-up: M 59.7–61.8 s; B 72.0–80.0 s. | [results](evidence/monerodato.6/hddvm-g015-stage4d-results.txt) |
+| Block hash at 3,106,800 in all twelve runs | coordinator | equal to the reference node's | both files |
+| Bundle `monerodato-v0.6.bundle` (9 commits, thin against `d87cc01dc`, the .5 tag's commit): `git bundle verify` of every bundle in a new repo holding only the base, then this one | optimizer | each listed only its expected prerequisite (this one's is `d87cc01dc`); branch, tag object and tag tree equal the source repo's; `git fsck` clean | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Static linking of the three binaries (`ldd`) | optimizer | link only libc and libm | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Nothing changed under `src/fcmp_pp`, `vendor/` or `Cargo.lock` since the .5 tag (`git diff --quiet`, checked by the gate) | optimizer | nothing changed; scope since .5 outside `vendor/`: 9 files, +423 / -41 | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Rust library unchanged | optimizer | cargo printed 0 "Compiling" lines; `libfcmp_pp_rust.a` byte-identical to .5's (`cmp`); `check-vendor-rev: ok` | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Object identity against .5's build: every `.o`, `.a` and `bin/monerod` hashed before and after the .6 daemon build | optimizer | 320 files; 10 differ (.5 had 18): `bin/monerod`, the version object and `libversion.a`, `mdb.c.o` and `liblmdb.a`, `blockchain_db.cpp.o`, `db_lmdb.cpp.o` and `libblockchain_db.a`, `cryptonote_core.cpp.o` and `libcryptonote_core.a` | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Object identity after the wallet build | optimizer | still 10 of 320 differ, none beyond the daemon's list; the wallet's own objects byte-identical to .5's | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Wallet binaries and the warm-up (`nm -u` on the 14 wallet objects) | optimizer | none has an undefined reference to `warm_indexes`, `mdb_env_warm_dbis` or the warm-up's stop function | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Unit tests (`lmdb_warm.*`, `BlockchainDBTest*`, and .5's set) | optimizer | 53 run in 7 suites: 51 passed, 2 skipped, 0 failed | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| `lmdb_warm` / `BlockchainDBTest` | optimizer | 7: 6 passed, 1 skipped (`background_warm_up_in_progress_gives_way_to_close_and_resize`, runs only with `MONERODATO_WARM_DB` set to a real database; it passed that way during dot6-prep) / 4 passed | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| The other skip | optimizer | `fcmp_pp.force_init_gen_u_v`, as in .1 to .5 | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Warm-up in the release monerod, no limit (16 GB), cold start | optimizer | RPC answered 1.4 s; end line by 4.6 s; 202,493 pages (829 MB) in 3.2 s; order yes; exit 0; 0 ERROR lines | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Warm-up, 1 GiB cgroup (`MemoryMax=1G`) | optimizer | RPC answered 1.4 s; end line by 1.4 s; upper levels only, 3,864 pages (15 MB) in 0.1 s; 198629 leaf pages (813 MB) not read, more than 60% of the 1073 MB; order yes; exit 0; 0 ERROR lines | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Warm-up, 2 GiB cgroup (`MemoryMax=2G`) | optimizer | RPC answered 1.6 s; end line by 4.6 s; 202,493 pages (829 MB) in 3.1 s; order yes; exit 0; 0 ERROR lines | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| RPC versus warm-up order | optimizer | RPC now answers before the warm-up ends, as designed (in .5: 829 MB in 3.3 s, then RPC) | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Warm-up on an empty DB (the notice check) | optimizer | 2 pages (0 MB) in 0.0 s (in .5: 0 pages; it now runs after the genesis block has been added) | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Wallet, first form: throwaway wallet against the .6 node, `refresh` with `start_height` 300 blocks back | optimizer | fetched 0 blocks (`create_wallet` sets the refresh height to the tip); wallet height equalled the node's (3,106,805); no block scanned; the tag notice's description as a 300-block refresh was wrong | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Wallet, second form (`dot6_wallet2.sh`): throwaway wallet with `refresh-from-block-height` 3,106,505, then a refresh from the .6 node | optimizer | "Refresh done, blocks received: 300", rc 0, 0 ERROR lines in the wallet's and the node's logs; one run, a sanity check, not a measurement; does not build a transaction | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| `--version`, all three binaries | optimizer | `Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.6-release)` | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Startup notice on a 16 GB, 12-core AVX2 machine | optimizer | once, in stdout and in the log, unchanged | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| 400-block sync, DB rewound to 3,106,401, one peer | optimizer | to height 3,106,825 in 66 s from RPC up (not a timing run); hash at 3,106,800 is `74db18cf...b59c`, equal to the peer's and the reference; 0 oversize packets, 0 verification failures, 0 ERROR lines; warm-up 202,493 pages (829 MB) in 0.2 s | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| HDD test, G015 stage 4d (5,400 rpm disk, 4 GB, 3 runs per arm, pre-registered), as reported in the build report | coordinator | RPC answered 30.1 s after launch [24.7-31.2], against 84.4 s for .5; 400-block catch-up to the top in 179 s against 168 s for .5 (106%; bar 110%); every background run finished after every .5 run; warm-up 75.8 s against 61.7 s (123%; bar 125%); binary there (78ef0d87) built from a093187c7. The stage's own result files are in evidence/monerodato.6/. | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+| Review of dot6-prep, as reported by the optimizer | adversary | approved the code (a3b933e2), the 64-page read-ahead window (91fad7f6) and the docs commit (783fd152); checked the tag commit's delta from the patch in the tag notice (ack 65ce06b6). The adversary's own mails are not in the evidence. | [build report](evidence/monerodato.6/monerodato-v0.6-build.md) |
+
+## Working build monerodato.5
+
+Against .4: the startup warm-up of the three hash indexes, then run before RPC and P2P started.
+
+| Check | By | Result | Evidence |
+|---|---|---|---|
+| Object identity against .4's build: 320 build files hashed | optimizer | 18 differ: the new warm-up code, and objects that use `BlockchainDB`, whose class gained a virtual function (that explanation was not checked object by object). The wallet's own objects are byte-identical to .4's. | [build report](evidence/monerodato.5/monerodato-v0.5-build.md) |
+| Rust library | optimizer | not recompiled; `libfcmp_pp_rust.a` byte-identical to .4's | [build report](evidence/monerodato.5/monerodato-v0.5-build.md) |
+| The wallet binaries do not refer to the warm-up (`nm -u` on the 14 wallet objects) | optimizer | no reference to the core, the database open or the warm-up functions | [build report](evidence/monerodato.5/monerodato-v0.5-build.md) |
+| Unit tests, with the new `lmdb_warm` and the `BlockchainDBTest` suites | optimizer | 49 ran; 48 passed; 1 skipped; 0 failed | [build report](evidence/monerodato.5/monerodato-v0.5-build.md) |
+| Warm-up on a 16 GB machine, cold start | optimizer | 202,493 pages (829 MB) in 3.3 s; page order correct; clean exit; 0 ERROR lines | [build report](evidence/monerodato.5/monerodato-v0.5-build.md) |
+| Warm-up under a 1 GiB memory limit | optimizer | upper levels only: 3,864 pages (15 MB); the 813 MB of leaf pages not read, being over 60% of the limit | [build report](evidence/monerodato.5/monerodato-v0.5-build.md) |
+| Warm-up under a 2 GiB limit, and on an empty database | optimizer | all 202,493 pages; 0 pages | [build report](evidence/monerodato.5/monerodato-v0.5-build.md) |
+| Sync of 400 blocks from 3,106,401, one peer | optimizer | hash at 3,106,800 equal to the peer's and the reference node's; 0 oversize packets; 0 verification failures; 0 ERROR lines | [build report](evidence/monerodato.5/monerodato-v0.5-build.md) |
+| Wallet transaction, 8 inputs, one run | optimizer | fee, weight and transaction count the same as .3's and .4's | [build report](evidence/monerodato.5/monerodato-v0.5-build.md) |
+| Hard-disk test (5,400 rpm disk, 4 GB VM, 3 runs per arm), as the build report gives it | coordinator | launch to the top of 400 blocks: 410 s cold, 166 s with the warm-up; the warm-up took about 60 s, and RPC answered 56 s later than without it. The run's own result files are not in the evidence. | [build report](evidence/monerodato.5/monerodato-v0.5-build.md) |
+| Review of the series | adversary | approved with no findings, as the optimizer reports it; the adversary's own message is not in the evidence | [build report](evidence/monerodato.5/monerodato-v0.5-build.md) |
+
+## Working build monerodato.4
+
+Against .3: three memory-only commits in the wallet's FCMP++ prover. monerod's code is .3's.
+
+| Check | By | Result | Evidence |
+|---|---|---|---|
+| Object identity against .3's build: 320 build files hashed | optimizer | 6 differ: the binary, the version objects and the Rust library; no other C++ object of the daemon changed | [build report](evidence/monerodato.4/monerodato-v0.4-build.md) |
+| The prover's output is unchanged: 258-case differential against .3 | optimizer | 258 of 258 proofs byte-identical; the new verifier accepted all of .3's | [build report](evidence/monerodato.4/monerodato-v0.4-build.md) |
+| Gate 1, s64 field differential | optimizer | 5,783+ cases; 0 failures | [build report](evidence/monerodato.4/monerodato-v0.4-build.md) |
+| Gate 2, folded against stored verifier fuzz | optimizer | 900 generated; 873 rejected by both; 0 diverged; 0 panics | [build report](evidence/monerodato.4/monerodato-v0.4-build.md) |
+| Gate 3, constant-time census of the Rust library | optimizer | 160 lines for .3 and .4; one differs, an anonymous constant's label; functions, instruction counts, conditional jumps and call targets identical | [build report](evidence/monerodato.4/monerodato-v0.4-build.md) |
+| Gate 4, the adversary's merged-batch fuzz | optimizer | 374 cases; 0 divergences | [build report](evidence/monerodato.4/monerodato-v0.4-build.md) |
+| Gate 5, the adversary's FFI test | optimizer | pass, in a fresh clone | [build report](evidence/monerodato.4/monerodato-v0.4-build.md) |
+| Crate suites: multiexp; generalized-bulletproofs with the new `prove_output_unchanged`; the rest of fcmps; monero-fcmp-plus-plus | optimizer | 4 pass; 4 + 3 + 1 pass; 11 pass; 2 pass | [build report](evidence/monerodato.4/monerodato-v0.4-build.md) |
+| Unit tests (fcmp_pp, wallet_tx_builder, carrot_fcmp, bulletproofs_plus, curve_trees) | optimizer | 41 passed; 1 skipped; 0 failed | [build report](evidence/monerodato.4/monerodato-v0.4-build.md) |
+| Wallet transactions built by .3 and by .4, 8, 32 and 128 inputs, not relayed | optimizer | fee and weight equal at each size; peak memory at 128 inputs 1,292 → 811 MB; time unchanged | [build report](evidence/monerodato.4/monerodato-v0.4-build.md) |
+| Sync of 424 blocks from 3,106,401, one peer | optimizer | hash at 3,106,800 equal to the peer's and the reference node's; 0 oversize packets; 0 verification failures; 0 ERROR lines | [build report](evidence/monerodato.4/monerodato-v0.4-build.md) |
+| Review of the series | adversary | approved, its own runs agreeing with the optimizer's, as the optimizer reports it; the adversary's own message is not in the evidence | [build report](evidence/monerodato.4/monerodato-v0.4-build.md) |
+
+## Working build monerodato.3
+
+Against .2: the constant-time multiexp used by the wallet's FCMP++ prover is Straus with a 4-bit window at every
+length. monerod's code is .2's.
+
+| Check | By | Result | Evidence |
+|---|---|---|---|
+| Object identity against .2's build: 283 build files hashed | optimizer | 6 differ: the binary, the version objects and the Rust library; `main.cpp.o` byte-identical to .2's | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+| Proofs before and after the change: 258-case differential | optimizer | byte-identical; 258 of 258 cross-verified | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+| multiexp crate tests, with the new constant-time Straus tests on two curves | optimizer | 4 pass | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+| Gate 1, s64 field differential | optimizer | 5,783+ cases; 0 failures | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+| Gate 2, folded against stored verifier fuzz | optimizer | 900 generated; 873 rejected by both; 0 diverged; 0 panics | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+| Gate 3, constant-time census of the Rust library | optimizer | 160 lines for .2 and .3; identical once build-generated names are normalised | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+| Gate 4, the adversary's merged-batch fuzz | optimizer | 341 cases; 0 divergences | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+| Gate 5, the adversary's FFI test | optimizer | pass, in a fresh clone | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+| Crate suites: generalized-bulletproofs; the rest of fcmps; monero-fcmp-plus-plus | optimizer | 4 + 3 pass; 11 pass; 2 pass | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+| Unit tests (fcmp_pp, wallet_tx_builder, carrot_fcmp, bulletproofs_plus, curve_trees) | optimizer | 41 passed; 1 skipped; 0 failed | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+| Wallet transaction, 8 inputs, built by .2 and by .3, not relayed | optimizer | fee and weight equal | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+| Sync of 420 blocks from 3,106,401, one peer | optimizer | hash at 3,106,800 equal to the peer's and the reference node's; 0 oversize packets; 0 verification failures; 0 ERROR lines | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+| Review of the series, with a timing test of the new multiexp | adversary | approved with no findings; reproduced independently; dudect clean on 18 of 18, with a variable-time control detected. As the optimizer reports it; the adversary's own message is not in the evidence. | [build report](evidence/monerodato.3/monerodato-v0.3-build.md) |
+
+## Working build monerodato.2
+
+Tag `v0.19.0.0-beta.3.1-monerodato.2`, commit `b9c65a849`. Static binary sha256
+`200e07d0da4eb03274dd237f3415349ac2fd4481f1cac2076db9d3111a8567ee`.
+
+**What changed against .1:**
+- **Shipped code:** only the startup notice text, which drops "and will likely sync faster", and the version suffix.
+- **Also added:** tests and gate docs.
+- **Not re-run:** the corpus and replay checks. The verification code in the binary is byte-identical to .1's.
+
+| Check | By | Result | Evidence |
+|---|---|---|---|
+| Object identity against .1's build: 282 build objects hashed | optimizer | only 4 differ (the binary, version, main.cpp objects); `libfcmp_pp_rust.a` byte-identical | [build report](evidence/monerodato.2/monerodato-v0.2-build.md) |
+| Gate 1, s64 field differential | optimizer | 5,783+ cases; 0 failures | [build report](evidence/monerodato.2/monerodato-v0.2-build.md) |
+| Gate 2, folded against stored verifier fuzz | optimizer | 900 generated; 873 rejected by both; 0 diverged; 0 panics | [build report](evidence/monerodato.2/monerodato-v0.2-build.md) |
+| Gate 3, constant-time census of the Rust library | optimizer | equal to .1's line for line | [build report](evidence/monerodato.2/monerodato-v0.2-build.md) |
+| Gate 4, the adversary's merged-batch fuzz | optimizer | 363 cases; 0 divergences | [build report](evidence/monerodato.2/monerodato-v0.2-build.md) |
+| Gate 5, the adversary's FFI test | optimizer | pass | [build report](evidence/monerodato.2/monerodato-v0.2-build.md) |
+| generalized-bulletproofs suite with the split-boundary test; the rest of the fcmps suite; `fcmp_pp.*` unit tests | optimizer | 4 + 3 pass; 11 pass; 16 pass, 1 skipped | [build report](evidence/monerodato.2/monerodato-v0.2-build.md) |
+| Sync of 424 blocks from 3,106,401, one honest peer | optimizer | hash at 3,106,800 equal to the reference node's; 0 errors | [build report](evidence/monerodato.2/monerodato-v0.2-build.md) |
+| Startup notice on a capable machine (16 GB, 12 cores, AVX2) | optimizer | shown once, with the new text | [build report](evidence/monerodato.2/monerodato-v0.2-build.md) |
+| Startup notice on a low-spec machine (4 vCPU, 3.9 GB, AVX2) | coordinator | not shown: 0 times on stdout and in the log | this file |
+| Bundle import on top of .1 | coordinator | fast-forward; tag tree as reported; 10 files changed | this file |
+
+## Working build monerodato.1
+
+Tag `v0.19.0.0-beta.3.1-monerodato.1`, commit `e02f97bda`. Static binary sha256
+`389c1bf9fd085ff83540d139fbb5dd884f902566604752325990835ea9faee88`.
+
+### Differential tests against the reference, and fuzzing
+
+| Check | By | Result | Evidence |
+|---|---|---|---|
+| Invalid-transaction differential: tampered, swapped and original transactions sent to both binaries over RPC, at heights 3,105,401 and 3,106,400 | optimizer | 135 + 101 cases; 0 disagreements in verdict or flags | [build report](evidence/monerodato.1/monerodato-v0.1-build.md) |
+| The same, with pool verification routed through the merged batch path (test-only build) | optimizer | 135 + 101 cases; 0 disagreements | [build report](evidence/monerodato.1/monerodato-v0.1-build.md) |
+| Field25519 (s64) differential against the pristine crate (gate 1) | optimizer | 5,783+ cases; 0 failures | [build report](evidence/monerodato.1/monerodato-v0.1-build.md) |
+| Folded against stored FCMP++ verifier, structured-mutation fuzz | optimizer | 900 generated; 873 rejected by both; 0 accepted by one only; 0 panics | [build report](evidence/monerodato.1/monerodato-v0.1-build.md) |
+| Merged batch verifiers against per-batch verification, fuzz (adversary's harness) on .1's code | optimizer | 374 cases; 0 divergences. The first run failed on a fault in the harness's oracle, which the adversary corrected. | [HDD stage 1 note](evidence/monerodato.1/optimizer-hdd-stage1-analysis.md), [.2 gate proposal](evidence/monerodato.1/optimizer-dot2-gate-proposal.md) |
+| The same fuzz, on the research tree before the fork | adversary | 352 cases; 0 divergences | [review, partial](evidence/monerodato.1/adversary-review-v1-partial.md) |
+| Merged batches with malleated proofs | optimizer | 9,123 proofs that pass the per-proof checks are all rejected after merging, serial and split | [build report](evidence/monerodato.1/monerodato-v0.1-build.md) |
+| Multiexp split boundaries: 14 term counts, 8 split widths, a changed term at every chunk edge | optimizer | 942 changed batches all rejected; every valid batch accepted. The first run failed on a bug in the test, which was fixed. | [ASan and split report](evidence/monerodato.1/optimizer-g014-asan-split-waitguard.md) |
+
+### Chain and corpus
+
+| Check | By | Result | Evidence |
+|---|---|---|---|
+| Chain replay: sync from 3,105,400 to the tip, default settings, one honest peer | coordinator | tip 3,127,632, hash equal to the reference node's; 0 verification failures or rejected blocks | [replay .1](evidence/monerodato.1/replay-c-report-v1.md) |
+| Transaction corpus at height H1 | adversary | 848/848 must-accept transactions accepted; 2,000/2,000 must-reject rejected | [corpus H1](evidence/monerodato.1/adversary-corpus-v1-h1.md) |
+| Transaction corpus at height H2 | adversary | 50/50 accepted; 2,000/2,000 rejected | [corpus H2](evidence/monerodato.1/adversary-corpus-v1-h2.md) |
+| Sync-size cap smoke test through the 128-input window | optimizer | tip hash equal to the reference node's; requests capped from 20 to 4 blocks; 0 oversize packets; 0 disconnects | [build report](evidence/monerodato.1/monerodato-v0.1-build.md) |
+
+### Memory safety and unit tests
+
+| Check | By | Result | Evidence |
+|---|---|---|---|
+| AddressSanitizer on the C++ side, as shipped: all 16 `fcmp_pp.*` tests | optimizer | 0 ASan errors. The negative control, with the wait guard disabled, reports the heap-use-after-free it should. | [ASan report](evidence/monerodato.1/optimizer-g014-asan-split-waitguard.md) |
+| monerod unit tests | optimizer | 1,508 ran; 1,505 passed; 3 skipped; 0 failed | [build report](evidence/monerodato.1/monerodato-v0.1-build.md) |
+| New: `batch_verify_early_exit_waits_for_tasks` | optimizer | pass: 3 early exits; no valid proof reported invalid | [build report](evidence/monerodato.1/monerodato-v0.1-build.md) |
+| New: `batch_verify_rejects_one_bad_proof_among_valid` | optimizer | pass: bad proofs rejected first, middle and last | [build report](evidence/monerodato.1/monerodato-v0.1-build.md) |
+| Crate suites: dalek-ff-group, generalized-bulletproofs, full-chain-membership-proofs | optimizer | 10/10; 2 unit + 3 integration; 12/12 (shipped rustc 1.99.1) | [build report](evidence/monerodato.1/monerodato-v0.1-build.md) |
+
+### Reviews and build checks
+
+| Check | By | Result | Evidence |
+|---|---|---|---|
+| Review of the .1 series: merge and split against the fuzzed code, the FFI, and the wait guard | adversary | pass | [review](evidence/monerodato.1/adversary-review-v1.md) |
+| Can a merged batch accept something per-batch verification rejects? | adversary | Analysis, not a test: no such path, except with probability about 1/q | [review, partial](evidence/monerodato.1/adversary-review-v1-partial.md) |
+| Form of the wait guard | adversary, optimizer | Both forms behave the same on every reachable path. The shipped form is accepted. | [confirmation](evidence/monerodato.1/adversary-disarm-confirmed.md) |
+| Vendored Rust sources: regenerate in a fresh clone; revision check | optimizer | identical; check passes | [build report](evidence/monerodato.1/monerodato-v0.1-build.md) |
+| Binary: dynamic libraries, glibc symbols, instruction-class census | optimizer | the same as the reference build | [build report](evidence/monerodato.1/monerodato-v0.1-build.md) |
+
+### Performance (measurements, not correctness)
+
+- **stock against .1, 12 cores:**
+  - heavy blocks: wall -51% / -56%, peak memory -65% / -73%;
+  - small-transaction blocks: +4.0% wall at 12 threads, -7.4% at 24.
+
+  ([report](evidence/monerodato.1/optimizer-g014-asan-split-waitguard.md))
+- **.0 against .1, 12 threads:**
+  - heavy blocks: CPU -26.3%, wall -20.0%, peak memory -10.1%;
+  - small-transaction blocks: CPU -28.2%, wall unchanged.
+
+  ([report](evidence/monerodato.1/optimizer-dot1-stays-g013-stage1-plan.md))
+- **On a 5400 rpm hard disk,** stock syncs about 9% faster than .1. The disk, not the CPU, is the limit there.
+  ([analysis](evidence/monerodato.1/optimizer-hdd-stage1-analysis.md))
+
+## Working build monerodato.0
+
+Tag `v0.19.0.0-beta.3.1-monerodato.0`. Static binary sha256
+`dd839ccd3d557924389669cb13d7f2624987278795c8b56025939ff1bc6d80b9`.
+
+| Check | By | Result | Evidence |
+|---|---|---|---|
+| Invalid-transaction differential at 3,105,401 and 3,106,400 | optimizer | 135 + 101 cases; 0 disagreements | [build report](evidence/monerodato.0/monerodato-v0-build.md) |
+| Field25519 (s64) differential, gate 1 | optimizer | 5,783+ cases; 0 failures | [gate report](evidence/monerodato.0/monerodato-v0-gate-report.md) |
+| Folded against stored verifier fuzz, gate 2 | optimizer | 900 generated; 873 rejected by both; 0 diverged; 0 panics (rustc 1.97.1) | [gate report](evidence/monerodato.0/monerodato-v0-gate-report.md) |
+| Chain replay from 3,105,400 to the tip, both binaries | coordinator | both tips equal the reference node's; 0 rejected blocks | [replay](evidence/monerodato.0/replay-c-report.md) |
+| Database swap: each binary syncs on the other's database, light and heavy stretches | coordinator | pass both ways: 1,019–16,429 blocks; 0 errors | [replay](evidence/monerodato.0/replay-c-report.md) |
+| Peak memory over the replay | coordinator | stock 2,167,448 kB; fork 931,456 kB (-57%); no swap | [replay](evidence/monerodato.0/replay-c-report.md) |
+| Transaction corpus at H1 and H2 | adversary | 848/848 + 50/50 accepted; 2,000 + 2,000 rejected; 0 mismatches. That is 4,898 cases; the closing note says 5,698, an addition error. | [H1](evidence/monerodato.0/adversary-h1-fork-result.md), [complete](evidence/monerodato.0/adversary-corpus-v0-complete.md) |
+| Series review: imports byte-identical to upstream; reviewed trees unchanged | adversary | pass | [review](evidence/monerodato.0/adversary-review-v0.md) |
+| Constant time of the s64 field operations, shipped flags | adversary | Holds, with refined wording: the only branch in each operation is the overflow panic guard. Disassembly inspection only. | [review](evidence/monerodato.0/adversary-review-v0.md), [scan](evidence/monerodato.0/monerodato-v0-ct-scan.txt) |
+| monerod unit tests | optimizer | 1,506 ran; 1,503 passed; 3 skipped; 0 failed | [build report](evidence/monerodato.0/monerodato-v0-build.md) |
+| Crate suites | optimizer | dalek-ff-group 10/10 (release and debug); fcmps 9/9 | [build report](evidence/monerodato.0/monerodato-v0-build.md) |
+| Vendored sources and revision check | optimizer | identical on regeneration; 4 of 4 deliberate tamperings caught | [build report](evidence/monerodato.0/monerodato-v0-build.md) |
+| Sync-size cap smoke test through the 128-input window | optimizer | pass | [build report](evidence/monerodato.0/monerodato-v0-build.md) |
+
+## What has NOT been checked
+
+- **No human has reviewed the code for correctness.**
+- **Not run on monerodato.7 itself:** the transaction corpus, the chain replay and the Rust gates. They were last
+  run on the working builds named in their sections; .7 differs from .6 in code only by the testnet check.
+- **The 8-input wallet transaction comparison of .7 against .6 was not run:** no node synced far enough was at hand.
+  The wallet's code differs from .6's by the check's twelve lines.
+- **The optimizer's .7 tests ran on the first tagging,** before the two docs-only re-tags.
+- **Missing gate items:**
+  - The constant-time check is a census of the compiled library compared between builds, and disassembly
+    inspection. No test proves constant time.
+  - Chain replays C2 (injected bad blocks), C3 (reorganisation) and C4 (sync-cap liveness with fixtures) have not
+    been run, for any build.
+- **Reviews of .3, .4 and .5** are recorded only as the optimizer reports them.
+- **Low-spec hardware:** working builds .2 to .6 ran on a Core 2 Quad node of the lab at the chain tip, and .7 was
+  started on a single-core Atom node on 2026-11-11. These are observations, not gate checks, and are not in the
+  evidence. The replays ran in a 4-vCPU / 6 GB VM, and the hard-disk tests in a 4-vCPU / 4 GB VM.
+- **The testnet check:**
+  - It is a safeguard against starting on mainnet by accident, not a security boundary: anyone who builds from
+    source can change it.
+  - `libwallet_api` has no check; no program in the release uses it.
+  - Upstream's Python functional tests need regtest, so they do not run on the release build.
+  - Three small upstream utilities (deserialize, dns-checks, object-sizes) were not built, so not run.
+- **The index warm-up:** its budget is 60% of the machine's memory with no absolute cap, and the tables' size on
+  mainnet was not measured. No call-graph check shows that the wallets cannot reach the warm-up code; the wallet
+  objects hold no reference to it.
+- **Not built:** Windows, macOS, 32-bit and ARM.
+- **Known gaps in the tests:**
+  - The s64 differential tests 10,000 single operations, not chains of operations. The adversary found this; a fixed
+    re-run is not recorded.
+  - AddressSanitizer covered the C++ side only. The Rust code was not instrumented.
+  - The .1 tests and ASan ran on the final tree only, not on each intermediate commit.
+  - Two of the four gaps the adversary listed for the malleation tests are not recorded as closed. See item 3 in
+    [the partial review](evidence/monerodato.1/adversary-review-v1-partial.md).
+- **Builds are repeatable, not bit-for-bit reproducible:** they depend on the host compiler, and paths are embedded.
+- **One pre-existing upstream hazard is noted and not fixed:** a throw while tasks are queued. It is unreachable unless
+  the thread pool's wait itself fails.
+
+## Gate design
+
+The adversary's gate designs, as written: [the gate design](evidence/gate-design/fork-gate-design-adversary.md) and
+[the v0 gate](evidence/gate-design/fork-v0-gate-adversary.md).

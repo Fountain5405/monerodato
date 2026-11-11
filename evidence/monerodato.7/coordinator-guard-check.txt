@@ -1,0 +1,18 @@
+Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.7-release)
+Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.7-release)
+Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.7-release)
+PASS  d-mainnet: rc 1, 0 files, "monerodato will not start monerod on mainnet."
+PASS  d-stagenet: rc 1, 0 files, "monerodato will not start monerod on stagenet."
+PASS  d-regtest: rc 1, 0 files, "monerodato will not start monerod on regtest."
+PASS  d-cfg-stagenet: rc 1, 0 files, "monerodato will not start monerod on stagenet."
+PASS  d-cfg-regtest: rc 1, 0 files, "monerodato will not start monerod on regtest."
+PASS  d-testnet (control): rc 124, 11 files created, no refusal line
+PASS  d-cfg-testnet (control): rc 124, 11 files created, no refusal line
+PASS  wc-mainnet: rc 1, 0 files, "monerodato will not start this wallet program on mainnet."
+PASS  wc-stagenet: rc 1, 0 files, "monerodato will not start this wallet program on stagenet."
+PASS  wc-testnet (control): rc 0, 7 files created, no refusal line
+PASS  wr-mainnet: rc 1, 0 files, "monerodato will not start this wallet program on mainnet."
+PASS  wr-stagenet: rc 1, 0 files, "monerodato will not start this wallet program on stagenet."
+PASS  wr-testnet (control): rc 124, 4 files created, no refusal line
+work dir <work>/guardcheck.UZ1B0n
+GUARD HAND CHECK: ALL PASS

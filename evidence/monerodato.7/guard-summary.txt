@@ -1,0 +1,69 @@
+program | case | rc | files created in HOME/TMPDIR/EXEDIR | new files of ours in <path>/tmp | refusal line | verdict
+monerod | mainnet (refused) | 1 | 0 | 0 | monerodato will not start monerod on mainnet. | ok
+monerod | stagenet (refused) | 1 | 0 | 0 | monerodato will not start monerod on stagenet. | ok
+monerod | regtest (refused) | 1 | 0 | 0 | monerodato will not start monerod on regtest. | ok
+monerod | cfg-stagenet (refused) | 1 | 0 | 0 | monerodato will not start monerod on stagenet. | ok
+monerod | cfg-regtest (refused) | 1 | 0 | 0 | monerodato will not start monerod on regtest. | ok
+monerod | cfg-empty-mainnet (refused) | 1 | 0 | 0 | monerodato will not start monerod on mainnet. | ok
+monerod | testnet-control (allowed) | 124 | 11 | 0 | none | ok
+monerod | cfg-testnet-control (allowed) | 124 | 11 | 0 | none | ok
+monero-wallet-cli | mainnet (refused) | 1 | 0 | 0 | monerodato will not start this wallet program on mainnet. | ok
+monero-wallet-cli | stagenet (refused) | 1 | 0 | 0 | monerodato will not start this wallet program on stagenet. | ok
+monero-wallet-cli | cfg-stagenet (refused) | 1 | 0 | 0 | monerodato will not start this wallet program on stagenet. | ok
+monero-wallet-cli | cfg-regtest (refused-upstream) | 1 | 0 | 0 | none | ok
+monero-wallet-cli | testnet-control (allowed) | 1 | 1 | 0 | none | ok
+monero-wallet-cli | cfg-testnet-control (allowed) | 1 | 1 | 0 | none | ok
+monero-wallet-rpc | mainnet (refused) | 1 | 0 | 0 | monerodato will not start this wallet program on mainnet. | ok
+monero-wallet-rpc | stagenet (refused) | 1 | 0 | 0 | monerodato will not start this wallet program on stagenet. | ok
+monero-wallet-rpc | cfg-stagenet (refused) | 1 | 0 | 0 | monerodato will not start this wallet program on stagenet. | ok
+monero-wallet-rpc | cfg-regtest (refused-upstream) | 1 | 0 | 0 | none | ok
+monero-wallet-rpc | testnet-control (allowed) | 124 | 6 | 0 | none | ok
+monero-wallet-rpc | cfg-testnet-control (allowed) | 124 | 6 | 0 | none | ok
+monero-gen-trusted-multisig | mainnet (refused) | 1 | 0 | 0 | monerodato will not start this wallet program on mainnet. | ok
+monero-gen-trusted-multisig | stagenet (refused) | 1 | 0 | 0 | monerodato will not start this wallet program on stagenet. | ok
+monero-gen-trusted-multisig | cfg-stagenet (refused) | 1 | 0 | 0 | monerodato will not start this wallet program on stagenet. | ok
+monero-gen-trusted-multisig | testnet-control (allowed) | 0 | 7 | 0 | none | ok
+monero-gen-trusted-multisig | cfg-testnet-control (allowed) | 0 | 7 | 0 | none | ok
+monerod | testnet+stagenet (info) | 1 | 0 | 0 | none | info
+monerod | testnet-flag+cfg-stagenet (info) | 1 | 0 | 0 | none | info
+monero-wallet-cli | testnet+stagenet (info) | 1 | 1 | 0 | none | info
+monero-wallet-cli | testnet-flag+cfg-stagenet (info) | 1 | 1 | 0 | none | info
+monero-blockchain-ancestry | mainnet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-ancestry on mainnet. | ok
+monero-blockchain-ancestry | stagenet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-ancestry on stagenet. | ok
+monero-blockchain-ancestry | regtest (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-ancestry on regtest. | ok
+monero-blockchain-ancestry | testnet-control (allowed) | 1 | 4 | 0 | none | ok
+monero-blockchain-depth | mainnet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-depth on mainnet. | ok
+monero-blockchain-depth | stagenet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-depth on stagenet. | ok
+monero-blockchain-depth | regtest (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-depth on regtest. | ok
+monero-blockchain-depth | testnet-control (allowed) | 1 | 4 | 0 | none | ok
+monero-blockchain-export | mainnet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-export on mainnet. | ok
+monero-blockchain-export | stagenet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-export on stagenet. | ok
+monero-blockchain-export | regtest (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-export on regtest. | ok
+monero-blockchain-export | testnet-control (allowed) | 1 | 4 | 0 | none | ok
+monero-blockchain-import | mainnet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-import on mainnet. | ok
+monero-blockchain-import | stagenet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-import on stagenet. | ok
+monero-blockchain-import | regtest (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-import on regtest. | ok
+monero-blockchain-import | testnet-control (allowed) | 0 | 6 | 0 | none | ok
+monero-blockchain-prune | mainnet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-prune on mainnet. | ok
+monero-blockchain-prune | stagenet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-prune on stagenet. | ok
+monero-blockchain-prune | regtest (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-prune on regtest. | ok
+monero-blockchain-prune | testnet-control (allowed) | 1 | 4 | 0 | none | ok
+monero-blockchain-prune-known-spent-data | mainnet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-prune-known-spent-data on mainnet. | ok
+monero-blockchain-prune-known-spent-data | stagenet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-prune-known-spent-data on stagenet. | ok
+monero-blockchain-prune-known-spent-data | regtest (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-prune-known-spent-data on regtest. | ok
+monero-blockchain-prune-known-spent-data | testnet-control (allowed) | 0 | 6 | 0 | none | ok
+monero-blockchain-stats | mainnet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-stats on mainnet. | ok
+monero-blockchain-stats | stagenet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-stats on stagenet. | ok
+monero-blockchain-stats | regtest (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-stats on regtest. | ok
+monero-blockchain-stats | testnet-control (allowed) | 1 | 4 | 0 | none | ok
+monero-blockchain-usage | mainnet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-usage on mainnet. | ok
+monero-blockchain-usage | stagenet (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-usage on stagenet. | ok
+monero-blockchain-usage | regtest (refused) | 1 | 0 | 0 | monerodato will not start monero-blockchain-usage on regtest. | ok
+monero-blockchain-usage | testnet-control (allowed) | 1 | 2 | 0 | none | ok
+monero-gen-ssl-cert | once (unguarded) | 0 | 2 | 0 | none | ok
+monero-utils-deserialize | not built | | | | | (not a release target here)
+monero-utils-dns-checks | not built | | | | | (not a release target here)
+monero-utils-object-sizes | not built | | | | | (not a release target here)
+programs in <path>/bin7: monero-blockchain-ancestry monero-blockchain-depth monero-blockchain-export monero-blockchain-import monero-blockchain-prune monero-blockchain-prune-known-spent-data monero-blockchain-stats monero-blockchain-usage monerod monero-gen-ssl-cert monero-gen-trusted-multisig monero-wallet-cli monero-wallet-rpc 
+FAIL lines: 0
+GUARD_EVIDENCE_DONE

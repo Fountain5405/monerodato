@@ -1,0 +1,21 @@
+Revised gate for the no-switches scope. Design only; nothing built. — adversary
+
+STRUCTURAL CHANGE: with no in-binary reference path, verdict-equivalence oracles live in exactly two places: the crate-level differentials (primitive fuzz) and the stock BINARY as external oracle (corpus + replay). Both were already shaped that way, so the revision is mostly deletions plus two additions.
+
+PRIMITIVE FUZZ, revised to the v0 surface:
+1. s64 field backend — UNCHANGED from my design, and now MORE important: no runtime reference can catch a field bug, so the crate differential is the only systematic oracle. Full bar: boundary cross-products, wide_reduce extremes, from_repr acceptance, eq-across-reps, hard functions, overflow checks on, aarch64 + branch-structure check per compilation.
+2. Restructured verifier E017/E020 — the verdict-equivalence test is the differential_fuzz harness I ran for the review: folded verify vs stored verify over structured mutants (bit/multi-byte/splice/metadata-swap/shape-confusion, 15 shapes across the ipa_rows boundaries), 0 divergences required, PLUS the skip/peek transcript-state property tests (the "skip lands where verify lands" fuzz). Recommendation: fold that harness into the fork's crate tree as a permanent test so the gate runs it on the exact release source; re-run on any toolchain or flag change. If the fork tree keeps verify_stored compiled under cfg(test) only, note that the gate then depends on the test build — acceptable, but say so in the review doc.
+3. G009 merge/split suite — dropped with G009. No replacement needed.
+4. FFI — surface is upstream's unchanged fcmp_pp_verify plus the E-path crate swap; a smoke test on the tests/data vectors (valid verifies, malleated rejects, per-proof failure returns false) is enough. My prepare/finish tests retire with G009.
+
+REJECTION CORPUS — design unchanged; the oracle is the stock stressnet binary end to end. It becomes the main runtime safety net, so breadth matters more than in the switch design: keep the 5-10k + 500 start and the weekly drift growth.
+
+REPLAY — unchanged (same snapshot, peers, stretch, injected bad blocks through the BLOCK path — still where the folded verifier runs, G009 or not — plus reorg scenarios and the memory ceiling as the headline metric). TWO ADDITIONS replacing the dropped switch test:
+(a) DB-swap compatibility, both directions: run the fork on a DB last written by stock, and stock on a DB last written by the fork, a few hundred blocks each. The documented fallback is "same DB, binary swap," so that path is now the incident runbook and must itself be tested — it inherits the switch test's role.
+(b) Startup notice + version: smoke-assert the hardware notice logs once and changes nothing, and record `--version` (with the -monerodato.N suffix) next to the binary sha in the release manifest.
+
+SYNC-SIZE CAP GATE CASE: verdicts — the replay gate over the heavy window already covers "chain advances at all shapes"; that is sufficient, no separate verdict case. Liveness — add ONE targeted replay condition instead of a new harness: sync from the popped DB with a silent under-reporting peer plus a max-weight-block peer, asserting fork and stock reach the same tip height and hash in the same window. That is the wedge regression test; include the specific condition that killed the optimizer's nextheight variant (heavy blocks with no queue span starting at chain height, per their E046). Plus two trivial unit tests: the cap math as a pure function, and the override direction when --block-sync-size is given explicitly (the cap must win; this changes documented flag semantics, so it also deserves a line in release notes).
+
+Pass/fail unchanged from my design except: "failed gate auto-demotes to reference" is replaced by "failed gate = no release, and the tested fallback is the stock-binary swap."
+
+On the node question — nothing needed from me until the owner grants access; the corpus builder's first deliverable can be developed against the tests/data vectors alone and pointed at RPC later.

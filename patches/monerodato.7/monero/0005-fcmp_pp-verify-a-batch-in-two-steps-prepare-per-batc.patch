@@ -1,0 +1,209 @@
+From d95106256bc35396086e8075344d54a98414918a Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 19:59:57 +0000
+Subject: [PATCH 5/11] fcmp_pp: verify a batch in two steps, prepare per batch
+ and one finish per call
+
+fcmp_pp_verify checks one batch end to end: the per-proof checks, the
+ed25519 batch check, then one multiexp per curve. So that a caller can
+merge the multiexps of several batches, the FFI now also offers the steps
+separately:
+
+- fcmp_pp_verify_prepare runs one batch's per-proof checks and its ed25519
+  check, exactly as fcmp_pp_verify does, and returns the batch's Selene and
+  Helios verifier state, or null if any check fails;
+- fcmp_pp_verify_finish merges all states (BatchVerifier::merge) and runs
+  one multiexp per curve, split over up to `split` threads
+  (Generators::verify_split). It consumes every state, whatever the result;
+- destroy_fcmp_pp_batch_state frees a state that never reached finish.
+
+The C++ wrappers in prove.h/prove.cpp are verify_prepare, verify_finish
+(which sets the consumed pointers to nullptr) and batch_state_free.
+fcmp_pp_verify is unchanged, and nothing calls the new functions yet.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/fcmp_pp/fcmp_pp_rust/fcmp++.h   | 18 +++++++
+ src/fcmp_pp/fcmp_pp_rust/src/lib.rs | 82 +++++++++++++++++++++++++++++
+ src/fcmp_pp/prove.cpp               | 19 +++++++
+ src/fcmp_pp/prove.h                 |  5 ++
+ 4 files changed, 124 insertions(+)
+
+diff --git a/src/fcmp_pp/fcmp_pp_rust/fcmp++.h b/src/fcmp_pp/fcmp_pp_rust/fcmp++.h
+index c750042e5..4c97211e3 100644
+--- a/src/fcmp_pp/fcmp_pp_rust/fcmp++.h
++++ b/src/fcmp_pp/fcmp_pp_rust/fcmp++.h
+@@ -192,6 +192,15 @@ struct FcmpPpVerifyInputSliceUnsafe
+   uintptr_t len;
+ };
+ 
++// The Selene and Helios batch-verifier state of one batch after its per-proof checks; see fcmp_pp_verify_finish
++struct FcmpPpBatchStateUnsafe;
++
++struct FcmpPpBatchStateSliceUnsafe
++{
++  struct FcmpPpBatchStateUnsafe * const *buf;
++  uintptr_t len;
++};
++
+ #ifdef __cplusplus
+ extern "C" {
+ #endif
+@@ -371,6 +380,15 @@ uintptr_t fcmp_pp_n_inputs(const struct FcmpPpVerifyInputUnsafe *fcmp_pp_verify_
+ 
+ bool fcmp_pp_verify(const struct FcmpPpVerifyInputSliceUnsafe fcmp_pp_verify_inputs);
+ 
++// Two-step batch verification. prepare runs one batch's per-proof checks and its ed25519 check and returns the
++// batch's state, or null if any check fails. finish merges all states, runs one multiexp per curve, split over up to
++// `split` threads, and consumes every state whatever the result. destroy frees a state that never reached finish.
++struct FcmpPpBatchStateUnsafe *fcmp_pp_verify_prepare(const struct FcmpPpVerifyInputSliceUnsafe fcmp_pp_verify_inputs);
++
++bool fcmp_pp_verify_finish(const struct FcmpPpBatchStateSliceUnsafe states, uintptr_t split);
++
++void destroy_fcmp_pp_batch_state(struct FcmpPpBatchStateUnsafe *state);
++
+ #ifdef __cplusplus
+ } //extern "C"
+ #endif
+diff --git a/src/fcmp_pp/fcmp_pp_rust/src/lib.rs b/src/fcmp_pp/fcmp_pp_rust/src/lib.rs
+index 5381dd25f..111faee85 100644
+--- a/src/fcmp_pp/fcmp_pp_rust/src/lib.rs
++++ b/src/fcmp_pp/fcmp_pp_rust/src/lib.rs
+@@ -1195,6 +1195,88 @@ pub unsafe extern "C" fn fcmp_pp_verify(inputs: Slice<*const FcmpPpVerifyInput>)
+         && HELIOS_FCMP_GENERATORS.generators.verify(c2_verifier)
+ }
+ 
++/// The Selene and Helios batch-verifier state of one batch after its per-proof checks. States are merged
++/// across batches by `fcmp_pp_verify_finish`, so each curve needs one multiexp per call, not one per batch.
++pub struct FcmpPpBatchState {
++    c1: generalized_bulletproofs::BatchVerifier<Selene>,
++    c2: generalized_bulletproofs::BatchVerifier<Helios>,
++}
++
++/// # Safety
++///
++/// This function assumes that the inputs are from fcmp_pp_verify_input_new. Returns null if any proof
++/// in the batch fails its per-proof checks or the batch's ed25519 check; otherwise a state to pass to
++/// fcmp_pp_verify_finish or destroy_fcmp_pp_batch_state.
++#[no_mangle]
++pub unsafe extern "C" fn fcmp_pp_verify_prepare(
++    inputs: Slice<*const FcmpPpVerifyInput>,
++) -> *mut FcmpPpBatchState {
++    let inputs: &[*const FcmpPpVerifyInput] = inputs.into();
++
++    let mut ed_verifier = multiexp::BatchVerifier::new(inputs.len());
++    let mut c1_verifier = generalized_bulletproofs::Generators::batch_verifier();
++    let mut c2_verifier = generalized_bulletproofs::Generators::batch_verifier();
++
++    for &input in inputs {
++        let fcmp_pp_verify_input = &*input;
++
++        let Ok(_) = fcmp_pp_verify_input.fcmp_pp.verify(
++            &mut OsRng,
++            &mut ed_verifier,
++            &mut c1_verifier,
++            &mut c2_verifier,
++            fcmp_pp_verify_input.tree_root,
++            fcmp_pp_verify_input.n_tree_layers,
++            fcmp_pp_verify_input.signable_tx_hash,
++            fcmp_pp_verify_input.key_images.clone(),
++        ) else {
++            return core::ptr::null_mut();
++        };
++    }
++
++    if !ed_verifier.verify_vartime() {
++        return core::ptr::null_mut();
++    }
++    Box::into_raw(Box::new(FcmpPpBatchState { c1: c1_verifier, c2: c2_verifier }))
++}
++
++/// # Safety
++///
++/// Every state must come from fcmp_pp_verify_prepare and be non-null. All of them are consumed,
++/// whatever the result. `split` > 1 runs each curve's multiexp in up to `split` parts on threads.
++#[no_mangle]
++pub unsafe extern "C" fn fcmp_pp_verify_finish(
++    states: Slice<*mut FcmpPpBatchState>,
++    split: usize,
++) -> bool {
++    let states: &[*mut FcmpPpBatchState] = states.into();
++    let mut states = states.iter().map(|&state| *Box::from_raw(state)).collect::<Vec<_>>();
++    let Some(mut merged) = states.pop() else {
++        return true;
++    };
++    for state in states {
++        merged.c1.merge(state.c1);
++        merged.c2.merge(state.c2);
++    }
++    if split > 1 {
++        SELENE_FCMP_GENERATORS.generators.verify_split(merged.c1, split)
++            && HELIOS_FCMP_GENERATORS.generators.verify_split(merged.c2, split)
++    } else {
++        SELENE_FCMP_GENERATORS.generators.verify(merged.c1)
++            && HELIOS_FCMP_GENERATORS.generators.verify(merged.c2)
++    }
++}
++
++/// # Safety
++///
++/// The state must come from fcmp_pp_verify_prepare and not have been passed to fcmp_pp_verify_finish.
++#[no_mangle]
++pub unsafe extern "C" fn destroy_fcmp_pp_batch_state(state: *mut FcmpPpBatchState) {
++    if !state.is_null() {
++        drop(Box::from_raw(state));
++    }
++}
++
+ // https://github.com/rust-lang/rust/issues/79609
+ #[cfg(all(target_os = "windows", target_arch = "x86"))]
+ #[no_mangle]
+diff --git a/src/fcmp_pp/prove.cpp b/src/fcmp_pp/prove.cpp
+index 9a8900e6d..ae5f67ec5 100644
+--- a/src/fcmp_pp/prove.cpp
++++ b/src/fcmp_pp/prove.cpp
+@@ -278,6 +278,25 @@ bool verify(const std::vector<fcmp_pp::FcmpPpVerifyInput> &fcmp_pp_verify_inputs
+     return ::fcmp_pp_verify(fcmp_pp_verify_inputs_slice);
+ }
+ //----------------------------------------------------------------------------------------------------------------------
++::FcmpPpBatchStateUnsafe *verify_prepare(const std::vector<fcmp_pp::FcmpPpVerifyInput> &fcmp_pp_verify_inputs)
++{
++    MAKE_TEMP_FFI_SLICE(FcmpPpVerifyInput, fcmp_pp_verify_inputs, fcmp_pp_verify_inputs_slice);
++    return ::fcmp_pp_verify_prepare(fcmp_pp_verify_inputs_slice);
++}
++//----------------------------------------------------------------------------------------------------------------------
++bool verify_finish(std::vector<::FcmpPpBatchStateUnsafe *> &states, std::size_t split)
++{
++    const ::FcmpPpBatchStateSliceUnsafe slice{states.data(), states.size()};
++    const bool r = ::fcmp_pp_verify_finish(slice, split);
++    std::fill(states.begin(), states.end(), nullptr);
++    return r;
++}
++//----------------------------------------------------------------------------------------------------------------------
++void batch_state_free(::FcmpPpBatchStateUnsafe *state)
++{
++    ::destroy_fcmp_pp_batch_state(state);
++}
++//----------------------------------------------------------------------------------------------------------------------
+ bool verify(const crypto::hash &signable_tx_hash,
+     const fcmp_pp::FcmpPpProof &fcmp_pp_proof,
+     const std::size_t n_tree_layers,
+diff --git a/src/fcmp_pp/prove.h b/src/fcmp_pp/prove.h
+index 62efb2478..d434ee972 100644
+--- a/src/fcmp_pp/prove.h
++++ b/src/fcmp_pp/prove.h
+@@ -86,6 +86,11 @@ bool verify_membership(const FcmpMembershipProof &fcmp_proof,
+     const std::vector<FcmpInputCompressed> &inputs);
+ 
+ bool verify(const std::vector<fcmp_pp::FcmpPpVerifyInput> &fcmp_pp_verify_inputs);
++// Two-step batch verification: the per-batch checks, returning the batch's verifier state (nullptr if they fail) ...
++::FcmpPpBatchStateUnsafe *verify_prepare(const std::vector<fcmp_pp::FcmpPpVerifyInput> &fcmp_pp_verify_inputs);
++// ... then one multiexp per curve over all states. Consumes the states (sets them to nullptr).
++bool verify_finish(std::vector<::FcmpPpBatchStateUnsafe *> &states, std::size_t split);
++void batch_state_free(::FcmpPpBatchStateUnsafe *state);
+ 
+ bool verify(const crypto::hash &signable_tx_hash,
+     const fcmp_pp::FcmpPpProof &fcmp_pp_proof,
+-- 
+2.43.0
+

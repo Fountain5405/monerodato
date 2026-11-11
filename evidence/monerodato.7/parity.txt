@@ -1,0 +1,36 @@
+dot6 monerod 210f649f95190196 Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.6-release)
+dot7 monerod 635c1a72f87b35b4 Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.7-25686bf7d)
+== cold dot6: after evict resident 0 of 4610234
+  rpc up 1 after 1.6 s
+  exit rc 0
+  monerodato is built for low-spec machines. This one has 16 GB of RAM, 12 physical cores and AVX2: the reference monerod can run here.
+  Initializing core...
+  Index warm-up: reading the spent key, transaction and block hash indexes in the background
+  Core initialized OK
+  Initializing core RPC server...
+  Index warm-up: read the spent key, transaction and block hash indexes, 202493 pages (829 MB), in 3.3 s
+  ERROR lines: 0
+== cold dot7: after evict resident 0 of 4610234
+  rpc up 1 after 1.8 s
+  exit rc 0
+  monerodato is built for low-spec machines. This one has 16 GB of RAM, 12 physical cores and AVX2: the reference monerod can run here.
+  Initializing core...
+  Index warm-up: reading the spent key, transaction and block hash indexes in the background
+  Core initialized OK
+  Initializing core RPC server...
+  Index warm-up: read the spent key, transaction and block hash indexes, 202493 pages (829 MB), in 3.3 s
+  ERROR lines: 0
+== wallet node (dot7, offline, working DB) height 3111428
+== wallet dot6 4d6a0dbb61d836be: create rc 0, wallet files 3
+  refresh rc 0: Refresh done, blocks received: 300; from 3111128, node height 3111428
+  refresh log ERROR lines: 0
+  throwaway wallet dir removed: yes
+== wallet dot7 0aebcf8b3c27a565: create rc 0, wallet files 3
+  refresh rc 0: Refresh done, blocks received: 300; from 3111128, node height 3111428
+  refresh log ERROR lines: 0
+  throwaway wallet dir removed: yes
+wallet node exit: stopped; ERROR lines 0
+== src/wallet, .6 against .7 (from the work tree's git):
+ src/wallet/wallet_args.cpp | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+PARITY7_DONE 2026-11-11T20:01:14Z

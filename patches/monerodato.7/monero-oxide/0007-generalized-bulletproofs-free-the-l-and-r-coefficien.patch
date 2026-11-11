@@ -1,0 +1,54 @@
+From ed01fbd4328d439f8657b68efe3da5b9b4d656ab Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:06:35 +0000
+Subject: [PATCH 7/9] generalized-bulletproofs: free the l and r coefficient
+ vectors after evaluation, zeroized
+
+ArithmeticCircuitStatement::prove evaluates the polynomials l(X) and r(X) at
+x, then proves the inner product of the results. The coefficient vectors were
+shadowed by the evaluations and kept alive until the function returned, through
+the inner-product argument. They hold witness values (aL, aO, sL, the vector
+commitments' values, aR * y, sR * y), and nothing ever wiped them:
+ScalarVector is not ZeroizeOnDrop.
+
+They are now zeroized and dropped right after evaluation.
+- Memory: in a 128-input FCMP++ wallet build (monerodato.3's wallet-rpc on a 12-core Ryzen 9 3900X (16 GB RAM, SATA SSD),
+  3 rounds), this step alone lowers the peak by 25 MB of 1,288 MB.
+  The peak comes earlier, while the vectors are built (the next two commits).
+- Hygiene: the secret coefficients no longer stay in freed memory.
+- Constant time: the zeroize is a pass over memory whose length is public (the
+  row count). No branch on secret data is added.
+
+The proofs are unchanged (prove_output_unchanged).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../src/arithmetic_circuit_proof.rs                  | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs b/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
+index 1939f6586..3bc7c5f16 100644
+--- a/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
++++ b/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
+@@ -639,8 +639,16 @@ where
+       }
+       res
+     };
+-    let l = poly_eval(&l, &x);
+-    let r = poly_eval(&r, &x);
++    let l_eval = poly_eval(&l, &x);
++    let r_eval = poly_eval(&r, &x);
++    // The coefficient vectors hold witness values and are no longer needed: wipe and free them now, instead of keeping
++    // them to the end of this function, through the inner-product argument
++    l.zeroize();
++    r.zeroize();
++    drop(l);
++    drop(r);
++    let l = l_eval;
++    let r = r_eval;
+ 
+     let t_caret = l.inner_product(r.0.iter());
+ 
+-- 
+2.43.0
+

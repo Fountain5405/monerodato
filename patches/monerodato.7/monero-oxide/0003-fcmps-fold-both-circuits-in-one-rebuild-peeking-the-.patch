@@ -1,0 +1,227 @@
+From fd2d30ce5f95a2db4b582f44d40d13b0fb109218 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 19:55:19 +0000
+Subject: [PATCH 3/9] fcmps: fold both circuits in one rebuild, peeking the
+ second z past the first proof
+
+Why: the previous commit builds the circuits three times. Each build is the
+full circuit construction, which costs time on every proof.
+
+generalized-bulletproofs gains skip_verify_transcript (additive). It performs
+exactly the reads and challenges verify performs for a statement of n
+generators and c vector commitments, so the second proof's z can be peeked on
+a clone right after the discarding build. Fcmp::verify now builds the
+circuits twice (discard; fold both) instead of three times, and checks that
+the real transcript after the first verify equals the skipped clone.
+
+Safety:
+- skip_verify_transcript is only used on a clone. The real transcript is
+  still consumed by the unchanged verify.
+- If the skip's read count ever differed from verify's for some n and c,
+  the transcript comparison would fail and the proof would be rejected
+  (InconsistentCircuitReplay): it fails closed.
+- Verification only; public data.
+
+Tests: generalized-bulletproofs' fuzz_test_arithmetic_circuit now also checks
+that skip_verify_transcript ends at the same transcript position as verify,
+for every statement it generates. The fcmps tests from the previous commit
+cover the two-build path.
+
+Measured at the node, on a 12-core Ryzen 9 3900X (16 GB RAM, SATA SSD), 128-input blocks 3,105,401-3,105,444:
+wall 159 -> 140 s (-12%) and CPU 1,404 -> 1,226 s (-13%) against the
+three-build version. Peak memory at the node is unchanged (+1%); per proof
+the crate benchmark shows about +20% heap, since both folded accumulators are
+live at once, and about -20% time.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crypto/fcmps/src/lib.rs                       | 52 ++++++++---------
+ .../src/arithmetic_circuit_proof.rs           | 57 +++++++++++++++++++
+ .../tests/arithmetic_circuit_proof.rs         |  6 ++
+ 3 files changed, 89 insertions(+), 26 deletions(-)
+
+diff --git a/crypto/fcmps/src/lib.rs b/crypto/fcmps/src/lib.rs
+index 73e866d65..1e994bf31 100644
+--- a/crypto/fcmps/src/lib.rs
++++ b/crypto/fcmps/src/lib.rs
+@@ -28,7 +28,9 @@ use generalized_bulletproofs_circuit_abstraction::CircuitStatementError;
+ use generalized_bulletproofs::{
+   BatchVerifier, PedersenVectorCommitment,
+   transcript::{Transcript as ProverTranscript, VerifierTranscript, Commitments},
+-  arithmetic_circuit_proof::{AcStatementError, AcProveError, AcVerifyError, peek_z},
++  arithmetic_circuit_proof::{
++    AcStatementError, AcProveError, AcVerifyError, peek_z, skip_verify_transcript,
++  },
+ };
+ 
+ mod gadgets;
+@@ -1154,16 +1156,18 @@ where
+       Each statement only uses its circuit's constraints folded with the proof's `z` challenge,
+       which is sampled after the challenges the circuits' construction samples. Rather than store
+       the constraints until `z` is known (hundreds of MB for the largest proofs), the circuits are
+-      built three times from the same transcript state:
++      built twice from the same transcript state:
+ 
+       1) discarding the constraints, which advances the transcript exactly as storing them would;
+-      2) folding the first circuit's constraints with its `z` (peeked from the transcript). The
+-         first statement is then verified, advancing the transcript to the second proof;
+-      3) folding the second circuit's constraints with its `z`.
+-
+-      The construction is deterministic to its arguments and the transcript, so every build yields
+-      the same constraints. Each rebuild is checked to have performed the same multiplications,
+-      constraints, and transcript operations as the first build regardless.
++      2) folding each circuit's constraints with its `z`. The first proof's `z` is peeked from the
++         transcript directly. The second proof's `z` is peeked after skipping past the first proof
++         on a clone, which is possible as `verify`'s transcript operations depend solely on the
++         statement's size, not its constraints.
++
++      The construction is deterministic to its arguments and the transcript, so both builds yield
++      the same constraints. The rebuild is checked to have performed the same multiplications,
++      constraints, and transcript operations as the first build regardless, and the real
++      transcript is checked to arrive where the skip did once the first proof is verified.
+     */
+     let transcript_before_circuits = transcript.clone();
+ 
+@@ -1187,7 +1191,11 @@ where
+       (c1_circuit.muls(), c1_circuit.constraints(), c2_circuit.muls(), c2_circuit.constraints());
+ 
+     let z1 = peek_z::<C::C1>(&transcript)?;
+-    let (c1_circuit, _) = Self::rebuild_verifier_circuits(
++    let mut transcript_after_c1 = transcript.clone();
++    skip_verify_transcript::<C::C1>(&mut transcript_after_c1, c1_padded_pow_2, proof_1_vcs.C().len())?;
++    let z2 = peek_z::<C::C2>(&transcript_after_c1)?;
++
++    let (c1_circuit, c2_circuit) = Self::rebuild_verifier_circuits(
+       params,
+       tree,
+       layers,
+@@ -1198,25 +1206,17 @@ where
+       &transcript_after_circuits,
+       original,
+       Some(z1),
+-      None,
++      Some(z2),
+     )?;
+-    let (c1_statement, _witness) = c1_circuit.statement(c1_generators, proof_1_vcs.clone())?;
++
++    let (c1_statement, _witness) = c1_circuit.statement(c1_generators, proof_1_vcs)?;
+     c1_statement.verify(rng, verifier_1, &mut transcript)?;
++    // The second proof's `z` was peeked on a transcript skipped past the first proof. Verifying the
++    // first proof must have brought the real transcript to the same state.
++    if transcript.clone().challenge_bytes() != transcript_after_c1.challenge_bytes() {
++      Err(FcmpError::InconsistentCircuitReplay)?;
++    }
+ 
+-    let z2 = peek_z::<C::C2>(&transcript)?;
+-    let (_, c2_circuit) = Self::rebuild_verifier_circuits(
+-      params,
+-      tree,
+-      layers,
+-      inputs,
+-      &proof_1_vcs,
+-      &proof_2_vcs,
+-      &transcript_before_circuits,
+-      &transcript_after_circuits,
+-      original,
+-      None,
+-      Some(z2),
+-    )?;
+     let (c2_statement, _witness) = c2_circuit.statement(c2_generators, proof_2_vcs)?;
+     c2_statement.verify(rng, verifier_2, &mut transcript)?;
+ 
+diff --git a/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs b/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
+index 3688421c5..1939f6586 100644
+--- a/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
++++ b/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
+@@ -216,6 +216,63 @@ where
+   Ok(transcript.challenge::<C>())
+ }
+ 
++/// Advance a transcript past the proof of a statement with `n` generators and `c` vector
++/// commitments, performing exactly the reads and challenges `verify` performs, without verifying
++/// anything.
++///
++/// `verify`'s transcript operations depend solely on `n` and `c`, never on the constraints, so a
++/// caller may skip past one proof to peek at the next proof's challenges (`peek_z`) before either
++/// proof's constraints exist. The skipped proof MUST still be verified on the real transcript, and
++/// the caller SHOULD check the real transcript then matches the skipped one.
++pub fn skip_verify_transcript<C: Ciphersuite>(
++  transcript: &mut VerifierTranscript<'_>,
++  n: usize,
++  c: usize,
++) -> Result<(), AcVerifyError>
++where
++  C::F: FromUniformBytes<64>,
++{
++  let ni = (2 * c) + 2;
++  let t_poly_len = (2 * (ni + 1)) + 1;
++
++  // AI, AO, S, then y and z
++  for _ in 0 .. 3 {
++    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++  }
++  let _y = transcript.challenge::<C>();
++  let _z = transcript.challenge::<C>();
++
++  // T, before and after `ni`, then x
++  for _ in (ni / 2) .. ni {
++    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++  }
++  for _ in (ni + 1) .. t_poly_len {
++    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++  }
++  let _x = transcript.challenge::<C>();
++
++  // tau_x, mu, t_caret
++  for _ in 0 .. 3 {
++    transcript.read_scalar::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++  }
++
++  // The inner-product argument: its challenge, `log2(n)` rounds of L, R and a challenge, then a, b
++  let _ip_x = transcript.challenge::<C>();
++  let mut lr_len = 0;
++  while (1 << lr_len) < n {
++    lr_len += 1;
++  }
++  for _ in 0 .. lr_len {
++    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++    let _x = transcript.challenge::<C>();
++  }
++  for _ in 0 .. 2 {
++    transcript.read_scalar::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++  }
++  Ok(())
++}
++
+ struct YzChallenges<C: Ciphersuite> {
+   y_inv: ScalarVector<C::F>,
+   z: ScalarVector<C::F>,
+diff --git a/crypto/generalized-bulletproofs/tests/arithmetic_circuit_proof.rs b/crypto/generalized-bulletproofs/tests/arithmetic_circuit_proof.rs
+index f4e28e3f6..2b2460177 100644
+--- a/crypto/generalized-bulletproofs/tests/arithmetic_circuit_proof.rs
++++ b/crypto/generalized-bulletproofs/tests/arithmetic_circuit_proof.rs
+@@ -11,6 +11,7 @@ use generalized_bulletproofs::{
+   transcript::*,
+   arithmetic_circuit_proof::{
+     Variable, LinComb, ArithmeticCircuitStatement, ArithmeticCircuitWitness,
++    skip_verify_transcript,
+   },
+   tests::insecure_test_generators,
+ };
+@@ -217,7 +218,12 @@ fn fuzz_test_arithmetic_circuit() {
+     let mut transcript = VerifierTranscript::new([0; 32], &proof);
+     let verifier_commmitments = transcript.read_commitments(C.len(), V.len());
+     assert_eq!(commitments, verifier_commmitments.unwrap());
++    // `skip_verify_transcript` must leave a transcript exactly where `verify` leaves it
++    let mut skipped = transcript.clone();
++    skip_verify_transcript::<Ristretto>(&mut skipped, 16, C.len()).unwrap();
+     statement.verify(&mut OsRng, &mut verifier, &mut transcript).unwrap();
++    assert_eq!(skipped.clone().challenge_bytes(), transcript.clone().challenge_bytes());
++    assert_eq!(skipped.complete(), transcript.complete());
+     assert!(generators.verify(verifier));
+   }
+ }
+-- 
+2.43.0
+

@@ -1,0 +1,459 @@
+From 6bd706451b0bf7f8fb2867789990c7dfc0ddf2cc Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 06:21:50 +0000
+Subject: [PATCH 7/11] liblmdb: add mdb_env_warm_dbis(), reading database trees
+ into the page cache in file order
+
+A read-only function for monerod's startup warm-up of its hash indexes (the
+next commits). It reads the B-trees of the given databases, and the
+sub-databases of DUPSORT databases, one level at a time across all of them.
+Each level's pages are sorted by page number and requested from the OS
+before they are read through the map: posix_fadvise(WILLNEED) once per run
+of adjacent pages; madvise(WILLNEED) where there is no posix_fadvise;
+nothing on Windows, where the pages are still read in order. The leaves come
+last, in one sorted batch, and are read only if all of them fit in a byte
+budget; otherwise only the levels above them are. The leaves of a DUPSORT
+main tree hold the sub-database roots, so they count as an upper level.
+
+Stopping. The function takes a stop function and its context, because the
+warm-up runs in a thread of its own and its reading must be able to end
+early: before the environment is closed, and before the map is resized,
+which waits for every read transaction to end. The stop function is asked
+before each read-ahead request and before each page is read. When it
+returns non-zero, the reading stops, mw_stopped is set in the counts, and 0
+is returned: stopping is not an error. NULL asks nothing. BlockchainLMDB
+passes its own stop function (see the blockchain_db commit); the unit tests
+pass NULL or their own.
+
+Read-ahead window. The requests to the OS stay at most MDB_WARM_AHEAD (64)
+pages ahead of the page being read. mdb_warm_request() requests from where
+it left off up to a limit, and the two read loops keep the requests within
+that window. The pages, their order, the runs requested and all the counts
+are the same as if a whole level were requested at once; only when each
+request is made differs. Another reader of the disk therefore waits behind
+at most 64 of the warm-up's requests.
+
+An earlier version requested a whole level's pages from the OS before
+reading them: for the leaf level of the stressnet indexes, about
+200,000 requests at once. With nothing else running that was the point. Run
+in the background, it starves every other reader of the disk. Measured on a
+test VM (4 vCPUs, 4 GB RAM) on a 5,400 rpm disk, page cache dropped before
+each start: during every warm-up the virtio queue held about 250 requests,
+mostly 4 kB, and reads waited 50-930 ms on average. monerod's main thread,
+reading its own code pages and its P2P state from the same disk, stalled
+in P2P init until the warm-up ended. RPC answered after 87 s, against 80 s
+with monerodato.5's synchronous warm-up. Reproduced on a 12-core Ryzen 9
+3900X (16 GB RAM, SATA SSD) with the binary evicted as well and reads
+limited to 15 MB/s by a cgroup: RPC after 58.4 s (monerodato.5: 58.3 s).
+With the 64-page window, under the same conditions on the 3900X: RPC after
+2.9 s, and the warm-up still 55.5 s. On the SSD without a limit the warm-up
+took 3.0-3.1 s (3.2 s before). Whether 64 requests keep a spinning disk as
+busy as 250 did is for a run on the spinning disk to show.
+
+Why the order matters. Measured on the same test VM (the uncompacted
+stressnet DB at 3,106,400; the three hash indexes are 0.83 GB), in the
+first, synchronous version of the warm-up:
+- read this way: 61 s;
+- read in key order, one page at a time, as a cursor walk reads them:
+  2,054 s.
+The same pages and bytes were read in both cases.
+
+Checked on the 3900X's stressnet DB (SATA SSD, after dropping data.mdb from
+the page cache). It left exactly the pages that a walk through LMDB's
+public cursor API leaves: 202,506, 0 different. That took 3.2 s, against
+the walk's 28.5 s. With a budget of 0 it read the 3,864 upper pages only.
+
+- Read only. It needs a read-only transaction (EINVAL otherwise) and never
+  writes. Overflow pages are not read.
+- Checks. Each page number must be inside the transaction's file and must
+  match the page's own number. A branch page must be where one is expected,
+  and a leaf where a leaf is. Node offsets must be inside the page.
+  Otherwise it returns MDB_PAGE_NOTFOUND or MDB_CORRUPTED, and the caller
+  goes on without it.
+- MDB_VL32 builds (32-bit) map the file in chunks, so a page cannot be read
+  from the map directly. The function returns ENOSYS there.
+- Memory: the page-number lists, 16 bytes a page, up to about 4 MB for monerod's
+  0.2 M pages.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ external/db_drivers/liblmdb/lmdb.h |  51 +++++
+ external/db_drivers/liblmdb/mdb.c  | 293 +++++++++++++++++++++++++++++
+ 2 files changed, 344 insertions(+)
+
+diff --git a/external/db_drivers/liblmdb/lmdb.h b/external/db_drivers/liblmdb/lmdb.h
+index 1f4736ce2..a47a0651a 100644
+--- a/external/db_drivers/liblmdb/lmdb.h
++++ b/external/db_drivers/liblmdb/lmdb.h
+@@ -497,6 +497,25 @@ typedef struct MDB_stat {
+ 	mdb_size_t		ms_entries;			/**< Number of data items */
+ } MDB_stat;
+ 
++/** @brief Counts from #mdb_env_warm_dbis() */
++typedef struct MDB_warm_stat {
++	size_t			mw_upper_pages;		/**< Pages read above the leaves: the branch pages, and the
++											main-tree leaves of #MDB_DUPSORT databases, which hold
++											the roots of their sub-databases */
++	size_t			mw_leaf_pages;		/**< Leaf pages read */
++	size_t			mw_leaf_skipped;	/**< Leaf pages not read, because they did not fit in the budget */
++	size_t			mw_requests;		/**< Read-ahead requests made to the operating system */
++	unsigned int	mw_levels;			/**< Levels read above the leaves */
++	unsigned int	mw_stopped;			/**< Non-zero if the \b stop function ended the reading early */
++} MDB_warm_stat;
++
++/** @brief A function that #mdb_env_warm_dbis() calls to ask whether it should stop.
++ *
++ * @param[in] ctx The \b ctx given to #mdb_env_warm_dbis()
++ * @return Non-zero to stop reading
++ */
++typedef int (MDB_warm_stop_func)(void *ctx);
++
+ /** @brief Information about the environment */
+ typedef struct MDB_envinfo {
+ 	void	*me_mapaddr;			/**< Address of map, if fixed */
+@@ -1186,6 +1205,38 @@ int  mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *d
+ 	 */
+ int  mdb_stat(MDB_txn *txn, MDB_dbi dbi, MDB_stat *stat);
+ 
++	/** @brief Read the pages of some databases into the operating system's page cache.
++	 *
++	 * Added in monerodato. It reads the B-trees of the given databases, and the sub-databases of
++	 * #MDB_DUPSORT databases, one level at a time across all of them. Each level's pages are sorted
++	 * by page number and requested from the operating system a little ahead of being read (at most
++	 * 64 pages ahead), so that a spinning disk reads them in file order without the warm-up filling
++	 * its queue: other readers of the disk wait behind at most those requests.
++	 * The leaf pages come last, and are read only if all of them fit in \b max_leaf_bytes;
++	 * otherwise only the levels above them are read. Overflow pages are not read.
++	 * It only reads: nothing in the environment changes.
++	 * It can run in its own thread while other threads use the environment, and can be stopped early
++	 * through \b stop: the transaction must then stay open until it returns.
++	 * @param[in] txn A read-only transaction handle returned by #mdb_txn_begin()
++	 * @param[in] dbis The database handles, returned by #mdb_dbi_open()
++	 * @param[in] n The number of handles in \b dbis
++	 * @param[in] max_leaf_bytes The most leaf data to read, in bytes
++	 * @param[in] stop NULL, or a function called before each read-ahead request and each page read.
++	 * When it returns non-zero, reading stops: \b mw_stopped is set in \b stat and 0 is returned.
++	 * @param[in] ctx Passed to \b stop
++	 * @param[out] stat The address of an #MDB_warm_stat structure where the counts will be copied
++	 * @return A non-zero error value on failure and 0 on success. Some possible
++	 * errors are:
++	 * <ul>
++	 *	<li>EINVAL - an invalid parameter was specified, or \b txn is not read-only.
++	 *	<li>ENOSYS - not available in builds with MDB_VL32.
++	 *	<li>ENOMEM - out of memory.
++	 *	<li>#MDB_PAGE_NOTFOUND, #MDB_CORRUPTED - a page is outside the file or not of the expected kind.
++	 * </ul>
++	 */
++int  mdb_env_warm_dbis(MDB_txn *txn, const MDB_dbi *dbis, unsigned int n, size_t max_leaf_bytes,
++	MDB_warm_stop_func *stop, void *ctx, MDB_warm_stat *stat);
++
+ 	/** @brief Retrieve the DB flags for a database handle.
+ 	 *
+ 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
+diff --git a/external/db_drivers/liblmdb/mdb.c b/external/db_drivers/liblmdb/mdb.c
+index d56337b07..4b5d24650 100644
+--- a/external/db_drivers/liblmdb/mdb.c
++++ b/external/db_drivers/liblmdb/mdb.c
+@@ -10809,6 +10809,299 @@ mdb_stat(MDB_txn *txn, MDB_dbi dbi, MDB_stat *arg)
+ 	return mdb_stat0(txn->mt_env, &txn->mt_dbs[dbi], arg);
+ }
+ 
++/* monerodato: mdb_env_warm_dbis(), reading the trees of some databases into the page cache */
++
++/** A page to read: its number, its height above the leaves (1 for a leaf), and whether it is in the
++ *	main tree of an #MDB_DUPSORT database, whose leaves hold the roots of the sub-databases.
++ */
++typedef struct MDB_warm_ent {
++	pgno_t		we_pgno;
++	unsigned short	we_depth;
++	unsigned short	we_dupsort;
++} MDB_warm_ent;
++
++typedef struct MDB_warm_list {
++	MDB_warm_ent	*wl_v;
++	size_t		 wl_n, wl_cap;
++} MDB_warm_list;
++
++static int
++mdb_warm_push(MDB_warm_list *l, pgno_t pgno, unsigned int depth, int dupsort)
++{
++	if (l->wl_n == l->wl_cap) {
++		size_t cap = l->wl_cap ? 2 * l->wl_cap : 1024;
++		MDB_warm_ent *v = realloc(l->wl_v, cap * sizeof(MDB_warm_ent));
++		if (!v)
++			return ENOMEM;
++		l->wl_v = v;
++		l->wl_cap = cap;
++	}
++	l->wl_v[l->wl_n].we_pgno = pgno;
++	l->wl_v[l->wl_n].we_depth = (unsigned short)depth;
++	l->wl_v[l->wl_n].we_dupsort = (unsigned short)dupsort;
++	l->wl_n++;
++	return MDB_SUCCESS;
++}
++
++/** Queue a tree's root: with the levels above the leaves if it has more than one level, or if it is
++ *	the main tree of an #MDB_DUPSORT database; otherwise with the leaves.
++ */
++static int
++mdb_warm_root(MDB_warm_list *upper, MDB_warm_list *leaves, MDB_db *db, int dupsort)
++{
++	if (db->md_root == P_INVALID)
++		return MDB_SUCCESS;
++	if (db->md_depth < 1 || db->md_depth > CURSOR_STACK)
++		return MDB_CORRUPTED;
++	if (db->md_depth > 1 || dupsort)
++		return mdb_warm_push(upper, db->md_root, db->md_depth, dupsort);
++	return mdb_warm_push(leaves, db->md_root, 1, 0);
++}
++
++static int
++mdb_warm_cmp(const void *a, const void *b)
++{
++	pgno_t x = ((const MDB_warm_ent *)a)->we_pgno, y = ((const MDB_warm_ent *)b)->we_pgno;
++	return x < y ? -1 : x > y;
++}
++
++/** Sort a list by page number and drop repeated pages */
++static void
++mdb_warm_sort(MDB_warm_list *l)
++{
++	size_t i, j;
++	if (!l->wl_n)
++		return;
++	qsort(l->wl_v, l->wl_n, sizeof(MDB_warm_ent), mdb_warm_cmp);
++	for (i = 1, j = 1; i < l->wl_n; i++)
++		if (l->wl_v[i].we_pgno != l->wl_v[j-1].we_pgno)
++			l->wl_v[j++] = l->wl_v[i];
++	l->wl_n = j;
++}
++
++/** Ask the caller's stop function, if there is one, whether to stop; if so, note it in the counts */
++static int
++mdb_warm_stop(MDB_warm_stop_func *stop, void *ctx, MDB_warm_stat *stat)
++{
++	if (stop && stop(ctx)) {
++		stat->mw_stopped = 1;
++		return 1;
++	}
++	return 0;
++}
++
++/** How far, in pages of a sorted list, the read-ahead requests run ahead of the page being read.
++ *	Enough requests for the disk to serve them in file order; few enough that the warm-up never fills
++ *	the disk's queue, so another reader's request waits behind at most this many of its requests.
++ */
++#define MDB_WARM_AHEAD	64
++
++/** Ask the OS to read a sorted list's pages from index \b *ra up to index \b lim, one request per run
++ *	of adjacent pages (a run that starts before \b lim is requested whole), and advance \b *ra past
++ *	them. Returns the number of requests. Asks \b stop before each request, and ends early if it says so.
++ */
++static size_t
++mdb_warm_request(MDB_env *env, const MDB_warm_list *l, size_t *ra, size_t lim,
++	MDB_warm_stop_func *stop, void *ctx, MDB_warm_stat *stat)
++{
++	size_t i = *ra, req = 0;
++	while (i < l->wl_n && i < lim) {
++		pgno_t start = l->wl_v[i].we_pgno, end = start + 1;
++		if (mdb_warm_stop(stop, ctx, stat))
++			break;
++		for (i++; i < l->wl_n && l->wl_v[i].we_pgno == end; i++)
++			end++;
++#if defined(_WIN32)
++		/* No request: the pages are read one at a time, in order */
++		(void)env; (void)start;
++#elif defined(POSIX_FADV_WILLNEED)
++		posix_fadvise(env->me_fd, (off_t)start * env->me_psize,
++			(off_t)(end - start) * env->me_psize, POSIX_FADV_WILLNEED);
++		req++;
++#elif defined(MADV_WILLNEED)
++		madvise(env->me_map + (size_t)start * env->me_psize,
++			(size_t)(end - start) * env->me_psize, MADV_WILLNEED);
++		req++;
++#else
++		(void)env; (void)start;
++#endif
++	}
++	*ra = i;
++	return req;
++}
++
++/** Get a page of a read-only transaction from the map, reading it in if needed. Checks that it is
++ *	inside the file and carries its own page number.
++ */
++static int
++mdb_warm_page(MDB_txn *txn, pgno_t pgno, MDB_page **ret)
++{
++	MDB_env *env = txn->mt_env;
++	MDB_page *mp;
++	if (pgno < NUM_METAS || pgno >= txn->mt_next_pgno)
++		return MDB_PAGE_NOTFOUND;
++	mp = (MDB_page *)(env->me_map + (size_t)env->me_psize * pgno);
++	if (mp->mp_pgno != pgno)
++		return MDB_CORRUPTED;
++	*ret = mp;
++	return MDB_SUCCESS;
++}
++
++/** Check that a page's node offsets are inside the page */
++static int
++mdb_warm_nodes_ok(MDB_env *env, MDB_page *mp)
++{
++	unsigned int i, n;
++	if (mp->mp_lower < PAGEHDRSZ - PAGEBASE || mp->mp_lower > env->me_psize)
++		return 0;
++	n = NUMKEYS(mp);
++	for (i = 0; i < n; i++)
++		if (mp->mp_ptrs[i] + PAGEBASE + NODESIZE > env->me_psize)
++			return 0;
++	return 1;
++}
++
++int ESECT
++mdb_env_warm_dbis(MDB_txn *txn, const MDB_dbi *dbis, unsigned int n, size_t max_leaf_bytes,
++	MDB_warm_stop_func *stop, void *ctx, MDB_warm_stat *stat)
++{
++	MDB_env *env;
++	MDB_warm_list upper = {0}, next = {0}, leaves = {0}, tmp;
++	unsigned int i;
++	size_t k, ra;
++	int rc = MDB_SUCCESS;
++
++	if (!txn || !stat || (n && !dbis))
++		return EINVAL;
++	memset(stat, 0, sizeof(*stat));
++#ifdef MDB_VL32
++	/* These builds map the file in chunks, so a page cannot be read from the map directly */
++	return ENOSYS;
++#endif
++	if (!(txn->mt_flags & MDB_TXN_RDONLY))
++		return EINVAL;
++	if (txn->mt_flags & MDB_TXN_BLOCKED)
++		return MDB_BAD_TXN;
++	env = txn->mt_env;
++
++	for (i = 0; i < n; i++) {
++		MDB_dbi dbi = dbis[i];
++		if (!TXN_DBI_EXIST(txn, dbi, DB_VALID)) {
++			rc = EINVAL;
++			goto done;
++		}
++		if (txn->mt_dbflags[dbi] & DB_STALE) {
++			MDB_cursor mc;
++			MDB_xcursor mx;
++			/* Stale, must read the DB's root. cursor_init does it for us. */
++			mdb_cursor_init(&mc, txn, dbi, &mx);
++		}
++		if ((rc = mdb_warm_root(&upper, &leaves, &txn->mt_dbs[dbi],
++			(txn->mt_dbs[dbi].md_flags & MDB_DUPSORT) != 0)))
++			goto done;
++	}
++
++	/* The levels above the leaves, one at a time across all the trees. A sub-database's root
++	 * joins the level after the main-tree leaf that holds it.
++	 */
++	while (upper.wl_n) {
++		mdb_warm_sort(&upper);
++		ra = 0;
++		stat->mw_requests += mdb_warm_request(env, &upper, &ra, MDB_WARM_AHEAD, stop, ctx, stat);
++		if (stat->mw_stopped)
++			goto done;
++		stat->mw_levels++;
++		for (k = 0; k < upper.wl_n; k++) {
++			MDB_warm_ent *e = &upper.wl_v[k];
++			MDB_page *mp;
++			unsigned int j, nkeys;
++			if (ra < upper.wl_n && ra < k + MDB_WARM_AHEAD) {
++				stat->mw_requests += mdb_warm_request(env, &upper, &ra, k + MDB_WARM_AHEAD, stop, ctx, stat);
++				if (stat->mw_stopped)
++					goto done;
++			}
++			if (mdb_warm_stop(stop, ctx, stat))
++				goto done;
++			if ((rc = mdb_warm_page(txn, e->we_pgno, &mp)))
++				goto done;
++			stat->mw_upper_pages++;
++			if (e->we_depth > 1) {
++				unsigned int depth = e->we_depth - 1;
++				if (!IS_BRANCH(mp) || !mdb_warm_nodes_ok(env, mp)) {
++					rc = MDB_CORRUPTED;
++					goto done;
++				}
++				nkeys = NUMKEYS(mp);
++				for (j = 0; j < nkeys; j++) {
++					pgno_t child = NODEPGNO(NODEPTR(mp, j));
++					rc = (depth > 1 || e->we_dupsort)
++						? mdb_warm_push(&next, child, depth, e->we_dupsort)
++						: mdb_warm_push(&leaves, child, 1, 0);
++					if (rc)
++						goto done;
++				}
++			} else {
++				/* A leaf of a DUPSORT main tree: queue the roots of its sub-databases */
++				if (!IS_LEAF(mp) || IS_LEAF2(mp) || !mdb_warm_nodes_ok(env, mp)) {
++					rc = MDB_CORRUPTED;
++					goto done;
++				}
++				nkeys = NUMKEYS(mp);
++				for (j = 0; j < nkeys; j++) {
++					MDB_node *node = NODEPTR(mp, j);
++					MDB_db db;
++					if ((node->mn_flags & (F_SUBDATA|F_DUPDATA)) != (F_SUBDATA|F_DUPDATA))
++						continue;	/* a single item, or duplicates kept in the leaf */
++					if (NODEDSZ(node) != sizeof(MDB_db) ||
++						(size_t)((char *)NODEDATA(node) - (char *)mp) + sizeof(MDB_db) > env->me_psize) {
++						rc = MDB_CORRUPTED;
++						goto done;
++					}
++					memcpy(&db, NODEDATA(node), sizeof(MDB_db));
++					if ((rc = mdb_warm_root(&next, &leaves, &db, 0)))
++						goto done;
++				}
++			}
++		}
++		tmp = upper; upper = next; next = tmp;
++		next.wl_n = 0;
++	}
++
++	/* The leaves, all of them or none */
++	mdb_warm_sort(&leaves);
++	if (leaves.wl_n > max_leaf_bytes / env->me_psize) {
++		stat->mw_leaf_skipped = leaves.wl_n;
++		goto done;
++	}
++	ra = 0;
++	stat->mw_requests += mdb_warm_request(env, &leaves, &ra, MDB_WARM_AHEAD, stop, ctx, stat);
++	if (stat->mw_stopped)
++		goto done;
++	for (k = 0; k < leaves.wl_n; k++) {
++		MDB_page *mp;
++		if (ra < leaves.wl_n && ra < k + MDB_WARM_AHEAD) {
++			stat->mw_requests += mdb_warm_request(env, &leaves, &ra, k + MDB_WARM_AHEAD, stop, ctx, stat);
++			if (stat->mw_stopped)
++				goto done;
++		}
++		if (mdb_warm_stop(stop, ctx, stat))
++			goto done;
++		if ((rc = mdb_warm_page(txn, leaves.wl_v[k].we_pgno, &mp)))
++			goto done;
++		if (!IS_LEAF(mp) && !IS_LEAF2(mp)) {
++			rc = MDB_CORRUPTED;
++			goto done;
++		}
++		stat->mw_leaf_pages++;
++	}
++
++done:
++	free(upper.wl_v);
++	free(next.wl_v);
++	free(leaves.wl_v);
++	return rc;
++}
++
+ void mdb_dbi_close(MDB_env *env, MDB_dbi dbi)
+ {
+ 	char *ptr;
+-- 
+2.43.0
+

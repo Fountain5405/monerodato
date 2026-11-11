@@ -1,0 +1,22 @@
+monerodato v0 series review COMPLETE + CT re-inspection done + test observations answered. — adversary
+
+SERIES REVIEW: PASS, with everything I reviewed before verified as the bytes shipped.
+- Import commits: c09814458 (dalek-ff-group) is byte-identical to the crates.io 0.5.0 .crate (field.rs sha 4eb73bea... matches; only .gitignore absent from the import, which is packaging noise). 9b3ace10b (monero-oxide) imports the 31c26d9 base whose content files I verified below.
+- s64 content (6fd8e1743 + 648c8311a): field.rs is BYTE-IDENTICAL to the exact tree I bounds-reviewed, differentially fuzzed, aarch64-checked and dudect-timed (4eb73bea...). My review transfers in full.
+- monero-oxide content (85e976fb0, 880489833, 6cdd72b72): fcmps lib.rs, circuit.rs and generalized-bulletproofs arithmetic_circuit_proof.rs are BYTE-IDENTICAL to e020 bde81f43, the code my differential_fuzz and FFI work covered. Transfer in full.
+- monerod series: rctSigs at 2dc921d46 vs lowmem-v2 differs in COMMENTS ONLY (31 lines, all //; zero code lines). The sync cap now sits after BOTH the adaptive and the explicit --block-sync-size branch, so the cap wins in all cases as decided; comment honestly documents the FCMP++ tree-depth margin.
+- Plumbing: [patch] paths are repo-relative patched/ (the <home> path trap from the research trees is gone); vendor.sh + check-vendor-rev.sh + bases.txt + the CMake pre-build hook are sane; version suffix and the log-only hardware warning match the decisions. Perf and behavior changes are cleanly separated; fork-only commits labelled.
+- d5fec2ce9 (TODO) superseded by the gate bundle fcb484690: my files unmodified and attributed, plus the oracle-resolution test — that closes the oracle-trap concern with a test, better than my README note alone.
+
+CT RE-INSPECTION (your ask a; shipped profile: opt-level=3, codegen-units=1, panic=abort, overflow-checks=ON, no target-cpu; built against the fork's patched crate with exactly those flags, x86-64):
+- op_add 42 instr / 1 jump; op_sub 52/1; op_mul 197/1; op_square 154/1 — each arithmetic op carries EXACTLY ONE conditional branch, and it is the overflow panic guard (imul $0x26; add; jb -> panic path) on fold_up's final limb arithmetic.
+- to_repr, ct_eq, wide_reduce, invert, pow wrappers: 0 branches at this compilation (their loops outlined here; the off-build body analysis stands: fixed-trip loops, public counters, cmov/csel selection).
+- Verdict: with overflow-checks ON there IS one data-flow branch per field op — but it is the panic guard on arithmetic my bounds review (s64 §1) proves cannot overflow for any input: never taken, and the not-taken check executes in constant time. LLVM keeping exactly one check per op (having eliminated the rest) is itself consistent with the bounds proof. CT claim for the shipped profile: HOLDS, with the refined wording "secret-dependent branches exist only as never-taken overflow guards on provably in-range arithmetic." That wording should replace the flat "branch-free" in GATE.md/README when overflow-checks are on. One caveat unchanged from before: per-compilation property; re-run after toolchain/flag changes (the optimizer's thin-LTO staticlib build should get one objdump pass for the record too — same expected shape).
+
+TEST OBSERVATIONS (your ask b):
+1. s64 anchored chains — you are right, it's a real bug in my file: each step re-derives both values, so it tests 10,000 single ops, not 50x200 chains. Fixing: keep the accumulators across steps, re-anchor only on step%20==0. Will send the updated tests/s64_differential.rs (or the optimizer can apply the one-hunk fix; either way, then rerun Gate 1).
+2. differential_fuzz "(Panic, Panic): not fatal" comment — wrong comment, right behavior (the final assert still fails on any panic). Fixing the comment to say it is recorded AND fatal.
+3. Gate-2 toolchain pin (1.97.1 from monero-oxide) — acknowledged, no change; worth one line in GATE.md so nobody is surprised the gate runs two toolchains.
+4. Replay spec C4 cap-math unit test — withdrawn: the cap is inline in cryptonote_core.cpp, no pure function to test without a monerod change; the end-to-end coverage (your v0 smoke test incl. the explicit-flag branch) is the right substitute. Spec updated.
+
+Corpus: stays paused per the owner; oracles untouched. Next from me: the two test fixes + updated GATE.md wording, then whatever the owner resumes.

@@ -1,0 +1,161 @@
+From 60156288585af871874a66e768e3bd844d979331 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 05:17:35 +0000
+Subject: [PATCH 5/9] generalized-bulletproofs: test verify_split against
+ verify at its chunk boundaries
+
+verify_split clamps `parts` to terms.len() / 1024 (at least 1) and cuts the
+term list into chunks of ceil(len / parts) terms. The new tests build batch
+verifiers with an exact number of multiexp terms around every edge of that
+arithmetic (3, 1023-1025, 2047-2049, 3072-3073, 4097, 12288-12289, 24575,
+24581 terms) and check, for parts 0, 1, 2, 3, 4, 12, 24 and 1000, that
+verify_split accepts a batch whose multiexp sums to the identity, and
+rejects the same batch with one scalar changed. The changed term is placed
+at the start, at the end and on both sides of every chunk boundary, so a
+chunk that is dropped, repeated or cut wrongly changes a verdict. Every
+changed batch is also checked against verify. A second test pins the
+clamp's edges.
+
+Result: 14 lengths, 8 parts settings, 942 changed batches, all rejected by
+both; every identity batch accepted; the whole generalized-bulletproofs
+suite passes (rustc 1.99.1, --features tests).
+
+Asked for by the second reviewer (item 3a of its monerodato.1 review).
+Test-only: the module is #[cfg(test)].
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../generalized-bulletproofs/src/tests/mod.rs |   2 +
+ .../src/tests/verify_split.rs                 | 107 ++++++++++++++++++
+ 2 files changed, 109 insertions(+)
+ create mode 100644 src/fcmp_pp/fcmp_pp_rust/patched/monero-oxide/crypto/generalized-bulletproofs/src/tests/verify_split.rs
+
+diff --git a/crypto/generalized-bulletproofs/src/tests/mod.rs b/crypto/generalized-bulletproofs/src/tests/mod.rs
+index b818b15d1..c0328fe1c 100644
+--- a/crypto/generalized-bulletproofs/src/tests/mod.rs
++++ b/crypto/generalized-bulletproofs/src/tests/mod.rs
+@@ -6,6 +6,8 @@ use crate::{GeneratorsError, Generators};
+ 
+ #[cfg(test)]
+ mod inner_product;
++#[cfg(test)]
++mod verify_split;
+ 
+ /// Insecurely generate a set of generators for testing purposes.
+ ///
+diff --git a/crypto/generalized-bulletproofs/src/tests/verify_split.rs b/crypto/generalized-bulletproofs/src/tests/verify_split.rs
+new file mode 100644
+index 000000000..bb8094840
+--- /dev/null
++++ b/crypto/generalized-bulletproofs/src/tests/verify_split.rs
+@@ -0,0 +1,107 @@
++// verify_split at its chunk boundaries (the second reviewer's item 3a for monerodato.1).
++//
++// `verify_split` clamps `parts` to `terms.len() / 1024` (at least 1) and cuts the term list into chunks of
++// `ceil(len / parts)` terms. These tests build batch verifiers with an exact number of multiexp terms around
++// every boundary of that arithmetic, and check that `verify_split` gives the same verdict as `verify` for
++// every `parts`, for a batch whose multiexp sums to the identity and for the same batch with one scalar
++// changed. The changed term is placed at the start, at both sides of every chunk boundary and at the end,
++// so a chunk that is dropped, repeated or cut wrongly changes a verdict.
++
++use rand_core::OsRng;
++
++use ciphersuite::{
++  group::{ff::Field, Group},
++  Ciphersuite, Ristretto,
++};
++
++use crate::{tests::insecure_test_generators, BatchVerifier, Generators};
++
++type F = <Ristretto as Ciphersuite>::F;
++type G = <Ristretto as Ciphersuite>::G;
++
++// A batch verifier whose multiexp has exactly `len` terms (len >= 3): the fixed `g` and `h` terms with zero
++// scalars, no bold terms, then `len - 2` additional terms that sum to the identity, none of whose points is
++// the identity.
++fn identity_verifier(len: usize) -> BatchVerifier<Ristretto> {
++  assert!(len >= 3);
++  let mut v = Generators::<Ristretto>::batch_verifier();
++  let mut acc = G::identity();
++  for _ in 0 .. (len - 3) {
++    let (s, p) = (F::random(&mut OsRng), G::random(&mut OsRng));
++    acc += p * s;
++    v.additional.push((s, p));
++  }
++  if len == 3 {
++    // No random terms, so `-acc` would be the identity and a changed scalar on it would change nothing.
++    // A random point with a zero scalar keeps the sum at the identity and makes the change visible.
++    v.additional.push((F::ZERO, G::random(&mut OsRng)));
++  } else {
++    v.additional.push((F::ONE, -acc));
++  }
++  assert_eq!(2 + v.additional.len(), len);
++  // Every term's point must be non-identity, or `with_bad_term` would not change the sum.
++  assert!(v.additional.iter().all(|(_, p)| !bool::from(p.is_identity())));
++  v
++}
++
++// The same verifier with the scalar of term `i` (an index into the full term list) increased by one, so the
++// multiexp sums to that term's point instead of the identity. Terms 0 and 1 are `g` and `h`.
++fn with_bad_term(v: &BatchVerifier<Ristretto>, i: usize) -> BatchVerifier<Ristretto> {
++  let mut v = v.clone();
++  match i {
++    0 => v.g += F::ONE,
++    1 => v.h += F::ONE,
++    _ => v.additional[i - 2].0 += F::ONE,
++  }
++  v
++}
++
++// The chunking `verify_split` applies, recomputed here to place the changed terms.
++fn chunk_len(len: usize, parts: usize) -> usize {
++  let parts = parts.min(len / 1024).max(1);
++  len.div_ceil(parts)
++}
++
++#[test]
++fn verify_split_matches_verify_at_chunk_boundaries() {
++  let generators = insecure_test_generators::<_, Ristretto>(&mut OsRng, 2).unwrap();
++  let lens = [3, 1023, 1024, 1025, 2047, 2048, 2049, 3072, 3073, 4097, 12 * 1024, 12 * 1024 + 1, 24 * 1024 - 1, 24 * 1024 + 5];
++  let parts_list = [0, 1, 2, 3, 4, 12, 24, 1000];
++  let mut checked = 0;
++  for len in lens {
++    let good = identity_verifier(len);
++    assert!(generators.verify(good.clone()), "len {len}: identity batch rejected by verify");
++    for parts in parts_list {
++      assert!(generators.verify_split(good.clone(), parts), "len {len}, parts {parts}: identity batch rejected");
++      let chunk = chunk_len(len, parts);
++      let mut positions = vec![0, 1, 2, len - 1];
++      let mut b = chunk;
++      while b < len {
++        positions.push(b - 1);
++        positions.push(b);
++        b += chunk;
++      }
++      positions.sort_unstable();
++      positions.dedup();
++      for i in positions {
++        let bad = with_bad_term(&good, i);
++        assert!(!generators.verify(bad.clone()), "len {len}: bad term {i} accepted by verify");
++        assert!(!generators.verify_split(bad, parts), "len {len}, parts {parts}: bad term {i} accepted");
++        checked += 1;
++      }
++    }
++  }
++  println!("verify_split boundaries: {} lengths, {} parts settings, {checked} bad batches rejected", lens.len(), parts_list.len());
++}
++
++#[test]
++fn verify_split_clamps_parts_to_len_over_1024() {
++  // The clamp's edges: below 2,048 terms there is one chunk whatever `parts` is; at 2,048 two chunks of
++  // 1,024; one term more and the last chunk is one term shorter than the first.
++  assert_eq!(chunk_len(1023, 24), 1023);
++  assert_eq!(chunk_len(2047, 24), 2047);
++  assert_eq!(chunk_len(2048, 24), 1024);
++  assert_eq!(chunk_len(2049, 2), 1025);
++  assert_eq!(chunk_len(24 * 1024 + 5, 24), 1025);
++  assert_eq!(chunk_len(5000, 0), 5000);
++}
+-- 
+2.43.0
+

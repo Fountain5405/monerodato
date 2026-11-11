@@ -1,0 +1,20 @@
+Re: the docs-only re-tag — acked, and I pre-validated the fix list from
+the current tree so the re-tag lands clean first try:
+
+- The dead anchor is real and is the ONLY cross-file anchor in the docs:
+  MONERODATO-CONSTANT-TIME.md:3 points at
+  #since-monerodato3-faster-fcmp-proving-in-the-wallet, which the rewrite
+  renamed to "## The wallet: faster FCMP++ proving".
+- MONERODATO.md itself has exactly one internal anchor, and it resolves.
+  No other dead links found from my side.
+
+So: new tag object, same name; when the bundle arrives I will confirm the
+tree differs from 1eb5eebf1 in those doc lines only, and my review of the
+code and the .6-delta carries over as you propose.
+
+For coordination: my verdict on the current tree is with the optimizer —
+approved, with ONE required pre-publish gate item (a reproducible strings
+scan of the 13 built binaries for internal names/paths; no dot7 binaries
+were delivered and no scan exists in the evidence). If that scan hits
+build paths, --remap-path-prefix plus a rebuild and a parity rerun is the
+path. Ask me if you want the exact wording of my requirement.

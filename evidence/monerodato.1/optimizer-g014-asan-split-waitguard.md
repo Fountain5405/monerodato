@@ -1,0 +1,50 @@
+G014, ASAN OF .1 AND THE SPLIT TEST ARE DONE; THE WAITGUARD SCRIPT IS FIXED; THE GATE FILES ARE RUNNING. .1 stays the binary of record.
+
+**ASan of the .1 tree (your request): clean, as expected.**
+- The build:
+  - a clean copy of the tag, e02f97bda;
+  - gcc 13.3.0, rustc 1.99.1, RelWithDebInfo;
+  - `CMAKE_{C,CXX}_FLAGS_RELWITHDEBINFO="-O1 -g1 -DNDEBUG"`;
+  - `CMAKE_{C,CXX}_FLAGS="-fsanitize=address -fno-omit-frame-pointer"`;
+  - `-fsanitize=address` in the exe and shared linker flags;
+  - BUILD_TESTS=ON, ARCH=native.
+- The results:
+  - **As shipped:** fcmp_pp.batch_verify_from_file, batch_verify_early_exit_waits_for_tasks and batch_verify_rejects_one_bad_proof_among_valid pass, with 0 ASan errors. The early-exit path was taken 3 times.
+  - **Guard disabled** (`wait_guard{waiter, false}`): heap-use-after-free at rctSigs.cpp:1814, the negative control.
+  - **Restored** (`git checkout`, rebuilt, status clean): the three pass, clean.
+  - **All `fcmp_pp.*`:** 16 tests pass, with 0 ASan errors.
+
+**The waitguard script: you were right.** Since 85a7954 (11-08 12:56), `scripts/g009/g009_waitguard.py` applied the conditional `if (waited_ok)` form. Every tree I built, measured or ran under ASan has the unconditional form, because every application of the script came before that commit. I grepped every tree on both boxes: none has the variant.
+- So my earlier answer was right about the trees and wrong to call the premise baseless: the repo's script did say it.
+- The fix:
+  - the script now applies the shipped form, and its header gives that history;
+  - `g009_unguard.py` accepts both forms and both comment texts.
+- Tested on copies: a research tree round-trips byte for byte, the shipped file unguards, and so does the variant.
+
+**G014, stock beta.3.1 against .1 on build-box** (12 cores, 16 GB; the notice fires here): blocks from ref-b, 3 alternating rounds, governor pinned, 24/24 tips.
+
+| cell | wall | CPU | peak anon |
+|---|---|---|---|
+| small-tx, 24 threads | 54 to 50 s, -7.4% | -51.9% | -17.0% |
+| small-tx, 12 threads | 50 to 52 s, **+4.0%** | -31.1% | -12.9% |
+| heavy, size 5, 24 threads | 216 to 96 s, -55.6% | -82.4% | 5,313 to 1,451 MB, -72.7% |
+| heavy, size 5, 12 threads | 199 to 98 s, -50.8% | -64.2% | 3,573 to 1,237 MB, -65.4% |
+
+- Stock is faster in one cell of four, small-tx at 12 threads. That gap is 2 s, which is one poll interval, and .1 synced 8 more blocks in it: its 4-block spans overshoot the end height. Per block, the gap is 2.0%.
+- .1 also writes 10-11% more on small-tx (smaller spans). That is the HDD stage 1 question.
+- **My recommendation to the owner:** drop "and will likely sync faster" from the notice, and keep pointing big machines to stock as the reviewed, upstream-maintained choice. Nothing changes without the owner; any change is a .2.
+
+**The split-boundary test (the adversary's item 3a) passes.**
+- The coverage: 14 term counts around every edge of the clamp and chunk arithmetic (3 to 24,581 terms), and parts 0, 1, 2, 3, 4, 12, 24 and 1000. The changed term sits at the start, the end and both sides of every chunk boundary.
+- The result: 942 changed batches, all rejected by both `verify` and `verify_split`; every identity batch accepted; the whole gbp suite passes.
+- Its first run failed, and the fault was mine, in the test: at 3 terms the only extra term was the identity point, so changing its scalar changed nothing, and `verify` itself (correctly) accepted. Fixed, with an assertion that no point is the identity.
+
+**The adversary's gate files:** sha256s match its message (fuzz f30f7072, FFI 85fffcf0). I read both in full; they are plain tests. Now running against .1:
+- the fuzz in the crate-test copy, after checking its fcmps and gbp sources equal the fork's;
+- the FFI test in the clean .1 copy.
+
+If they pass, I fold them into the fork as `[fork-only]` gate commits, with the split test as a series test, and send one incremental test bundle on top of the .1 tag. All the new modules are `#[cfg(test)]`, so the binary of record stays .1 (389c1bf9).
+
+**HDD stage 1:** I will write it up when your tar arrives.
+
+Evidence: research repo, experiments/G014-stock-vs-monerodato1 and experiments/monerodato-v0.1 (ASan section), evidence/G014 and evidence/monerodato-v0.1/asan.

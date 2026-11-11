@@ -1,0 +1,86 @@
+From 18f49c4235e9cb62a8cea34d844046a47d4f6269 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 13:21:03 +0000
+Subject: [PATCH 3/11] cryptonote_core: keep block sync requests under the
+ levin packet limit
+
+core::get_block_sync_size chooses how many blocks to request in one span.
+Neither of its branches bounds that by what a peer can send back in one
+message:
+- the adaptive estimate looks only at blocks already held, so after a run of
+  near-empty blocks it asks for BLOCKS_MAX_WINDOW blocks even when the next
+  blocks are large;
+- an explicit --block-sync-size is used as given.
+When the peer's NOTIFY_RESPONSE_GET_OBJECTS is larger than levin's 100 MB
+packet limit, the connection is closed ("Maximum packet size exceed!"). The
+node reconnects and asks for the same span, forever, and the default log
+level shows only that the node disconnected.
+
+Seen on stressnet at height 3,105,421, where blocks near the weight limit
+follow small ones:
+- 2026-11-02, adaptive size: sync stopped at that height;
+- 2026-11-08, --block-sync-size 20: a 125,278,845-byte response and 1,139
+  reconnects in 20 minutes.
+
+In both branches, bound the request by the consensus block weight limit:
+at most (90% of the packet limit) / (weight limit) blocks, and at least one.
+A block's serialized size is about its weight or less. The 10% margin covers
+per-block and per-tx overhead, and FCMP++ proofs against a tree deeper than
+the 7 layers their weight assumes. The cap only lowers the span size, so the
+worst case is more, smaller requests.
+
+The adaptive-branch cap ran in every lowmem-v2 measurement and fixed the
+2026-11-02 stop. The explicit-branch cap is new here and is exercised by this
+build's smoke test.
+
+Behaviour change in sync request sizes only; no consensus or verification
+change.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/cryptonote_core/cryptonote_core.cpp | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/src/cryptonote_core/cryptonote_core.cpp b/src/cryptonote_core/cryptonote_core.cpp
+index 8023ef327..7d00ca1cc 100644
+--- a/src/cryptonote_core/cryptonote_core.cpp
++++ b/src/cryptonote_core/cryptonote_core.cpp
+@@ -40,6 +40,7 @@ using namespace epee;
+ #include <thread>
+ #include "cryptonote_core.h"
+ #include "ringct/rctSigs.h"
++#include "net/levin_base.h"
+ #include "common/util.h"
+ #include "common/updates.h"
+ #include "common/download.h"
+@@ -961,6 +962,27 @@ namespace cryptonote
+       }
+     }
+ 
++    // Neither branch above bounds the request by what a peer can send in one response. The
++    // estimate only looks backward, at blocks we already have, so after a run of near-empty blocks
++    // it asks for BLOCKS_MAX_WINDOW blocks even if the next blocks are large; an explicit
++    // --block-sync-size is used as given. The peer's NOTIFY_RESPONSE_GET_OBJECTS can then exceed
++    // the levin packet limit: the connection is dropped and the same request is retried forever.
++    // Bound the request by the consensus block weight limit instead. A block's serialized size is
++    // about its weight or less, so N blocks at the limit fit in about N * limit bytes; the 10%
++    // margin covers per-block and per-tx overhead, and FCMP++ proofs against a tree deeper than
++    // the 7 layers their weight assumes.
++    const uint64_t weight_limit = m_blockchain_storage.get_current_cumulative_block_weight_limit();
++    if (weight_limit > 0)
++    {
++      const uint64_t budget = LEVIN_DEFAULT_MAX_PACKET_SIZE / 10 * 9;
++      const size_t cap = std::max<uint64_t>(1, budget / weight_limit);
++      if (res > cap)
++      {
++        MINFO("capping block sync size from " << res << " to " << cap << " blocks (block weight limit " << weight_limit << " bytes)");
++        res = cap;
++      }
++    }
++
+     static size_t max_block_size = 0;
+     if (max_block_size == 0)
+     {
+-- 
+2.43.0
+

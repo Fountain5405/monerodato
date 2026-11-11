@@ -1,0 +1,146 @@
+# monerodato.5: build report
+
+From optimizer, 2026-11-10. Built in the same tree, build directory, toolchain and recipe as monerodato.4 (`monerodato-v0.4-build.md`). This report covers what changed and how it was checked.
+
+**Why:**
+- **The change:** G015, the startup warm-up of the node's hash indexes. It answers the owner's HDD question: on a 5,400 rpm disk, monerod's sync is bound by random reads in three hash indexes.
+- **The owner's decisions:**
+  - the warm-up ships as .5, synchronous at startup, with a 60% leaf budget: relayed by coordinator at 14:58, confirmed in my chat at 18:49 UTC ("yes, F2 alone in .4 and warm-up as .5");
+  - the tag, in my chat just before 22:57 UTC: "yes, tag .5".
+- **The adversary:**
+  - approved dot5-prep (0733a7b84) with no findings (to-optimizer 20261110T200600Z, 3c01bc7a; it arrived 19:31);
+  - checked the tag commit's delta from the patch in my tag notice (its ack ccd223c6).
+  - My first copy of that notice went out with the patch placeholder unfilled. I withdrew it and replaced it, and a correction followed. The records are aligned (its message c745531f).
+
+## Deliverables (in <path>/files/)
+
+| file | sha256 | size |
+|---|---|---|
+| `monerodato-v0.5.bundle` | `719f595d619fa67550e571e82e0109cbe4a3550846fff6b17badf56fc7ab2080` | 19,166 B |
+| `monerodato-v0.5-monerod` | `410748ae17ee73bef57a42332ec94589ca5380780eebe7542bf2fffaf2758cf8` | 42,502,656 B |
+| `monerodato-v0.5-monero-wallet-rpc` | `83fd20a5f53592c6e3002ed1013b19c974ff21a63486a4dfa38e0a6960b1d568` | 49,895,808 B |
+| `monerodato-v0.5-monero-wallet-cli` | `5b07e3e8ae5737af38327b4e1ca55fcb6eaea23ad73f0b3159ccf3d299388acc` | 49,201,144 B |
+| `monerodato-v0.5-build.md` | this file; its sha256 is in the message | |
+
+All three binaries are static: they link only libc and libm (ldd). The change runs in the node. The wallets are shipped too, so that the three come from one tag.
+
+**The bundle:**
+- **Contents:** branch `monerodato-v0` and the annotated tag `v0.19.0.0-beta.3.1-monerodato.5` (tag object `3728158e08b3906b95eaf631f980d139ba162d8c`), both at commit `d87cc01dcd49557593817d5d93bf4ab6ebe4c08a`. The tag's tree is `cc4ed6bcdc89d56c377a392288b540926222ca0d`.
+- **Thin** against `dfd1756da`, the .4 tag's commit.
+- **6 commits.**
+- **How it was checked:** in a new repo holding only the base, the v0, gate, review, .1, .2, .3 and .4 bundles were fetched, then this one. Every `git bundle verify` listed only its expected prerequisite; this one's is `dfd1756da`. The branch, the tag object and the tag tree there equal the source repo's, and `git fsck` is clean.
+
+To use it, in the repo that already holds the earlier bundles:
+
+```sh
+git bundle verify ../monerodato-v0.5.bundle
+git fetch ../monerodato-v0.5.bundle 'refs/heads/monerodato-v0:refs/heads/monerodato-v0' \
+  'refs/tags/v0.19.0.0-beta.3.1-monerodato.5:refs/tags/v0.19.0.0-beta.3.1-monerodato.5'
+git checkout v0.19.0.0-beta.3.1-monerodato.5 && git submodule update --init --recursive
+```
+
+## The series (`git log --oneline --reverse .4..5`)
+
+```
+f0cb44587 liblmdb: add mdb_env_warm_dbis(), reading database trees into the page cache in file order
+3557f2407 tests: mdb_env_warm_dbis on a generated environment laid out as monerod's hash indexes
+a3c3de5dc blockchain_db: warm_indexes(), reading the LMDB hash indexes into the page cache
+4dbaa05cc cryptonote_core: warm the hash indexes right after the database opens
+0733a7b84 [fork-only] MONERODATO.md: the startup warm-up of the hash indexes (after monerodato.4)
+d87cc01dc [fork-only] monerodato.5: version suffix, the docs say .5
+```
+
+- **The adversary reviewed** the first five (bundle 35ab2c5d).
+- **d87cc01dc:**
+  - sets the version suffix;
+  - turns "after monerodato.4" into "since monerodato.5" in four places: the introduction, the monero row, the review-diffs line and the warm-up heading;
+  - sets the fork-only count to 36.
+  - It touches only `MONERODATO.md` and `src/version.cpp.in`, +6 / -6.
+- 0733a7b84's subject keeps "(after monerodato.4)" and is not rewritten, as with c73c62026 in .4.
+
+**Scope since .4, outside `vendor/`:** 10 files, +800 / -5.
+- **Shipped code:**
+  - `external/db_drivers/liblmdb/lmdb.h` and `mdb.c`;
+  - `src/blockchain_db/blockchain_db.h`, `lmdb/db_lmdb.h` and `lmdb/db_lmdb.cpp`;
+  - `src/cryptonote_core/cryptonote_core.cpp`;
+  - `src/version.cpp.in` (the suffix).
+- **Tests:** `tests/unit_tests/lmdb_warm.cpp` and its line in `tests/unit_tests/CMakeLists.txt`.
+- **Docs:** MONERODATO.md.
+- **Nothing changed under `src/fcmp_pp`, `vendor/` or `Cargo.lock`** since the .4 tag (`git diff --quiet`, checked by the gate).
+
+## Build
+- **Daemon:** `ninja -C build/static -j10 daemon` in .4's build directory (the depends toolchain, Release, `ARCH=default`, `STATIC=ON`; gcc 13.3.0, rustc 1.99.1). Then `ninja -C build/static -j10 wallet_rpc_server simplewallet`.
+- **The Rust library was not rebuilt.** No Rust source changed. Cargo compiled 0 crates, and `libfcmp_pp_rust.a` is byte-identical to .4's (`cmp` against a copy taken before the build; the gate stops otherwise).
+- **`check-vendor-rev: ok`:** monero-oxide 31c26d96; 6 vendored crates match patched/monero-oxide; dalek-ff-group 0.5.0 and multiexp 0.5.2 from patched/.
+
+**Object identity:**
+- **Method:** as for .4. Every `.o`, `.a` and `bin/monerod` under the build directory was hashed before the .5 daemon build (on .4's build of record, monerod c2a52832) and after it. 320 files.
+- **18 differ:**
+  - `bin/monerod`;
+  - the version object and `libversion.a`;
+  - `mdb.c.o` and `liblmdb.a`;
+  - `blockchain_db.cpp.o`, `db_lmdb.cpp.o` and `libblockchain_db.a`;
+  - `cryptonote_core.cpp.o`, `blockchain.cpp.o`, `tx_pool.cpp.o` and `libcryptonote_core.a`;
+  - `hardfork.cpp.o` and `libcryptonote_basic.a`;
+  - `core_rpc_server.cpp.o` and `librpc.a`; `daemon_handler.cpp.o` and `libdaemon_rpc_server.a`.
+- **Which code changed:**
+  - `mdb.c.o`, `db_lmdb.cpp.o` and `cryptonote_core.cpp.o` hold the new code.
+  - Every other changed object uses `BlockchainDB`, whose class gained a virtual function, `warm_indexes()` (`blockchain_db.h:740`). I take the changed vtable layout to be why those objects differ; this was not checked object by object.
+  - This is the reverse of .2 to .4, where only the Rust library changed. As the adversary expected, the daemon's C++ objects change this time, and the Rust library does not.
+- **The wallets:**
+  - After the wallet build, the list was hashed again: still 18 of 320 differ, the same 18. So the wallet's own objects are byte-identical to .4's.
+  - The wallet binaries statically link the changed libraries. `mdb_env_warm_dbis`, `BlockchainLMDB::warm_indexes` and `cryptonote::core::init` are in all three binaries (nm).
+  - None of the 14 wallet objects (`src/wallet`, `src/simplewallet`) refers to `cryptonote::core`, `BlockchainLMDB`, `new_db`, `BlockchainDB::open` or the warm-up functions (`nm -u`).
+  - A full call-graph check, that the wallets cannot reach the warm-up, was not done.
+
+## Checks
+**Tests:**
+
+| check | result |
+|---|---|
+| unit tests, built from the .5 tree: `lmdb_warm.*`, `BlockchainDBTest*`, and .4's set (fcmp_pp, wallet_tx_builder, carrot_fcmp, bulletproofs_plus, curve_trees) | 49 run in 7 suites: 48 passed, 1 skipped (`fcmp_pp.force_init_gen_u_v`, as in .1 to .4), 0 failed |
+| of which `lmdb_warm` | 3 passed: `reads_the_pages_a_cursor_walk_reads`, `reads_the_leaves_only_if_all_of_them_fit_in_the_budget`, `checks_its_arguments` |
+| of which `BlockchainDBTest` | 4 passed |
+
+- **The Rust gates (1 to 5) were not re-run for .5.** No Rust source changed, and the library is .4's byte for byte; .4's gates passed (`monerodato-v0.4-build.md`).
+
+**The warm-up in the release monerod:**
+- **The runs:** three offline starts on build-box's stressnet DB, with `data.mdb` evicted from the page cache before each.
+- **The checks in each:** the warm-up line must come between "Initializing core" and "Core initialized OK", RPC must come up, and the stop must be clean.
+
+| start | the warm-up line | order | exit | ERROR lines |
+|---|---|---|---|---|
+| no limit (16 GB) | 202,493 pages (829 MB) in 3.3 s | yes | 0 | 0 |
+| 1 GiB cgroup (`MemoryMax=1G`) | the upper levels only, 3,864 pages (15 MB) in 0.1 s; "Their 198629 leaf pages (813 MB) were not read: more than 60% of the 1073 MB of memory" | yes | 0 | 0 |
+| 2 GiB cgroup (`MemoryMax=2G`) | 202,493 pages (829 MB) in 3.3 s | yes | 0 | 0 |
+
+- **The budgets:** 60% of 1,073 MB is 644 MB, under the 813 MB of leaves, so they are not read. 60% of 2,147 MB is 1,288 MB, so they are.
+- **The disk:** build-box's is a SATA SSD, so these times are not HDD times. The HDD measurement is G015 stage 4b, under Notes.
+- **On an empty DB** (the notice check), the line reads 0 pages (0 MB) in 0.0 s.
+
+**The wallet:**
+- **The run:** memprobe2 at 8 inputs on the .5 static wallet-rpc (83fd20a5), one run, `do_not_relay`, on W006 copies against an offline node.
+- **Result:** fee 1,292,925, weight 17,239, 1 transaction: the same as .3 and .4. VmHWM 163,760 kB (.4's run: 164,576 kB), 4.09 s.
+- One run, a sanity check, not a measurement.
+
+**Runtime checks:**
+- **`--version`, all three binaries:** `Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.5-release)`.
+- **The notice on a 16 GB, 12-core AVX2 machine:** once, in stdout and in the log, unchanged.
+- **A 400-block sync from ref-b,** cleared by coordinator at 15:59, as for .4:
+  - the DB was rewound with the base build to height 3,106,401;
+  - .5 synced from ref-b alone to height 3,106,801 in 61 s from RPC up (not a timing run);
+  - the hash at 3,106,800 is `74db18cf...b59c`, equal to ref-b's and to the reference;
+  - 0 oversize packets, 0 verification failures, 0 ERROR lines;
+  - the warm-up: 202,493 pages (829 MB) in 0.2 s, since the rewind had just read them into the page cache.
+
+## Notes
+1. **The HDD evidence** is research G015 stage 4b: coordinator's VM on a 5,400 rpm disk with 4 GB, 3 runs per arm, pre-registered.
+   - From launch to the top of 400 blocks: 410 s cold, 166 s with the warm-up.
+   - The warm-up itself: 829 MB in about 60 s.
+   - RPC answered 56 s later (82.7 s against 26.3 s).
+   - The binary there was built from fa60dcb32, which has the same code as .5 (`git range-diff`: identical).
+2. **The budget has no absolute cap.** On mainnet the three tables are probably several GB (not measured). A big-memory node on an HDD could spend minutes before P2P and RPC start. MONERODATO.md says so.
+   - The owner has said the warm-up will eventually move to the background while the node starts.
+   - The adversary prefers an absolute cap: a background warm-up would race the sync for the same pages, and a cap keeps "no runtime switches". That decision is the owner's, before mainnet.
+3. **Not run:** a Windows build, a 32-bit build, a mainnet DB. The adversary asks for Windows and 32-bit builds to be compiled and tested before any mainnet or release-binaries decision.
+4. **No access beyond the optimizer's own boxes.** Blocks came from ref-b by P2P, and tip hashes from ref-b by RPC reads.

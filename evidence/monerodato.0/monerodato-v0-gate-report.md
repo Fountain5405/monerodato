@@ -1,0 +1,86 @@
+# monerodato v0: the adversary's gate tests, committed and run
+
+From optimizer, 2026-11-08. Answers the coordinator's 14:25 message (follow-ups 1 and 2). The owner's 13:12 go-ahead covers this: the 12:48 plan said the adversary's tests would come through the coordinator and go into the series.
+
+Your 13:09 message arrived four minutes after my last inbox check, so I hadn't seen it when I built; that is why v0 has the TODO commit.
+
+## Delivered (in the lab exchange)
+
+| file | sha256 |
+|---|---|
+| `monerodato-v0-gate.bundle` (27,169 B) | `af34132b0f4cf1351ac56db0f05eaf555d7ae6877b1d4287ff6cb95b9df36830` |
+| `monerodato-v0-gate-report.md` | this file; its sha256 is in the message |
+
+**The incremental bundle:**
+- branch `monerodato-v0` at `fcb484690bb331245dc81edbfd317202c5d3d677`;
+- its only prerequisite is `3ed5daca7d14094b7c45f9f503b6f2d2feb4ad66`;
+- no tag. `v0.19.0.0-beta.3.1-monerodato.0` is not moved.
+
+**How it was checked:** in a repo holding only the public base, I fetched the v0 bundle and then this one. The head tree there is `f9d704b676fe702e3d37b19966098a9d81f89c46`, identical to mine; there are 6 commits after the tag, and fsck is clean.
+
+```
+597ca1281 [fork-only] patched/dalek-ff-group-orig: pristine dalek-ff-group 0.5.0, renamed, as the s64 differential's oracle
+e4b92148d [fork-only] dalek-ff-group: gate test, s64 Field25519 differential against pristine 0.5.0
+3d40f9128 [fork-only] dalek-ff-group: test that the s64 differential's oracle is the pristine path crate
+25f7ee1aa [fork-only] fcmps: gate test, differential fuzz of folded vs stored verification
+5bd476f61 [fork-only] MONERODATO-GATE.md and scripts/ct-check.sh: the adversary's gate instructions and CT check
+fcb484690 [fork-only] MONERODATO.md: the gate tests are in, TODO resolved; shipped Rust flags; build-directory dependence
+```
+
+**What was committed:**
+- Everything delivered at 13:09 except REPLAY-RUNNER-SPEC.md, which is information. All of it unmodified, sha256-checked against adversary-MANIFEST, and read in full before anything ran.
+- The adversary is named in each message body as the author of the content.
+- The commits are marked `[fork-only]`. MONERODATO.md's series extraction now skips `[fork-only]` commits, so the upstream crate series come out exactly as before; I tested this.
+- There was no "verify_stored under cfg(test)" commit to follow, because bde81f4 already had it. The fcmps test is on top of the series and compiles and runs, since `Fcmp::verify_stored` exists in test builds.
+- One commit is mine: 3d40f9128, the oracle test you asked for (below).
+
+## 1. Which tests ran, and the results
+
+All gates ran on copies of the fork's `patched/` trees, kept side by side outside the tree. The in-tree cargo is offline and vendored for fcmp_pp_rust's own dependencies; the crates' dev-dependencies are not vendored. For the monero-oxide copy I added `[patch.crates-io] dalek-ff-group = { path = "../dalek-ff-group" }` to its workspace, so the verifier runs on the s64 field as in the fork.
+
+| gate | invocation | toolchain | result |
+|---|---|---|---|
+| 1. s64 field differential | `RUSTFLAGS="-C overflow-checks" cargo test --release --test s64_differential -- --nocapture` | rustc 1.99.1 (as the shipped build) | **PASS**: "s64 gate differential: 5783+ cases, failures 0"; 2 tests passed (`s64_gate_differential`, `oracle_is_the_pristine_path_crate`) |
+| 2. folded-vs-stored differential | `cargo test -p full-chain-membership-proofs --release differential_fuzz -- --nocapture` | rustc 1.97.1 (monero-oxide's pin; see below) | **PASS**: `TOTAL: generated 900 unparsable 27 both_reject 873 both_accept 0 diverged 0 panics 0`, all 15 shapes clean, 2,116 s single-threaded |
+| 2, again under the shipped toolchain | `cargo +stable test --release -p full-chain-membership-proofs -- --skip prove_benchmark --nocapture` (the whole fcmps suite, differential_fuzz included) | rustc 1.99.1 | **running** at the time of writing (started 15:30 UTC); the result follows in a short message |
+| 3. CT structure | `scripts/ct-check.sh <binary>` | | **not run**: it needs a binary with the adversary's force-emitted `ct_inspect` wrappers, whose source is not in the kit, and its GOT slot offsets are those of the adversary's own binary ("adjust if it moves"). Against monerod it would find no wrappers and report nothing meaningful. The flags to rebuild them against are in section 2. |
+
+**Toolchains.** monero-oxide pins its own toolchain (`rust-toolchain.toml`: 1.97.1). So the monero-oxide tests in my v0 build report (fcmps 9/9, generalized-bulletproofs) and the first gate-2 run used rustc 1.97.1, while the shipped binary was built with 1.99.1, the default stable, since fcmp_pp_rust has no toolchain file. I did not say this in the v0 report. The second gate-2 row is the whole fcmps suite rerun under 1.99.1 with `cargo +stable`.
+
+### Does the oracle provably resolve to the pristine crate? Yes
+1. **Sources.** `patched/dalek-ff-group-orig` against the crates.io `dalek-ff-group-0.5.0.crate` (sha256 `26103554...`): `diff -r` shows only the package name and the lib name in Cargo.toml. `.cargo_vcs_info.json`, `.gitignore` and `.rustfmt.toml` are absent; `src/` is byte-identical.
+2. **Resolution.**
+   - `cargo metadata` in the test copy lists `dalek-ff-group-orig 0.5.0` with manifest `.../dalek-ff-group-orig/Cargo.toml` and `source=None` (a path package). The s64 crate is `dalek-ff-group 0.5.0 .../dalek-ff-group/Cargo.toml source=None`.
+   - `cargo tree -e dev --depth 1` shows `[dev-dependencies] ├── dalek-ff-group-orig v0.5.0 (.../dalek-ff-group-orig)`.
+3. **In the test itself:** `oracle_is_the_pristine_path_crate` (my commit 3d40f9128, appended to `tests/s64_differential.rs`) asserts two things. First, that `type_name::<O>()` and `type_name::<N>()` differ: if the oracle had been redirected to the patched crate, they would be the same type. Second, that the oracle's type comes from `dalek_ff_group_orig::`. In the run they were `dalek_ff_group_orig::field::FieldElement` and `dalek_ff_group::field::FieldElement`. It is part of the gate-1 invocation.
+4. **Why the trap cannot hit the shipped build:** cargo does not resolve the dev-dependencies of fcmp_pp_rust's path dependencies. `cargo metadata --locked --offline` in `src/fcmp_pp/fcmp_pp_rust` succeeds with an unchanged Cargo.lock, so dalek-ff-group-orig is in neither the build graph nor `vendor/`.
+
+Point 3 catches a wrong resolution, but not a tampered oracle source. Point 1 covers that, and it can be repeated by anyone with the `.crate`.
+
+### The shipped code is unchanged; no rebuild, no new suffix
+- **Files changed since the tag:** only `patched/dalek-ff-group-orig/` (new), `patched/dalek-ff-group/{tests/,Cargo.toml,Cargo.lock}` (the crate's own dev-dependencies and test target), `patched/monero-oxide/crypto/fcmps/src/tests*`, `MONERODATO*.md` and `scripts/ct-check.sh`.
+- **Identical to the tag:** fcmp_pp_rust's `Cargo.toml`, `Cargo.lock`, `vendor/` and `.cargo/`.
+- **Revision check** passes.
+- **vendor/ regenerated at the new head in a fresh clone:** identical (`git status --porcelain --ignored` prints nothing).
+- **Static build at the new head,** same recipe, in `build/static-head`. Its `libfcmp_pp_rust.a` differs as a file from the v0 build's, so I compared inside it:
+  - 371 of 372 archive members are byte-identical.
+  - The remaining member (the thin-LTO object for `monero_fcmp_plus_plus`, 12.8 MB) has the same 8,584 instructions once objdump's symbol annotations are removed.
+  - It differs only in two embedded paths, to `helios_generators.rs` and `selene_generators.rs`, which `monero-fcmp-plus-plus`'s build script writes into OUT_DIR under the build directory. The LLVM internal-symbol hashes derived from them differ too.
+  - A third build from the same head, in another target directory, differs in the same way.
+  - So the build is directory-dependent, not changed. `monerodato-v0-monerod` (dd839ccd...) remains the binary of record. Bit-identical builds (guix) would need `--remap-path-prefix`.
+
+## 2. Release profile of the shipped Rust code (open item 4)
+
+- **Where the flags come from:** `[profile.release]` in `src/fcmp_pp/fcmp_pp_rust/Cargo.toml`, unchanged from upstream beta.3.1: `lto = "thin"`, `panic = "abort"`, `overflow-checks = true`, `codegen-units = 1`. CMake runs `cargo build --locked --target x86_64-unknown-linux-gnu --release`, with no RUSTFLAGS (CMake sets them only for Debug + SANITIZE) and an empty `CARGO_OPTIONS`.
+- **Toolchain:** rustc 1.99.1 (58cf8f9c3 2026-10-13), cargo 1.99.1.
+- **The rustc flags,** as `cargo build -v` shows them in the same tree with the same command:
+  - dalek_ff_group (the patched 0.5.0): `-C opt-level=3 -C codegen-units=1 -C panic=abort -C overflow-checks=on -C debug-assertions=off -C strip=debuginfo -C linker-plugin-lto -C embed-bitcode=no --target x86_64-unknown-linux-gnu`. No `target-cpu`, so baseline x86-64: no AVX2 or BMI2 in the Rust code.
+  - fcmp_pp_rust (the staticlib): `-C opt-level=3 -C codegen-units=1 -C panic=abort -C overflow-checks=on -C lto=thin -C strip=debuginfo --crate-type staticlib`.
+- **So overflow checks are ON in the shipped s64 code.** The dependencies are compiled to LLVM bitcode only (`-C linker-plugin-lto`), and machine code for all the Rust code is produced once, by the thin LTO of the staticlib. A CT inspection that matches the shipped binary should look at `libfcmp_pp_rust.a` (or monerod), built with these flags. A wrapper crate would have to depend on the patched dalek-ff-group and be built as a staticlib with the same profile, so that its LTO matches.
+
+## Observations on the tests, for the adversary (information; nothing was changed in their content)
+
+1. **s64 differential, "adversarially anchored chains":** on every step that is not a multiple of 20, the loop replaces both running values with a fresh random element before the operation, `ro = O::from_repr(v.to_repr()); rn = v;`. On the multiple-of-20 steps it replaces them with a fresh wide_reduce instead. So no value is ever carried from one step to the next: each step is one operation on fresh inputs, which makes 10,000 single operations, not 50 chains of 200. Deep chains, where non-canonical intermediate values accumulate, are not covered by this loop. The adversary's own earlier harness had them.
+2. **fcmps differential_fuzz:** when both verifiers panic, the code says "recorded, not fatal". But it increments `panics`, and the final `assert_eq!(total.panics, 0)` then fails the test. The behaviour is fail-closed, so it is safe, but the comment is wrong.
+3. **The gate-2 invocation runs under monero-oxide's pinned 1.97.1** unless overridden (`cargo +stable` here). Since the gate's results are per compilation, MONERODATO-GATE.md may want to name the toolchain.
+4. **The replay spec's C4 asks for "cap math unit tests (pure function...)".** The cap is not a pure function: it sits inside `core::get_block_sync_size` and reads the blockchain's weight limit, and there is no unit test for it. The fork exercised the explicit-branch cap end to end instead (the v0 smoke test: `--block-sync-size 20` through 3,105,421, the cap logged 20 -> 4 blocks, 0 oversized packets, tip = ref-b). A unit test would need the cap factored out into a function. That is a code change to monerod, and I have not made it.

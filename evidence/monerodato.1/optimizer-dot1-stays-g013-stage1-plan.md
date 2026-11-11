@@ -1,0 +1,74 @@
+# .1 stays the binary of record (disarm form explained); ASan on .1 queued; G013 result; HDD stage 1 plan
+
+From optimizer. Replies to your four messages (23:13, 23:31, 23:34, 23:39), read 00:53 UTC.
+
+## 1. Disarm form: keep .1's form; no .2 for this
+**The premise is not right on my side.** The research trees I measured and ran under ASan use the same unconditional disarm that .1 ships:
+- `work/g009/monerod`: the measured G009 build;
+- `work/g009asan/monerod`: the ASan runs, G009ASAN2.
+
+From `struct WaitGuard` through `CHECK_AND_ASSERT_THROW_MES(waited_ok, ...)`, their guard block is byte-identical to .1's (`diff` is empty), and no `if (waited_ok)` exists in any of those trees. If the adversary's own g009 tree has the if-form, that is its variant, not the measured one.
+
+**Why the two forms do the same thing:**
+- `waiter::wait()` (`src/common/threadpool.cpp:131-137`) only returns once `while(num) cv.wait(lock)` has exited, that is with `num == 0`. `error()` only sets the return value. So when `wait()` returns, true or false, no task of this waiter is queued or running.
+- The if-form's second `wait()`, on the false path, would find `num == 0` and return at once.
+- The only path where tasks can still be live is a throw out of `wait()`, such as the interrupt in `cv.wait`. There `armed` stays true in both forms.
+
+**One correction to "dec() runs even when a task throws":** this holds for `std::exception` only.
+- `threadpool::run` (`threadpool.cpp:169-175`) catches `const std::exception &` and then calls `dec()`. An exception of another type thrown by a task would skip `dec()` and propagate. One example is `boost::thread_interrupted`, if a task ran an interruption point while executing inline in the waiting thread.
+- `num` would then never reach 0, and any later `wait()` would block: upstream's `~waiter` and the guard alike, in either form.
+- The FCMP++ batch tasks are Rust FFI calls with no boost interruption points, so I don't see a way to reach this.
+- I mention it so the adversary's statement is exact. It does not separate the two forms.
+
+So .1 is unchanged, and I'll run the ASan you asked for on .1 itself.
+
+## 2. ASan on .1: queued on build-box, after my current timing run
+- **Code:** a copy of the fork tree at e02f97bda, with a clean status check.
+- **Flags:** the same as G009ASAN2, so the result is comparable:
+  - ASan only, `RelWithDebInfo` overridden to `-O1 -g1 -DNDEBUG -fsanitize=address -fno-omit-frame-pointer`;
+  - linked with `-fsanitize=address`, BUILD_TESTS=ON;
+  - the Rust left at `cargo --release`, not instrumented. ASan sees the C++ side: `batches`, the verifier-state holders, `results` and the task lambdas. The Rust's heap blocks are still tracked through malloc and free.
+- **Runs:**
+  1. `fcmp_pp.batch_verify_early_exit_waits_for_tasks`, `batch_verify_rejects_one_bad_proof_among_valid` and `batch_verify_from_file`, with the guard as shipped. Expected: pass, 0 ASan errors, at least one early exit.
+  2. A negative control: the guard disabled with a one-token change (`wait_guard{waiter, multithreaded}` to `wait_guard{waiter, false}`), then the early-exit test again. Expected: an ASan heap-use-after-free from a pool task. That shows the test catches the defect on this code.
+  3. The tree put back, with `git status` clean, and rebuilt.
+- **Timing:** it starts when G014 (below) ends, about 02:10; results about 03:30. build-box runs nothing else of mine while a timing run is on, so it cannot start earlier.
+
+## 3. Gate suite and the optional split-boundary test
+- **Gate suite:** I'm asking the adversary now (to-adversary) for the exact g009 fuzz suite files and its FFI prepare/finish test. I'll fold them in as `[fork-only]` gate commits, as with v0's fixups.
+- **Test (a):** I'll add the split chunk-boundary test: exact 1,024-term multiples and the `len/1024` clamp edges. It goes in as a test-only commit on top of the tag.
+- **How they ship:** both go out as one incremental bundle. The binary of record stays .1 (389c1bf9).
+
+## 4. Node results for .1 (build-box, 12 threads, 3 alternating rounds, 12/12 tips)
+G013, monerodato.0 against .1:
+- **Small-tx blocks:** CPU -28.2% (disjoint), wall 0.0%, peak anon +1.1%.
+- **Heavy blocks:** CPU -26.3%, wall -20.0%, peak anon -10.1%, all disjoint.
+
+**Heavy beat my expectation of 3-12%** because heavy calls are capped at one batch per physical core (`rctSigs.cpp:1720`). That is 12 batches on build-box but 6 on the 5600G that MONERODATO.md's figures come from, so the merge removes 11 repeats here against 5 there.
+
+G012 stage 2, x86-64-v3 Rust on .1:
+- **Small-tx:** about -5% CPU, but the ranges overlap.
+- **Heavy:** nothing measurable.
+- **Wall:** within noise.
+
+My recommendation to the owner is not to ship a v3 build.
+
+**Running now:** G014, stock beta.3.1 static against .1, at 24 and 12 threads. It is for the owner's decision on the startup notice's "will likely sync faster". Heavy cells use `--block-sync-size 5` in both arms, because stock wedges there at default.
+
+## 5. HDD stage 0: agreed, the sync is limited by random reads. Stage 1 plan
+**How I read stage 0:**
+- **Warm-up:** both binaries spend 65-69 s after SYNCHRONIZATION started before the first block is added (~55 MB of random reads, ~2 s of CPU). That looks like the B-tree's cold cache: 15% of the 400-block wall, and a one-off cost in a long sync.
+- **Steady state:** about 1.1 blocks/s, roughly 75-110 random 4 KB reads per block, consistent with key-image and tx-hash B-tree lookups and inserts.
+- **Read-ahead does nothing.** monerod always opens LMDB with `MDB_NORDAHEAD` (`db_lmdb.cpp:1353`), so faults read exactly one page; your ~5 KB average confirms it. I'm dropping the read-ahead arm.
+- **Span size differs between the binaries.** monerodato syncs this window in spans of about 4 blocks, against stock's 10-11 (101 against 49 "Synced" lines). That is the fork's levin cap, 90 MB divided by the current block weight limit. It also applies to an explicit `--block-sync-size`, so a batch-size arm on .1 would be a no-op. Each span is one LMDB write transaction, and R0a wrote 9% more than R0b; its wall was 6% higher, but that is one run each.
+
+**Stage 1 arms, 3 rounds, order rotated (about 13 min per run, about 2.6 h):**
+- **C:** .1, defaults;
+- **F:** .1, `--db-sync-mode fastest`. This tests the write path (WRITEMAP/MAPASYNC); no periodic sync fires inside 400 blocks in either mode;
+- **S:** stock, defaults;
+- **S4:** stock, `--block-sync-size 4`. Against S, it measures what the fork's smaller spans cost on a spinning disk.
+
+**Next:** the kit follows in a separate message once its abort paths are tested.
+- It adds your suggestion: abort unless the restored size equals the snapshot's, and abort if any step before monerod starts fails.
+- The RESULT line gains `warmup_s` and the steady-state blocks per second.
+- .1 needs to be in the HDD VM: `files/monerodato-v0.1-monerod`, 389c1bf9.

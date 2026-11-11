@@ -1,0 +1,68 @@
+From a8567e6cee04a9c8b61ed09f17bdcc3217f091f1 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 13:21:03 +0000
+Subject: [PATCH 1/11] rctSigs: cap FCMP++ batch verification at physical cores
+ for many-input proofs
+
+batchVerifyFcmpPpProofs runs one batch per compute-pool thread. Each batch
+holds the circuits of its proofs while it verifies (about 200 MB per batch for
+many-input proofs on stressnet), so peak memory grows with the number of
+concurrent batches, which on an SMT machine is twice the core count.
+Verifying many-input proofs is compute-bound, and SMT siblings slow it down.
+
+Calls whose largest proof has 8 or more inputs now run at most one batch per
+physical core (boost::thread::physical_concurrency(), or the pool size if that
+is unknown). Calls with only smaller proofs keep the whole pool, where SMT
+helps. The inputs are already sorted by input count, so the first one decides.
+
+Measured on a 12-core Ryzen 9 3900X (16 GB RAM, SATA SSD), 24 threads, stressnet blocks
+3,105,401-3,105,444 (128-input proofs) unless stated:
+- the cap alone: wall -9%, RSS -1.3%. glibc keeps each thread's freed arena
+  memory, so the memory gain needs the next commit;
+- capping every call instead: +7% wall on 2-input blocks, hence the threshold;
+- threshold 8 instead of 16: CPU about -30%, wall +3 to +4% on 8-input blocks
+  (two stretches, 5 rounds each).
+The memory effect of this commit and the next together is in the next commit.
+
+Speed and memory only: what is verified, and every result, is unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/ringct/rctSigs.cpp | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/ringct/rctSigs.cpp b/src/ringct/rctSigs.cpp
+index 02a8e2d65..57fb5bf56 100644
+--- a/src/ringct/rctSigs.cpp
++++ b/src/ringct/rctSigs.cpp
+@@ -36,6 +36,7 @@
+ #include "misc_log_ex.h"
+ #include "common/perf_timer.h"
+ #include "common/threadpool.h"
++#include <boost/thread/thread.hpp>
+ #include "common/util.h"
+ #include "fcmp_pp/fcmp_pp_crypto.h"
+ #include "fcmp_pp/fcmp_pp_types.h"
+@@ -1675,7 +1676,18 @@ done:
+ 
+       tools::threadpool &tpool = tools::threadpool::getInstanceForCompute();
+       tools::threadpool::waiter waiter(tpool);
+-      const std::size_t n_threads = std::max<std::size_t>(1, tpool.get_max_concurrency());
++      // Each concurrently verifying batch holds a large transient working set (the circuits of its
++      // proofs; about 200 MB per batch for many-input proofs on stressnet), so peak memory grows with
++      // the number of batches. Verifying many-input proofs is compute-bound and SMT siblings slow it
++      // down, so calls whose largest proof has HEAVY_PROOF_MIN_INPUTS or more inputs run at most one
++      // batch per physical core. Calls with only few-input proofs keep the whole pool, where SMT
++      // helps. The inputs are sorted by input count, descending, above, so the first one decides.
++      // If the physical core count is unknown, the pool size is used.
++      static constexpr std::size_t HEAVY_PROOF_MIN_INPUTS = 8;
++      const bool heavy_call = fcmp_pp::n_inputs_in_fcmp_pp(fcmp_pp_verify_inputs.front()) >= HEAVY_PROOF_MIN_INPUTS;
++      const std::size_t pool_threads = std::max<std::size_t>(1, tpool.get_max_concurrency());
++      const std::size_t physical_cores = boost::thread::physical_concurrency();
++      const std::size_t n_threads = (heavy_call && physical_cores > 0) ? std::min(pool_threads, physical_cores) : pool_threads;
+       const bool multithreaded = n_threads > 1;
+ 
+       // 1 batch per thread
+-- 
+2.43.0
+

@@ -1,0 +1,73 @@
+PASS  bundle verifies
+bundle refs:
+   f3c4ea5d9d4f6ef27670851e4c94958cce98a5a6 refs/heads/monerodato-v0
+   6be384d848f6cade3cd74a7ef430b8c82a495422 refs/tags/v0.19.0.0-beta.3.1-monerodato.7
+PASS  bundle holds 2 refs (branch + tag)
+tag object 6be384d848f6cade3cd74a7ef430b8c82a495422  commit f3c4ea5d9d4f6ef27670851e4c94958cce98a5a6  tree f7ac1cb864630814c6ab56bd8b190dfce7e58c18
+PASS  tag is annotated
+PASS  branch head = tag commit
+PASS  built on d80596ad1811
+commits on the base: 45 (merges 0)
+PASS  linear
+PASS  author+committer on all 45 commits = Fountain5405 <Fountain5405@users.noreply.github.com>
+PASS  tagger = owner noreply
+PASS  Co-Authored-By trailer on all 45 commits
+distinct trailers:
+        45 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+PASS  commit and tag messages: no private names, no experiment ids
+PASS  fork files at the tag: no private names (upstream docs/tests/contrib excluded; see next line)
+same patterns, whole tree, files whose match count differs from d80596ad1811 (should be none):
+== delta against .6 (9c66a6efa557539451ce6855239239272ba619e8), rename detection on
+   M	MONERODATO-CONSTANT-TIME.md
+   M	MONERODATO-GATE.md
+   M	MONERODATO.md
+   M	src/blockchain_utilities/blockchain_ancestry.cpp
+   M	src/blockchain_utilities/blockchain_depth.cpp
+   M	src/blockchain_utilities/blockchain_export.cpp
+   M	src/blockchain_utilities/blockchain_import.cpp
+   M	src/blockchain_utilities/blockchain_prune.cpp
+   M	src/blockchain_utilities/blockchain_prune_known_spent_data.cpp
+   M	src/blockchain_utilities/blockchain_stats.cpp
+   M	src/blockchain_utilities/blockchain_usage.cpp
+   M	src/common/CMakeLists.txt
+   A	src/common/monerodato_guards.cpp
+   A	src/common/monerodato_guards.h
+   M	src/daemon/main.cpp
+   M	src/fcmp_pp/fcmp_pp_rust/patched/dalek-ff-group/tests/s64_differential.rs
+   M	src/fcmp_pp/fcmp_pp_rust/patched/monero-oxide/crypto/fcmps/src/tests.rs
+   M	src/fcmp_pp/fcmp_pp_rust/patched/monero-oxide/crypto/fcmps/src/tests/differential_fuzz.rs
+   M	src/fcmp_pp/fcmp_pp_rust/patched/monero-oxide/crypto/fcmps/src/tests/g009_fuzz.rs
+   M	src/fcmp_pp/fcmp_pp_rust/src/g009_ffi_tests.rs
+   M	src/fcmp_pp/fcmp_pp_rust/src/lib.rs
+   M	src/version.cpp.in
+   M	src/wallet/wallet_args.cpp
+   M	tests/unit_tests/CMakeLists.txt
+   A	tests/unit_tests/monerodato_guards.cpp
+PASS  no renames, copies or deletions vs .6
+PASS  vendor/ byte-identical to .6
+PASS  README.md byte-identical to .6
+diffstat:
+    tests/unit_tests/CMakeLists.txt                    |   1 +
+    tests/unit_tests/monerodato_guards.cpp             |  55 ++++
+    25 files changed, 386 insertions(+), 178 deletions(-)
+non-doc, non-guard, non-version paths changed (to read by hand):
+   src/blockchain_utilities/blockchain_ancestry.cpp
+   src/blockchain_utilities/blockchain_depth.cpp
+   src/blockchain_utilities/blockchain_export.cpp
+   src/blockchain_utilities/blockchain_import.cpp
+   src/blockchain_utilities/blockchain_prune.cpp
+   src/blockchain_utilities/blockchain_prune_known_spent_data.cpp
+   src/blockchain_utilities/blockchain_stats.cpp
+   src/blockchain_utilities/blockchain_usage.cpp
+   src/common/CMakeLists.txt
+   src/daemon/main.cpp
+   src/fcmp_pp/fcmp_pp_rust/patched/dalek-ff-group/tests/s64_differential.rs
+   src/fcmp_pp/fcmp_pp_rust/patched/monero-oxide/crypto/fcmps/src/tests.rs
+   src/fcmp_pp/fcmp_pp_rust/patched/monero-oxide/crypto/fcmps/src/tests/differential_fuzz.rs
+   src/fcmp_pp/fcmp_pp_rust/patched/monero-oxide/crypto/fcmps/src/tests/g009_fuzz.rs
+   src/fcmp_pp/fcmp_pp_rust/src/g009_ffi_tests.rs
+   src/fcmp_pp/fcmp_pp_rust/src/lib.rs
+   src/wallet/wallet_args.cpp
+   tests/unit_tests/CMakeLists.txt
+PASS  version suffix .7 present
+ALL AUTOMATIC CHECKS PASS (hand-read of the delta still needed)

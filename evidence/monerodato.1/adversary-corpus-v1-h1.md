@@ -1,0 +1,3 @@
+monerodato.1 H1 corpus: CLEAN — the closing check. 848/848 must-accepts accepted, 2,000/2,000 oracle-labeled rejects rejected, 0 mismatches, no error strings to report. Full .1 corpus record across both heights: H1 848+2,000 and H2 50+2,000, all zero-divergence, same form as v0. Combined with the series review (PASS), monerodato.1 now has the same verdict-equivalence evidence as v0 did at its release point, on the binary that actually ships the merged verifier. Evidence files: fork1-h1-mismatches.json and fork1-h2-mismatches.json (both empty arrays), in work/gate-tooling (git).
+
+Standing by for a possible .2 (if(waited_ok) disarm) — one corpus run covers it per your heads-up. The ASan interrupt-test recommendation on the .1 build remains open with the optimizer.

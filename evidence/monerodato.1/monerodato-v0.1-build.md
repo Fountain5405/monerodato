@@ -1,0 +1,185 @@
+# monerodato.1: build report
+
+From optimizer, 2026-11-08. Built on build-box in the same tree, with the same toolchain and recipe as monerodato.0 (`monerodato-v0-build.md`). This report covers what changed and how it was checked.
+
+**Why:** the owner asked in chat to bring G009 into the fork, and confirmed it to the coordinator in the 19:57 UTC message.
+
+## Deliverables (in the lab exchange)
+
+| file | sha256 | size |
+|---|---|---|
+| `monerodato-v0.1.bundle` | `ce1b0e595f5313ca2f3c5c8aa49b1a796e4f5c005e3dbef53de2ad9333f07649` | 17,183 B |
+| `monerodato-v0.1-monerod` | `389c1bf9fd085ff83540d139fbb5dd884f902566604752325990835ea9faee88` | 42,497,864 B |
+| `monerodato-v0.1-build.md` | this file; its sha256 is in the message | |
+
+**Bundle contents:**
+- branch `monerodato-v0` and the annotated tag `v0.19.0.0-beta.3.1-monerodato.1` (tag object `6208befe8393ce711c097fc49823e35aaae91a41`), both at commit `e02f97bda236610cec1dc98a1860c8258dc26283`;
+- thin against `510c123ff195c5bdb961825c5357deec14ab81fd`, the tip of `monerodato-v0-review.bundle`, which `git bundle verify` lists as its only prerequisite;
+- 6 commits.
+
+`vendor/` is unchanged. The only crate the series changes, generalized-bulletproofs, is built from `patched/`, not from `vendor/`.
+
+**How it was checked:**
+- In a new repo holding only the base (fetched as tag v0.19.0.0-beta.3.1), I fetched `monerodato-v0.bundle`, then `monerodato-v0-gate.bundle`, then `monerodato-v0-review.bundle`, then this bundle.
+- The branch there is at `e02f97bda`, and the tag's tree is `e676209cfc50ad1c8243741c4686af5221cce60e`, the same as in the source repo.
+- `git fsck` is clean.
+
+To use it, in the repo that already holds the earlier three bundles:
+
+```sh
+git bundle verify ../monerodato-v0.1.bundle
+git fetch ../monerodato-v0.1.bundle 'refs/heads/monerodato-v0:refs/heads/monerodato-v0' \
+  'refs/tags/v0.19.0.0-beta.3.1-monerodato.1:refs/tags/v0.19.0.0-beta.3.1-monerodato.1'
+git checkout v0.19.0.0-beta.3.1-monerodato.1 && git submodule update --init --recursive
+```
+
+## The series (`git log --oneline --reverse 510c123ff..v0.19.0.0-beta.3.1-monerodato.1`)
+
+```
+a1efc0ca5 generalized-bulletproofs: merge batch verifiers; split the multiexp over threads
+39a74234f rctSigs: wait for queued FCMP++ batch tasks before an early exit
+7ecc75b66 fcmp_pp: verify a batch in two steps, prepare per batch and one finish per call
+0ffafbc2d rctSigs: one multiexp per curve per FCMP++ batch verification call
+c9b9300e6 [fork-only] version: -monerodato.1
+e02f97bda [fork-only] MONERODATO.md: monerodato.1, one multiexp per curve per verification call
+```
+
+| commit | files | lines |
+|---|---|---|
+| a1efc0ca5 | `generalized-bulletproofs/src/lib.rs` (`BatchVerifier::merge`, `Generators::verify_split`); `fcmps/src/tests.rs` (two tests) | +57; +147 |
+| 39a74234f | `src/ringct/rctSigs.cpp` (the guard); `tests/unit_tests/fcmp_pp.cpp` (fixture and early-exit test) | +18/-1; +77 |
+| 7ecc75b66 | `fcmp_pp_rust/src/lib.rs`, `fcmp++.h` (`fcmp_pp_verify_prepare`, `fcmp_pp_verify_finish`, `destroy_fcmp_pp_batch_state`); `src/fcmp_pp/prove.{h,cpp}` (wrappers) | +124 |
+| 0ffafbc2d | `src/ringct/rctSigs.cpp` (the merged call); `tests/unit_tests/fcmp_pp.cpp` (bad-proof test) | +19/-11; +51 |
+| c9b9300e6 | `src/version.cpp.in` | +1/-1 |
+| e02f97bda | `MONERODATO.md` | +31/-5 |
+
+Without vendor/ and without MONERODATO.md, the review diff is +491/-11 in 9 files (`git diff --stat 510c123ff e02f97bda`). In code:
+- 57 lines of Rust in generalized-bulletproofs;
+- 82 lines of Rust FFI;
+- C++: `rctSigs.cpp` +37/-12, `prove.{h,cpp}` +24, `fcmp++.h` +18;
+- the rest is tests.
+
+**What it does:**
+- Each batch of a `batchVerifyFcmpPpProofs` call still runs its per-proof checks on the pool. It now returns its Selene and Helios batch-verifier state instead of a boolean.
+- The states are merged, and one multiexp per curve runs for the whole call, split over the pool threads.
+- It is exact by linearity: every batch uses the same generators, and every proof its own random weight.
+- MONERODATO.md has the review guide for the new commits.
+
+**How the series relates to the measured code:** with comments stripped, the code is identical to the research G009 trees that the G009 and G009c measurements ran on, except for two lines:
+1. The research build's `G009_MSM_SPLIT` switch is gone. The split is always on, which is the measured `g009s`/M2 arm.
+2. `fcmps/src/tests.rs` keeps the gate's `mod differential_fuzz;` line, which monerodato.0 already had.
+
+## Build
+
+**Host, toolchain, depends prefix and recipe:** the same as monerodato.0. rustc and cargo 1.99.1, gcc 13.3.0, `-DARCH=default -DSTATIC=ON`. The build script again refused to run unless HEAD was exactly the tag, the tree was clean and every submodule was at its recorded commit.
+
+**The v0 build directory was kept:** before the build, `build/static` was moved to `build/static-v0`, and its `monerod` is still `dd839ccd...`. The tag was then built in a new `build/static`:
+
+```sh
+cmake -G Ninja -S . -B build/static \
+  -DCMAKE_TOOLCHAIN_FILE=$PWD/contrib/depends/x86_64-linux-gnu/share/toolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Release -DARCH=default -DSTATIC=ON -DBUILD_TESTS=OFF
+ninja -C build/static -j10 daemon      # rc=0
+sha256sum build/static/bin/monerod     # 389c1bf9fd085ff83540d139fbb5dd884f902566604752325990835ea9faee88
+```
+
+The build log shows the revision check first: `check-vendor-rev: ok (monero-oxide 31c26d96...: 6 vendored crates match patched/monero-oxide; dalek-ff-group 0.5.0 from patched/)`.
+
+## Checks
+
+### Vendor regeneration
+In a new clone of the tag, `sh scripts/vendor.sh` was run (with the local cargo cache), then `git status --porcelain --ignored src/fcmp_pp/fcmp_pp_rust`. The status was empty. The empty-`CARGO_HOME` rerun was not repeated, since `vendor/` is byte-identical to monerodato.0's, where it was done.
+
+### Tests
+**monerod unit tests:** native Release build with `BUILD_TESTS=ON` at the tag. 1,508 ran:
+- 1,505 passed;
+- 3 skipped, the same three as v0 (`fcmp_pp.force_init_gen_u_v`, `is_hdd.rotational_drive`, `is_hdd.ssd`);
+- 0 failed.
+
+v0 ran 1,506 and passed 1,503; the 2 extra are the new tests:
+- **`fcmp_pp.batch_verify_early_exit_waits_for_tasks`:**
+  - It interrupts the calling thread while the pool tasks run, so `waiter.wait()` throws and the call leaves early.
+  - It checks that no valid proof is reported invalid, that no other exception escapes, and that the pool still works afterwards.
+  - Here: 3 early exits in 3 attempts, 8.9 s.
+  - The memory-safety half of this check is ASan's job. ASan ran on the research build (G009), not on this build.
+- **`fcmp_pp.batch_verify_rejects_one_bad_proof_among_valid`:**
+  - It flips single bits spread over a 128-input proof and keeps the changes that pass the per-proof checks, so that only the merged multiexp can reject them.
+  - Each kept change is placed first, in the middle and last among the valid proofs of a call. The call must give the single-proof path's verdict every time.
+  - Here: 41 tried, 3 passed the per-proof checks, all 3 rejected in every position. 49.7 s.
+- `fcmp_pp.batch_verify_from_file` (existing) also passed, in 63 s.
+
+**Patched crates' own suites,** under `cargo +stable` (rustc 1.99.1), on copies of the fork's `patched/` trees:
+- **dalek-ff-group, release:** 10/10, and the gate's s64 differential 2/2 (5,783+ cases, 0 failures). Gate 1 run on its own: also 2/2.
+- **generalized-bulletproofs, with its `tests` feature:** 2 unit tests and 3 integration tests, including `fuzz_test_arithmetic_circuit`.
+- **circuit-abstraction:** no tests of its own.
+- **full-chain-membership-proofs:** 12/12 in 2,264 s, with `prove_benchmark` skipped for time as before:
+  - v0's 9;
+  - the gate's `differential_fuzz_structured_mutations`: 900 generated, 27 unparsable, 873 rejected by both, 0 accepted by both, 0 diverged, 0 panics;
+  - **new:** `merged_batch_verifiers`:
+    - three real batches (1, 2 and 1 inputs) each verify alone and merged, serially and split 2 and 4 ways;
+    - corrupting one batch's state, on either curve, makes that batch fail alone and makes the merge fail;
+  - **new:** `merged_batches_reject_malleated_proofs`: 9,123 malleated proofs passed the per-proof checks and were then rejected after merging, both serial and split; 7,645 were rejected by the per-proof checks; 0 were unreadable.
+
+### Per-binary checks
+Same method and regexes as in the v0 report:
+
+```
+--version: Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.1-release)
+ldd: linux-vdso.so.1, libm.so.6, libc.so.6, /lib64/ld-linux-x86-64.so.2
+highest GLIBC symbol version: GLIBC_2.38 (monerodato.1, monerodato.0, stock static, v2, v2s64: all the same)
+
+binary            ymm      zmm   aesenc    sse4x    aesni      bmi      adx    kmask
+monerodato1     23498    75666    18746        0    21540     1940     1059     2613
+monerodato0     23498    75666    18746        0    21540     1940     1059     2613
+stock           23498    75666    18746        0    21540     1940     1059     2613
+v2              23498    75666    18746        0    21540     1940     1059     2613
+v2s64           23498    75666    18746        0    21540     1940     1059     2613
+```
+
+The counts are identical: no new instruction class, and nothing the Q6600 does not already run. The new Rust code is plain scalar code, and the split uses `std::thread::scope`.
+
+### Smoke test: the explicit `--block-sync-size` branch, through the window that looped
+The setup is the same as for v0: the DB was restored to 3,105,401, and the static binary synced from ref-b with `--block-sync-size 20`.
+
+```
+smoke: --block-sync-size 20, from 3,105,401: height 3,105,449 reached in 107 s, 785 CPU-s (not a timing run; v0: 128 s, 968 CPU-s)
+smoke: top block 3,105,451 after stop: hash cbd1237882725a141673e2c1a558a7e2c5df44301ebaf51de7a607da3b33565c, ref-b's at that height: the same
+smoke: 'capping block sync size' lines: 13 (from 20 to 4 blocks, block weight limit 20000000 bytes)
+smoke: 'Maximum packet size exceed' lines: 0; 'now disconnected from the network' lines: 0
+smoke: startup notice present, unchanged from v0
+```
+
+### Negative differential test
+The harness is the same as before. The oracle is stock beta.3.1, a native build of d80596ad1 (sha256 2d1e3e9c...). There are two monerodato.1 arms:
+- **`monerodato1`:** the static deliverable. negdiff submits transactions over `/send_raw_transaction`, so this arm exercises the pool path (`fcmp_pp::verify`), which the series does not change.
+- **`monerodato1pb`:** a test-only build of the tag plus a 15-line patch to `tx_verification_utils.cpp`.
+  - With `G009_POOL_BATCH` set, the patch routes pool FCMP++ verification through `rct::batchVerifyFcmpPpProofs`, the block path, so the cases reach the merged multiexp.
+  - The patch is not in the fork. It was applied, built and reverted, leaving `git status` clean.
+  - The arm's stdout carries the patch's one-time line `G009_POOL_BATCH: pool FCMP++ verification goes through batchVerifyFcmpPpProofs`, which shows the switch was on.
+
+**Results:**
+- **3,105,401, scan 40** (four 128-input transactions):
+  - 135 cases: 128 tampered, 3 swapped, 4 original;
+  - all three arms PASS; (status, flags) disagreements with the oracle: 0, in both monerodato.1 arms; reason-text differences: 0. **DIFF PASS.**
+  - Each arm logged 127 'Failed to verify input FCMP++' lines.
+  - The switch line is present in the pb arm.
+  - Wall time (not a timing run): stock 166 s, monerodato1 113 s, monerodato1pb 85 s.
+- **3,106,400, scan 400** (three 2-input transactions):
+  - 101 cases: 96 tampered, 2 swapped, 3 original;
+  - all three arms PASS; (status, flags) disagreements: 0 and reason-text differences: 0, in both monerodato.1 arms. **DIFF PASS.**
+  - Each arm logged 98 'Failed to verify input FCMP++' lines.
+  - The switch line is present in the pb arm.
+
+The case counts are those of the v0 runs at the same heights.
+
+## Notes
+1. **Not re-measured at the node:**
+   - The speed figures in the commit messages and in MONERODATO.md come from the research builds that G009 and G009c measured. This build's code is identical to theirs, as stated above.
+   - This static binary will be timed as the base arm of a research A/B (G012 stage 2, a compiler-flag test).
+   - A direct A/B of monerodato.0 against monerodato.1 is queued on build-box.
+2. **The guard commit (39a74234f) comes before the merge, and guards `results`.**
+   - That the same early-exit hazard exists there is reasoning from the code: the waiter is declared before `results` and `batches`, so its own wait in its destructor runs after they are destroyed.
+   - The tests and ASan ran on the merged version only, not on the intermediate commit.
+3. **Startup notice:** unchanged. Whether it should still point mainstream hardware at the reference monerod, now that G009 makes monerodato faster there too, is a question I have put to the owner.
+4. **Memory:** in G009 and G009c, peak anonymous memory was unchanged on heavy blocks and 3-9% higher on small-tx blocks. The merged states hold every batch's terms until the single finish.
+5. **No access beyond the optimizer's own boxes:** blocks came from ref-b by P2P and tip hashes from ref-b by RPC reads, as before.

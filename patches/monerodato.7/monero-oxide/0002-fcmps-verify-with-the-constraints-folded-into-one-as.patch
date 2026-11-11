@@ -1,0 +1,1011 @@
+From a7557102e969f782738b7f2a05a1fc30dcbeca3e Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 13:00:08 +0000
+Subject: [PATCH 2/9] fcmps: verify with the constraints folded into one as
+ they are produced
+
+Why: Fcmp::verify stored every constraint of both circuits before forming
+the statements. For many-input proofs that is most of the verifier's working
+set, about 200 MB per batch for 128-input proofs on stressnet, held by every
+concurrently verifying thread.
+
+ArithmeticCircuitStatement::verify weights constraint k by z^(k+1). Handing it
+the single constraint sum(z^k c_k) therefore verifies against the same
+weighted combination as handing it every constraint, without storing them.
+fcmps builds the circuits three times from the same transcript state:
+discarding; folding c1 with its z, peeked from the transcript; folding c2.
+It checks that each rebuild performed the same multiplications, constraints
+and transcript operations. generalized-bulletproofs gains only
+VerifierTranscript: Clone and the additive peek_z; verify itself is
+unchanged.
+
+Safety:
+- Verification only. The prover's circuits still store their constraints
+  (Constraints::Stored), so proving is unchanged.
+- No line of ArithmeticCircuitStatement::verify is removed or changed, and
+  the audited verify still runs on the real transcript for both proofs.
+- Any rebuild mismatch returns an error, so a disagreement rejects the
+  proof; it cannot accept one.
+- Folding refuses circuits with Pedersen commitments
+  (FoldedWithPedersenCommitments): the statement's check that each is
+  constrained needs the individual constraints.
+- The folded constraint keeps every index any constraint referenced, even
+  with weight zero, so the statement bounds-checks the same highest indices.
+- Verification handles public data only, so variable-time arithmetic is
+  acceptable here, as in the existing verifier.
+
+Tests (fcmps/src/tests.rs, +307 lines):
+- test_folded_verify_matches_stored and
+  test_folded_verify_matches_stored_on_tampered_proofs: the folded verifier
+  against the stored one (kept under #[cfg(test)] as Fcmp::verify_stored),
+  on honest, tampered and randomly mutated proofs, comparing the batch
+  verifiers' contents and verdicts;
+- test_discarded_and_folded_circuit_statements;
+- verify_memory_benchmark.
+
+Measured at the node with the next commit and the monerod commits, on
+a 12-core Ryzen 9 3900X (16 GB RAM, SATA SSD), against v0.19.0.0-beta.3.1:
+- stressnet blocks 3,105,401-3,105,444: peak anon -70.4%, against -47.7%
+  for the monerod commits alone;
+- smallest cgroup memory limit that completes those blocks: 1,765 MB,
+  against 3,000 MB for the monerod commits alone and 5,562 MB for stock;
+- small-transaction blocks: wall +7.9%, against +0.2% for the monerod
+  commits alone. The rebuilds cost time on small proofs.
+- The negative differential test (blocks with mutated proofs against
+  stock's verdicts) agreed in every case at two heights.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crypto/fcmps/circuit-abstraction/src/lib.rs   | 177 +++++++++-
+ crypto/fcmps/src/circuit.rs                   |  26 +-
+ crypto/fcmps/src/lib.rs                       | 221 ++++++++++++-
+ crypto/fcmps/src/tests.rs                     | 307 ++++++++++++++++++
+ .../src/arithmetic_circuit_proof.rs           |  24 ++
+ .../src/transcript.rs                         |   1 +
+ 6 files changed, 734 insertions(+), 22 deletions(-)
+
+diff --git a/crypto/fcmps/circuit-abstraction/src/lib.rs b/crypto/fcmps/circuit-abstraction/src/lib.rs
+index 90c9a22c5..ea9576310 100644
+--- a/crypto/fcmps/circuit-abstraction/src/lib.rs
++++ b/crypto/fcmps/circuit-abstraction/src/lib.rs
+@@ -73,12 +73,129 @@ struct ProverData<C: Ciphersuite> {
+   V: Vec<PedersenCommitment<C>>,
+ }
+ 
++/// The constraints of a circuit, folded into a single constraint as they're produced.
++///
++/// Constraint `k` (zero-indexed) is weighted by `z^k`. `ArithmeticCircuitStatement::verify` weights
++/// constraint `k` by `z^(k + 1)`, so a statement with solely the folded constraint is verified
++/// against `z * sum(z^k constraint_k) = sum(z^(k + 1) constraint_k)`, the same weighted combination
++/// it verifies a statement with every constraint against.
++#[derive(Clone, PartialEq, Eq, Debug)]
++struct FoldedConstraints<C: Ciphersuite> {
++  z: C::F,
++  next_weight: C::F,
++  constraints: usize,
++  WL: Vec<C::F>,
++  WR: Vec<C::F>,
++  WO: Vec<C::F>,
++  WCG: Vec<Vec<C::F>>,
++  WV: Vec<C::F>,
++  c: C::F,
++}
++
++impl<C: Ciphersuite> FoldedConstraints<C> {
++  fn new(z: C::F) -> Self {
++    Self {
++      z,
++      next_weight: C::F::ONE,
++      constraints: 0,
++      WL: vec![],
++      WR: vec![],
++      WO: vec![],
++      WCG: vec![],
++      WV: vec![],
++      c: C::F::ZERO,
++    }
++  }
++
++  // `dense += sparse * weight`, growing `dense` as needed.
++  fn accumulate(dense: &mut Vec<C::F>, sparse: &[(usize, C::F)], weight: C::F) {
++    for (i, value) in sparse {
++      if dense.len() <= *i {
++        dense.resize(*i + 1, C::F::ZERO);
++      }
++      dense[*i] += *value * weight;
++    }
++  }
++
++  fn fold(&mut self, constraint: &LinComb<C::F>) {
++    let weight = self.next_weight;
++    Self::accumulate(&mut self.WL, constraint.WL(), weight);
++    Self::accumulate(&mut self.WR, constraint.WR(), weight);
++    Self::accumulate(&mut self.WO, constraint.WO(), weight);
++    for (i, values) in constraint.WCG() {
++      if self.WCG.len() <= *i {
++        self.WCG.resize(*i + 1, vec![]);
++      }
++      Self::accumulate(&mut self.WCG[*i], values, weight);
++    }
++    Self::accumulate(&mut self.WV, constraint.WV(), weight);
++    self.c += constraint.c() * weight;
++    self.next_weight *= self.z;
++    self.constraints += 1;
++  }
++
++  // The folded constraint.
++  //
++  // Every index referenced by any constraint is present, even if its folded weight is zero, so the
++  // statement bounds-checks the same highest indices it would have for the individual constraints.
++  fn into_lincomb(self) -> LinComb<C::F> {
++    let mut res = LinComb::empty().constant(self.c);
++    for (i, weight) in self.WL.into_iter().enumerate() {
++      res = res.term(weight, Variable::aL(i));
++    }
++    for (i, weight) in self.WR.into_iter().enumerate() {
++      res = res.term(weight, Variable::aR(i));
++    }
++    for (i, weight) in self.WO.into_iter().enumerate() {
++      res = res.term(weight, Variable::aO(i));
++    }
++    for (commitment, weights) in self.WCG.into_iter().enumerate() {
++      for (index, weight) in weights.into_iter().enumerate() {
++        res = res.term(weight, Variable::CG { commitment, index });
++      }
++    }
++    for (i, weight) in self.WV.into_iter().enumerate() {
++      res = res.term(weight, Variable::V(i));
++    }
++    res
++  }
++}
++
++/// How a circuit handles the constraints it's given.
++#[derive(Clone, PartialEq, Eq, Debug)]
++enum Constraints<C: Ciphersuite> {
++  /// Every constraint is stored.
++  Stored(Vec<LinComb<C::F>>),
++  /// The constraints are counted, not stored.
++  Discarded(usize),
++  /// The constraints are folded into one as they're produced.
++  Folded(FoldedConstraints<C>),
++}
++
++/// An error incurred when obtaining the statement for a circuit.
++#[derive(Clone, Copy, PartialEq, Eq, Debug)]
++pub enum CircuitStatementError {
++  /// The circuit discarded its constraints, so no statement can be formed from it.
++  ConstraintsDiscarded,
++  /// The circuit folded its constraints yet was given Pedersen commitments, which folding doesn't
++  /// support (the statement's check that each is individually constrained needs the individual
++  /// constraints).
++  FoldedWithPedersenCommitments,
++  /// An error from constructing the arithmetic circuit statement.
++  AcStatementError(AcStatementError),
++}
++impl From<AcStatementError> for CircuitStatementError {
++  fn from(err: AcStatementError) -> Self {
++    CircuitStatementError::AcStatementError(err)
++  }
++}
++
+ /// A struct representing a circuit.
+ #[derive(Clone, PartialEq, Eq, Debug)]
+ pub struct Circuit<C: Ciphersuite> {
+   muls: usize,
+   // A series of linear combinations which must evaluate to 0.
+-  constraints: Vec<LinComb<C::F>>,
++  constraints: Constraints<C>,
+   prover: Option<ProverData<C>>,
+ }
+ 
+@@ -88,6 +205,15 @@ impl<C: Ciphersuite> Circuit<C> {
+     self.muls
+   }
+ 
++  /// Returns the amount of constraints given to this circuit.
++  pub fn constraints(&self) -> usize {
++    match &self.constraints {
++      Constraints::Stored(constraints) => constraints.len(),
++      Constraints::Discarded(constraints) => *constraints,
++      Constraints::Folded(folded) => folded.constraints,
++    }
++  }
++
+   /// Create an instance to prove satisfaction of a circuit with.
+   #[allow(clippy::type_complexity)]
+   pub fn prove(
+@@ -96,14 +222,37 @@ impl<C: Ciphersuite> Circuit<C> {
+   ) -> Self {
+     Self {
+       muls: 0,
+-      constraints: vec![],
++      constraints: Constraints::Stored(vec![]),
+       prover: Some(ProverData { aL: vec![], aR: vec![], C: vector_commitments, V: commitments }),
+     }
+   }
+ 
+   /// Create an instance to verify a proof with.
+   pub fn verify() -> Self {
+-    Self { muls: 0, constraints: vec![], prover: None }
++    Self { muls: 0, constraints: Constraints::Stored(vec![]), prover: None }
++  }
++
++  /// Create an instance to verify a proof with which counts its constraints without storing them.
++  ///
++  /// No statement can be obtained from it. This allows advancing a transcript through the
++  /// construction of a circuit without the memory to store its constraints, as needed before
++  /// `Circuit::verify_folding` can be used.
++  pub fn verify_discarding() -> Self {
++    Self { muls: 0, constraints: Constraints::Discarded(0), prover: None }
++  }
++
++  /// Create an instance to verify a proof with which folds its constraints into one as they're
++  /// produced, weighting constraint `k` (zero-indexed) by `z^k`.
++  ///
++  /// `z` MUST be the challenge `ArithmeticCircuitStatement::verify` will sample for this proof
++  /// (see `generalized_bulletproofs::arithmetic_circuit_proof::peek_z`). The statement obtained
++  /// then has that single constraint, which `verify` weights by `z`, verifying against the same
++  /// weighted combination of constraints as it would for the individual constraints, while only
++  /// the folded constraint is ever held in memory.
++  ///
++  /// Pedersen commitments (`V`) aren't supported in this mode.
++  pub fn verify_folding(z: C::F) -> Self {
++    Self { muls: 0, constraints: Constraints::Folded(FoldedConstraints::new(z)), prover: None }
+   }
+ 
+   /// Evaluate a linear combination.
+@@ -175,7 +324,11 @@ impl<C: Ciphersuite> Circuit<C> {
+   ///
+   /// May panic if the linear combination references non-existent terms.
+   pub fn constrain_equal_to_zero(&mut self, lincomb: LinComb<C::F>) {
+-    self.constraints.push(lincomb);
++    match &mut self.constraints {
++      Constraints::Stored(constraints) => constraints.push(lincomb),
++      Constraints::Discarded(constraints) => *constraints += 1,
++      Constraints::Folded(folded) => folded.fold(&lincomb),
++    }
+   }
+ }
+ 
+@@ -187,6 +340,8 @@ where
+   ///
+   /// If configured as the prover, the witness to use is also returned if one was successfully
+   /// constructed.
++  ///
++  /// A circuit which folded its constraints yields a statement with the single, folded constraint.
+   #[allow(clippy::type_complexity)]
+   pub fn statement(
+     self,
+@@ -194,9 +349,19 @@ where
+     commitments: Commitments<C>,
+   ) -> Result<
+     (ArithmeticCircuitStatement<'_, C>, Option<ArithmeticCircuitWitness<C>>),
+-    AcStatementError,
++    CircuitStatementError,
+   > {
+-    let statement = ArithmeticCircuitStatement::new(generators, self.constraints, commitments)?;
++    let constraints = match self.constraints {
++      Constraints::Stored(constraints) => constraints,
++      Constraints::Discarded(_) => return Err(CircuitStatementError::ConstraintsDiscarded),
++      Constraints::Folded(folded) => {
++        if !commitments.V().is_empty() {
++          return Err(CircuitStatementError::FoldedWithPedersenCommitments);
++        }
++        vec![folded.into_lincomb()]
++      }
++    };
++    let statement = ArithmeticCircuitStatement::new(generators, constraints, commitments)?;
+ 
+     let witness = self.prover.and_then(|mut prover| {
+       // We can't deconstruct the witness as it implements Drop (per ZeroizeOnDrop)
+diff --git a/crypto/fcmps/src/circuit.rs b/crypto/fcmps/src/circuit.rs
+index fed2bc23b..34ae19927 100644
+--- a/crypto/fcmps/src/circuit.rs
++++ b/crypto/fcmps/src/circuit.rs
+@@ -5,13 +5,13 @@ use ciphersuite::{group::ff::FromUniformBytes, Ciphersuite};
+ use generalized_bulletproofs::{
+   PedersenVectorCommitment, ProofGenerators,
+   transcript::Commitments,
+-  arithmetic_circuit_proof::{
+-    AcStatementError, ArithmeticCircuitStatement, ArithmeticCircuitWitness,
+-  },
++  arithmetic_circuit_proof::{ArithmeticCircuitStatement, ArithmeticCircuitWitness},
+ };
+ pub(crate) use generalized_bulletproofs::arithmetic_circuit_proof::{Variable, LinComb};
+ 
+-use generalized_bulletproofs_circuit_abstraction::Circuit as UnderlyingCircuit;
++use generalized_bulletproofs_circuit_abstraction::{
++  Circuit as UnderlyingCircuit, CircuitStatementError,
++};
+ pub(crate) use generalized_bulletproofs_circuit_abstraction::Transcript;
+ 
+ use crate::*;
+@@ -48,15 +48,31 @@ impl<C: Ciphersuite> Circuit<C> {
+     self.0.muls()
+   }
+ 
++  pub(crate) fn constraints(&self) -> usize {
++    self.0.constraints()
++  }
++
+   #[allow(clippy::type_complexity)]
+   pub(crate) fn prove(commitments: Vec<PedersenVectorCommitment<C>>) -> Self {
+     Self(UnderlyingCircuit::prove(commitments, vec![]))
+   }
+ 
++  /// Create a verifier circuit which stores its constraints, as the verifier historically did.
++  ///
++  /// `Fcmp::verify` folds its constraints instead; this remains for `Fcmp::verify_stored`.
++  #[cfg(test)]
+   pub(crate) fn verify() -> Self {
+     Self(UnderlyingCircuit::verify())
+   }
+ 
++  pub(crate) fn verify_discarding() -> Self {
++    Self(UnderlyingCircuit::verify_discarding())
++  }
++
++  pub(crate) fn verify_folding(z: C::F) -> Self {
++    Self(UnderlyingCircuit::verify_folding(z))
++  }
++
+   pub(crate) fn eval(&self, lincomb: &LinComb<C::F>) -> Option<C::F> {
+     self.0.eval(lincomb)
+   }
+@@ -192,7 +208,7 @@ where
+     commitments: Commitments<C>,
+   ) -> Result<
+     (ArithmeticCircuitStatement<'_, C>, Option<ArithmeticCircuitWitness<C>>),
+-    AcStatementError,
++    CircuitStatementError,
+   > {
+     self.0.statement(generators, commitments)
+   }
+diff --git a/crypto/fcmps/src/lib.rs b/crypto/fcmps/src/lib.rs
+index b2db1cbfa..73e866d65 100644
+--- a/crypto/fcmps/src/lib.rs
++++ b/crypto/fcmps/src/lib.rs
+@@ -24,10 +24,11 @@ use ciphersuite::{
+ };
+ 
+ use ec_divisors::DivisorCurve;
++use generalized_bulletproofs_circuit_abstraction::CircuitStatementError;
+ use generalized_bulletproofs::{
+   BatchVerifier, PedersenVectorCommitment,
+   transcript::{Transcript as ProverTranscript, VerifierTranscript, Commitments},
+-  arithmetic_circuit_proof::{AcStatementError, AcProveError, AcVerifyError},
++  arithmetic_circuit_proof::{AcStatementError, AcProveError, AcVerifyError, peek_z},
+ };
+ 
+ mod gadgets;
+@@ -170,6 +171,16 @@ where
+   commitment_blind_claims_2: Vec<PointWithDlog<C::C1Parameters>>,
+ }
+ 
++/// How `Fcmp::verify` handles the circuits' constraints.
++#[derive(Clone, Copy, PartialEq, Eq, Debug)]
++enum ConstraintHandling {
++  /// Fold the constraints with each proof's `z` challenge as they're produced, never storing them.
++  Fold,
++  /// Store the constraints and form the statements from them, as `Fcmp::verify` historically did.
++  #[cfg(test)]
++  Store,
++}
++
+ /// An error encountered while working with FCMPs.
+ #[derive(Debug)]
+ pub enum FcmpError {
+@@ -189,6 +200,15 @@ pub enum FcmpError {
+   AcProveError(AcProveError),
+   /// A propagated arithmetic circuit verifier error.
+   AcVerifyError(AcVerifyError),
++  /// A propagated circuit statement error.
++  CircuitStatementError(CircuitStatementError),
++  /// Rebuilding the verifier's circuits didn't reproduce their original construction.
++  InconsistentCircuitReplay,
++}
++impl From<CircuitStatementError> for FcmpError {
++  fn from(err: CircuitStatementError) -> Self {
++    FcmpError::CircuitStatementError(err)
++  }
+ }
+ impl From<io::Error> for FcmpError {
+   fn from(err: io::Error) -> Self {
+@@ -981,6 +1001,59 @@ where
+     tree: TreeRoot<C::C1, C::C2>,
+     layers: usize,
+     inputs: &[Input<<C::C1 as Ciphersuite>::F>],
++  ) -> Result<(), FcmpError> {
++    self.verify_inner(
++      ConstraintHandling::Fold,
++      rng,
++      verifier_1,
++      verifier_2,
++      params,
++      tree,
++      layers,
++      inputs,
++    )
++  }
++
++  /// Verify an FCMP while storing the circuits' constraints, as `Fcmp::verify` historically did.
++  ///
++  /// This performs the exact same transcript operations, and samples the same randomness, as
++  /// `Fcmp::verify`. It solely differs in how the constraints are handled, letting tests compare
++  /// the two.
++  #[cfg(test)]
++  #[allow(clippy::too_many_arguments)]
++  pub(crate) fn verify_stored<R: RngCore + CryptoRng>(
++    &self,
++    rng: &mut R,
++    verifier_1: &mut BatchVerifier<C::C1>,
++    verifier_2: &mut BatchVerifier<C::C2>,
++    params: &FcmpParams<C>,
++    tree: TreeRoot<C::C1, C::C2>,
++    layers: usize,
++    inputs: &[Input<<C::C1 as Ciphersuite>::F>],
++  ) -> Result<(), FcmpError> {
++    self.verify_inner(
++      ConstraintHandling::Store,
++      rng,
++      verifier_1,
++      verifier_2,
++      params,
++      tree,
++      layers,
++      inputs,
++    )
++  }
++
++  #[allow(clippy::too_many_arguments)]
++  fn verify_inner<R: RngCore + CryptoRng>(
++    &self,
++    handling: ConstraintHandling,
++    rng: &mut R,
++    verifier_1: &mut BatchVerifier<C::C1>,
++    verifier_2: &mut BatchVerifier<C::C2>,
++    params: &FcmpParams<C>,
++    tree: TreeRoot<C::C1, C::C2>,
++    layers: usize,
++    inputs: &[Input<<C::C1 as Ciphersuite>::F>],
+   ) -> Result<(), FcmpError> {
+     if (layers == 0) || inputs.is_empty() {
+       Err(FcmpError::EmptyProof)?;
+@@ -1043,8 +1116,59 @@ where
+     };
+ 
+     // Create the circuits
+-    let mut c1_circuit = Circuit::<C::C1>::verify();
+-    let mut c2_circuit = Circuit::<C::C2>::verify();
++    let c1_generators =
++      params.curve_1_generators.reduce(c1_padded_pow_2).ok_or(FcmpError::NotEnoughGenerators)?;
++    let c2_generators =
++      params.curve_2_generators.reduce(c2_padded_pow_2).ok_or(FcmpError::NotEnoughGenerators)?;
++
++    match handling {
++      #[cfg(test)]
++      ConstraintHandling::Store => {
++        // Build the circuits once, storing their constraints, and form the statements from those
++        let mut c1_circuit = Circuit::<C::C1>::verify();
++        let mut c2_circuit = Circuit::<C::C2>::verify();
++        Self::build_verifier_circuits(
++          params,
++          layers,
++          inputs,
++          layout,
++          &proof_1_vcs,
++          &proof_2_vcs,
++          &mut transcript,
++          &mut c1_circuit,
++          &mut c2_circuit,
++        )?;
++        debug_assert!(c1_circuit.muls() <= c1_padded_pow_2);
++        debug_assert!(c2_circuit.muls() <= c2_padded_pow_2);
++
++        let (c1_statement, _witness) = c1_circuit.statement(c1_generators, proof_1_vcs)?;
++        c1_statement.verify(rng, verifier_1, &mut transcript)?;
++        let (c2_statement, _witness) = c2_circuit.statement(c2_generators, proof_2_vcs)?;
++        c2_statement.verify(rng, verifier_2, &mut transcript)?;
++        return Ok(());
++      }
++      ConstraintHandling::Fold => {}
++    }
++
++    /*
++      Each statement only uses its circuit's constraints folded with the proof's `z` challenge,
++      which is sampled after the challenges the circuits' construction samples. Rather than store
++      the constraints until `z` is known (hundreds of MB for the largest proofs), the circuits are
++      built three times from the same transcript state:
++
++      1) discarding the constraints, which advances the transcript exactly as storing them would;
++      2) folding the first circuit's constraints with its `z` (peeked from the transcript). The
++         first statement is then verified, advancing the transcript to the second proof;
++      3) folding the second circuit's constraints with its `z`.
++
++      The construction is deterministic to its arguments and the transcript, so every build yields
++      the same constraints. Each rebuild is checked to have performed the same multiplications,
++      constraints, and transcript operations as the first build regardless.
++    */
++    let transcript_before_circuits = transcript.clone();
++
++    let mut c1_circuit = Circuit::<C::C1>::verify_discarding();
++    let mut c2_circuit = Circuit::<C::C2>::verify_discarding();
+     Self::build_verifier_circuits(
+       params,
+       layers,
+@@ -1056,26 +1180,101 @@ where
+       &mut c1_circuit,
+       &mut c2_circuit,
+     )?;
+-
+-    // Escape to the raw weights to form a GBP with
+     debug_assert!(c1_circuit.muls() <= c1_padded_pow_2);
+     debug_assert!(c2_circuit.muls() <= c2_padded_pow_2);
++    let transcript_after_circuits = transcript.clone();
++    let original =
++      (c1_circuit.muls(), c1_circuit.constraints(), c2_circuit.muls(), c2_circuit.constraints());
+ 
+-    let (c1_statement, _witness) = c1_circuit.statement(
+-      params.curve_1_generators.reduce(c1_padded_pow_2).ok_or(FcmpError::NotEnoughGenerators)?,
+-      proof_1_vcs,
++    let z1 = peek_z::<C::C1>(&transcript)?;
++    let (c1_circuit, _) = Self::rebuild_verifier_circuits(
++      params,
++      tree,
++      layers,
++      inputs,
++      &proof_1_vcs,
++      &proof_2_vcs,
++      &transcript_before_circuits,
++      &transcript_after_circuits,
++      original,
++      Some(z1),
++      None,
+     )?;
++    let (c1_statement, _witness) = c1_circuit.statement(c1_generators, proof_1_vcs.clone())?;
+     c1_statement.verify(rng, verifier_1, &mut transcript)?;
+ 
+-    let (c2_statement, _witness) = c2_circuit.statement(
+-      params.curve_2_generators.reduce(c2_padded_pow_2).ok_or(FcmpError::NotEnoughGenerators)?,
+-      proof_2_vcs,
++    let z2 = peek_z::<C::C2>(&transcript)?;
++    let (_, c2_circuit) = Self::rebuild_verifier_circuits(
++      params,
++      tree,
++      layers,
++      inputs,
++      &proof_1_vcs,
++      &proof_2_vcs,
++      &transcript_before_circuits,
++      &transcript_after_circuits,
++      original,
++      None,
++      Some(z2),
+     )?;
++    let (c2_statement, _witness) = c2_circuit.statement(c2_generators, proof_2_vcs)?;
+     c2_statement.verify(rng, verifier_2, &mut transcript)?;
+ 
+     Ok(())
+   }
+ 
++  /// Rebuild the verifier's circuits from the transcript state prior to their construction,
++  /// folding the constraints of each circuit whose `z` challenge is provided (and discarding the
++  /// other's), then check the construction was consistent with the original one.
++  #[allow(clippy::too_many_arguments, clippy::type_complexity)]
++  fn rebuild_verifier_circuits(
++    params: &FcmpParams<C>,
++    tree: TreeRoot<C::C1, C::C2>,
++    layers: usize,
++    inputs: &[Input<<C::C1 as Ciphersuite>::F>],
++    proof_1_vcs: &Commitments<C::C1>,
++    proof_2_vcs: &Commitments<C::C2>,
++    transcript_before_circuits: &VerifierTranscript<'_>,
++    transcript_after_circuits: &VerifierTranscript<'_>,
++    original: (usize, usize, usize, usize),
++    z1: Option<<C::C1 as Ciphersuite>::F>,
++    z2: Option<<C::C2 as Ciphersuite>::F>,
++  ) -> Result<(Circuit<C::C1>, Circuit<C::C2>), FcmpError> {
++    let layout = Self::verifier_layout(tree, layers, inputs.len());
++    let mut transcript = transcript_before_circuits.clone();
++    let mut c1_circuit = match z1 {
++      Some(z1) => Circuit::<C::C1>::verify_folding(z1),
++      None => Circuit::<C::C1>::verify_discarding(),
++    };
++    let mut c2_circuit = match z2 {
++      Some(z2) => Circuit::<C::C2>::verify_folding(z2),
++      None => Circuit::<C::C2>::verify_discarding(),
++    };
++    Self::build_verifier_circuits(
++      params,
++      layers,
++      inputs,
++      layout,
++      proof_1_vcs,
++      proof_2_vcs,
++      &mut transcript,
++      &mut c1_circuit,
++      &mut c2_circuit,
++    )?;
++
++    let rebuilt =
++      (c1_circuit.muls(), c1_circuit.constraints(), c2_circuit.muls(), c2_circuit.constraints());
++    if rebuilt != original {
++      Err(FcmpError::InconsistentCircuitReplay)?;
++    }
++    // Sampling a challenge from clones of the transcripts yields the same result solely if they're
++    // in the same state (having read the same bytes and sampled the same challenges)
++    if transcript.clone().challenge_bytes() != transcript_after_circuits.clone().challenge_bytes() {
++      Err(FcmpError::InconsistentCircuitReplay)?;
++    }
++    Ok((c1_circuit, c2_circuit))
++  }
++
+   /// Read an FCMP.
+   pub fn read(reader: &mut impl io::Read, inputs: usize, layers: usize) -> io::Result<Self> {
+     let mut proof = vec![0; Self::proof_size(inputs, layers) - 64];
+diff --git a/crypto/fcmps/src/tests.rs b/crypto/fcmps/src/tests.rs
+index db827c598..f4d87bfa1 100644
+--- a/crypto/fcmps/src/tests.rs
++++ b/crypto/fcmps/src/tests.rs
+@@ -724,3 +724,310 @@ fn proof_sizes() {
+     );
+   }
+ }
++
++// Tests for verifying with the constraints folded as they're produced (`Fcmp::verify`) against
++// verifying from the stored constraints (`Fcmp::verify_stored`, the historical flow, whose
++// `ArithmeticCircuitStatement::verify` is unchanged).
++
++/// A deterministic RNG, so two verifications sample the same batch-verifier weights.
++///
++/// This is solely for these tests and is not secure for any other purpose.
++#[derive(Clone)]
++struct DeterministicRng {
++  seed: [u8; 32],
++  counter: u64,
++}
++impl DeterministicRng {
++  fn new() -> Self {
++    let mut seed = [0; 32];
++    OsRng.fill_bytes(&mut seed);
++    Self { seed, counter: 0 }
++  }
++}
++impl RngCore for DeterministicRng {
++  fn next_u32(&mut self) -> u32 {
++    rand_core::impls::next_u32_via_fill(self)
++  }
++  fn next_u64(&mut self) -> u64 {
++    rand_core::impls::next_u64_via_fill(self)
++  }
++  fn fill_bytes(&mut self, dest: &mut [u8]) {
++    use blake2::{Digest as _, Blake2b512};
++    for chunk in dest.chunks_mut(64) {
++      let block = Blake2b512::new()
++        .chain_update(self.seed)
++        .chain_update(self.counter.to_le_bytes())
++        .finalize();
++      self.counter += 1;
++      chunk.copy_from_slice(&block[.. chunk.len()]);
++    }
++  }
++  fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
++    self.fill_bytes(dest);
++    Ok(())
++  }
++}
++impl CryptoRng for DeterministicRng {}
++
++fn assert_verifiers_eq<C: Ciphersuite>(
++  a: &generalized_bulletproofs::BatchVerifier<C>,
++  b: &generalized_bulletproofs::BatchVerifier<C>,
++) {
++  assert_eq!(a.g, b.g);
++  assert_eq!(a.h, b.h);
++  assert_eq!(a.g_bold, b.g_bold);
++  assert_eq!(a.h_bold, b.h_bold);
++  assert_eq!(a.h_sum, b.h_sum);
++  // As these circuits don't use Pedersen commitments, the order is identical as well
++  assert_eq!(a.additional, b.additional);
++}
++
++#[allow(clippy::type_complexity)]
++fn random_proof(
++  params: &FcmpParams<MoneroCurves>,
++  (G, T, U, V): (
++    <Ed25519 as Ciphersuite>::G,
++    <Ed25519 as Ciphersuite>::G,
++    <Ed25519 as Ciphersuite>::G,
++    <Ed25519 as Ciphersuite>::G,
++  ),
++  paths: usize,
++  layers: usize,
++) -> (Fcmp<MoneroCurves>, TreeRoot<Selene, Helios>, Vec<Input<<Selene as Ciphersuite>::F>>) {
++  let (paths, root) = random_paths(params, layers, paths);
++
++  let mut output_blinds = vec![];
++  for _ in 0 .. paths.len() {
++    output_blinds.push(random_output_blinds(G, T, U, V));
++  }
++
++  let mut inputs = vec![];
++  for (path, output_blinds) in paths.iter().zip(&output_blinds) {
++    inputs.push(output_blinds.blind(&path.output).unwrap());
++  }
++
++  let branches = Branches::new(paths).unwrap();
++  let proof =
++    Fcmp::prove(&mut OsRng, params, blind_branches(params, branches, output_blinds)).unwrap();
++  (proof, root, inputs)
++}
++
++/// The result of a verification, and the batch verifiers after it.
++type VerificationResult = (
++  Result<(), FcmpError>,
++  generalized_bulletproofs::BatchVerifier<Selene>,
++  generalized_bulletproofs::BatchVerifier<Helios>,
++);
++
++/// Verify a proof with the constraints folded (`Fcmp::verify`) and stored (`Fcmp::verify_stored`),
++/// using the same randomness.
++fn verify_both(
++  proof: &Fcmp<MoneroCurves>,
++  params: &FcmpParams<MoneroCurves>,
++  root: TreeRoot<Selene, Helios>,
++  layers: usize,
++  inputs: &[Input<<Selene as Ciphersuite>::F>],
++) -> (VerificationResult, VerificationResult) {
++  let rng = DeterministicRng::new();
++
++  let mut folded_1 = generalized_bulletproofs::Generators::batch_verifier();
++  let mut folded_2 = generalized_bulletproofs::Generators::batch_verifier();
++  let folded =
++    proof.verify(&mut rng.clone(), &mut folded_1, &mut folded_2, params, root, layers, inputs);
++
++  let mut stored_1 = generalized_bulletproofs::Generators::batch_verifier();
++  let mut stored_2 = generalized_bulletproofs::Generators::batch_verifier();
++  let stored = proof.verify_stored(
++    &mut rng.clone(),
++    &mut stored_1,
++    &mut stored_2,
++    params,
++    root,
++    layers,
++    inputs,
++  );
++
++  ((folded, folded_1, folded_2), (stored, stored_1, stored_2))
++}
++
++fn batch_verifies(
++  params: &FcmpParams<MoneroCurves>,
++  verifier_1: &generalized_bulletproofs::BatchVerifier<Selene>,
++  verifier_2: &generalized_bulletproofs::BatchVerifier<Helios>,
++) -> bool {
++  params.curve_1_generators.verify(verifier_1.clone()) &&
++    params.curve_2_generators.verify(verifier_2.clone())
++}
++
++#[test]
++fn test_folded_verify_matches_stored() {
++  let (G, T, U, V, params) = random_params(4);
++
++  // Both C1 and C2 roots, with and without branches on either curve
++  for (paths, layers) in [(1, 1), (1, 2), (1, 3), (1, 5), (2, 1), (2, 4), (3, 2), (3, 3)] {
++    println!("Comparing verifiers for a proof with {paths} inputs and {layers} layers");
++    let (proof, root, inputs) = random_proof(&params, (G, T, U, V), paths, layers);
++
++    let ((folded, folded_1, folded_2), (stored, stored_1, stored_2)) =
++      verify_both(&proof, &params, root, layers, &inputs);
++    folded.unwrap();
++    stored.unwrap();
++    assert_verifiers_eq(&folded_1, &stored_1);
++    assert_verifiers_eq(&folded_2, &stored_2);
++    assert!(batch_verifies(&params, &folded_1, &folded_2));
++    assert!(batch_verifies(&params, &stored_1, &stored_2));
++  }
++}
++
++#[test]
++fn test_folded_verify_matches_stored_on_tampered_proofs() {
++  // The test generators must be a power of two in count: `random_params(4)`
++  let (G, T, U, V, params) = random_params(4);
++  let mut rng = DeterministicRng::new();
++
++  // Both C1 and C2 roots, with branches on both curves
++  for (paths, layers) in [(1, 1), (1, 2), (2, 3), (3, 2)] {
++    let (proof, root, inputs) = random_proof(&params, (G, T, U, V), paths, layers);
++    let mut buf = vec![];
++    proof.write(&mut buf).unwrap();
++
++    // Single-bit flips at random positions throughout the serialized proof
++    let mut cases = vec![];
++    for _ in 0 .. 64 {
++      let offset = usize::try_from(rng.next_u64() % u64::try_from(buf.len()).unwrap()).unwrap();
++      let bit = rng.next_u32() % 8;
++      let mut flipped = buf.clone();
++      flipped[offset] ^= 1 << bit;
++      cases.push((flipped, inputs.clone(), offset, bit));
++    }
++    // The genuine proof, for a different statement (the inputs in a different order)
++    if paths >= 2 {
++      let mut swapped = inputs.clone();
++      swapped.swap(0, 1);
++      cases.push((buf.clone(), swapped, usize::MAX, 0));
++    }
++
++    for (bytes, inputs, offset, bit) in cases {
++      let tampered = Fcmp::<MoneroCurves>::read(&mut bytes.as_slice(), paths, layers).unwrap();
++      let ((folded, folded_1, folded_2), (stored, stored_1, stored_2)) =
++        verify_both(&tampered, &params, root, layers, &inputs);
++      // The same transcript operations are performed, so the same proofs are well-formed
++      assert_eq!(folded.is_ok(), stored.is_ok(), "{paths} {layers} {offset} {bit}");
++      if folded.is_ok() {
++        assert_verifiers_eq(&folded_1, &stored_1);
++        assert_verifiers_eq(&folded_2, &stored_2);
++        assert!(!batch_verifies(&params, &folded_1, &folded_2), "{paths} {layers} {offset} {bit}");
++      }
++    }
++  }
++}
++
++#[test]
++fn test_discarded_and_folded_circuit_statements() {
++  use generalized_bulletproofs::transcript::VerifierTranscript;
++  use generalized_bulletproofs_circuit_abstraction::{
++    Circuit as UnderlyingCircuit, CircuitStatementError,
++  };
++
++  let (_, _, _, _, params) = random_params(1);
++
++  // A circuit which discarded its constraints can't yield a statement
++  let no_commitments =
++    VerifierTranscript::new([0; 32], &[]).read_commitments::<Selene>(0, 0).unwrap();
++  assert_eq!(
++    UnderlyingCircuit::<Selene>::verify_discarding()
++      .statement(params.curve_1_generators.reduce(1).unwrap(), no_commitments)
++      .err(),
++    Some(CircuitStatementError::ConstraintsDiscarded),
++  );
++
++  // A circuit which folds its constraints refuses Pedersen commitments
++  let point = <Selene as Ciphersuite>::G::random(&mut OsRng).to_bytes();
++  let one_commitment =
++    VerifierTranscript::new([0; 32], point.as_ref()).read_commitments::<Selene>(0, 1).unwrap();
++  let z = <Selene as Ciphersuite>::F::random(&mut OsRng);
++  assert_eq!(
++    UnderlyingCircuit::<Selene>::verify_folding(z)
++      .statement(params.curve_1_generators.reduce(1).unwrap(), one_commitment)
++      .err(),
++    Some(CircuitStatementError::FoldedWithPedersenCommitments),
++  );
++}
++
++// A measurement, not a check: the peak heap of one verification with the constraints stored (the
++// historical flow) and folded, per proof size. Run alone: `-- --test-threads=1 --nocapture`.
++mod verify_memory {
++  use core::sync::atomic::{AtomicUsize, Ordering::Relaxed};
++  use std::alloc::{GlobalAlloc, Layout, System};
++
++  pub(super) static ALLOCATED: AtomicUsize = AtomicUsize::new(0);
++  pub(super) static PEAK: AtomicUsize = AtomicUsize::new(0);
++
++  struct CountingAllocator;
++  unsafe impl GlobalAlloc for CountingAllocator {
++    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
++      let ptr = unsafe { System.alloc(layout) };
++      if !ptr.is_null() {
++        let now = ALLOCATED.fetch_add(layout.size(), Relaxed) + layout.size();
++        PEAK.fetch_max(now, Relaxed);
++      }
++      ptr
++    }
++    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
++      unsafe { System.dealloc(ptr, layout) };
++      ALLOCATED.fetch_sub(layout.size(), Relaxed);
++    }
++  }
++  #[global_allocator]
++  static GLOBAL: CountingAllocator = CountingAllocator;
++}
++
++#[test]
++fn verify_memory_benchmark() {
++  use core::sync::atomic::Ordering::Relaxed;
++  use verify_memory::{ALLOCATED, PEAK};
++
++  // `random_paths` can produce at most `LAYER_TWO_LEN` (18) paths, so this stops at 16 inputs; the
++  // node-level measurements cover the 128-input proofs.
++  for inputs in [1, 2, 8, 16] {
++    let (G, T, U, V, params) = random_params(inputs);
++    let (proof, root, input_vec) = random_proof(&params, (G, T, U, V), inputs, TARGET_LAYERS);
++    let rng = DeterministicRng::new();
++
++    for (name, stored) in [("stored", true), ("folded", false)] {
++      let mut verifier_1 = generalized_bulletproofs::Generators::batch_verifier();
++      let mut verifier_2 = generalized_bulletproofs::Generators::batch_verifier();
++      let before = ALLOCATED.load(Relaxed);
++      PEAK.store(before, Relaxed);
++      let start = std::time::Instant::now();
++      let res = if stored {
++        proof.verify_stored(
++          &mut rng.clone(),
++          &mut verifier_1,
++          &mut verifier_2,
++          &params,
++          root,
++          TARGET_LAYERS,
++          &input_vec,
++        )
++      } else {
++        proof.verify(
++          &mut rng.clone(),
++          &mut verifier_1,
++          &mut verifier_2,
++          &params,
++          root,
++          TARGET_LAYERS,
++          &input_vec,
++        )
++      };
++      let elapsed = start.elapsed().as_millis();
++      let peak = PEAK.load(Relaxed) - before;
++      res.unwrap();
++      assert!(batch_verifies(&params, &verifier_1, &verifier_2));
++      println!(
++        "VERIFY_MEMORY inputs={inputs} layers={TARGET_LAYERS} {name}: peak_heap_bytes={peak} ms={elapsed}"
++      );
++    }
++  }
++}
+diff --git a/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs b/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
+index 4fea0fec7..3688421c5 100644
+--- a/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
++++ b/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
+@@ -192,6 +192,30 @@ where
+   }
+ }
+ 
++/// Sample the `z` challenge `ArithmeticCircuitStatement::verify` will sample for the proof at the
++/// head of a transcript, without advancing the transcript.
++///
++/// `verify` reads the proof's `AI`, `AO`, and `S` commitments, then samples `y` and `z`. This
++/// performs the same operations on a clone of the transcript and returns `z`.
++///
++/// This lets a caller fold its constraints with `z` before constructing the statement. `verify`
++/// weights constraint `k` (zero-indexed) by `z^(k + 1)`, so a statement with the single constraint
++/// `sum(z^k constraint_k)` is verified against the same weighted combination of constraints as the
++/// statement with every constraint, without every constraint having to be held in memory. The
++/// constraints must still be deterministic to the context, as documented by
++/// `ArithmeticCircuitStatement::new`.
++pub fn peek_z<C: Ciphersuite>(transcript: &VerifierTranscript<'_>) -> Result<C::F, AcVerifyError>
++where
++  C::F: FromUniformBytes<64>,
++{
++  let mut transcript = transcript.clone();
++  for _ in 0 .. 3 {
++    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++  }
++  let _y = transcript.challenge::<C>();
++  Ok(transcript.challenge::<C>())
++}
++
+ struct YzChallenges<C: Ciphersuite> {
+   y_inv: ScalarVector<C::F>,
+   z: ScalarVector<C::F>,
+diff --git a/crypto/generalized-bulletproofs/src/transcript.rs b/crypto/generalized-bulletproofs/src/transcript.rs
+index ea8bb0d6b..93ef6a362 100644
+--- a/crypto/generalized-bulletproofs/src/transcript.rs
++++ b/crypto/generalized-bulletproofs/src/transcript.rs
+@@ -131,6 +131,7 @@ impl Transcript {
+ }
+ 
+ /// A transcript for verifying proofs.
++#[derive(Clone)]
+ pub struct VerifierTranscript<'a> {
+   digest: Blake2b512,
+   transcript: &'a [u8],
+-- 
+2.43.0
+

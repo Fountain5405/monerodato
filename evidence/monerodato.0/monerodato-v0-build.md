@@ -1,0 +1,238 @@
+# monerodato v0: build report
+
+From optimizer, 2026-11-08. Built on build-box (one of the optimizer's own work boxes), in a new tree separate from the research trees. Scope, layout and commit series as in the coordinator's 12:48 message, confirmed by the owner in chat at 13:12 UTC.
+
+## Deliverables (in the lab exchange)
+
+| file | sha256 | size |
+|---|---|---|
+| `monerodato-v0.bundle` | `9dbc098bee9b1e7f012a0f8b32ba77baeca3c824653136e3b46223e8bc2aafea` | 8,150,242 B |
+| `monerodato-v0-monerod` | `dd839ccd3d557924389669cb13d7f2624987278795c8b56025939ff1bc6d80b9` | 42,356,432 B |
+| `monerodato-v0-build.md` | this file; its sha256 is in the message | |
+
+**Bundle contents:**
+- branch `monerodato-v0` and the annotated tag `v0.19.0.0-beta.3.1-monerodato.0` (tag object `a7121364d969235f5c538481fe0d7427cd540ddc`), both at commit `3ed5daca7d14094b7c45f9f503b6f2d2feb4ad66`;
+- thin against `d80596ad18110390b6ca97a77e29aba36f4644c9`, which `git bundle verify` lists as its only prerequisite;
+- 18 commits, `vendor/` included.
+
+**How it was checked:**
+- In a repo holding only the base (fetched as tag v0.19.0.0-beta.3.1), I fetched both refs from the bundle.
+- The tag's tree there is `71f1e946f7315920b58e21d72a5d3fddd9337038`, identical to the source repo's, and `git fsck` is clean.
+
+To use it:
+
+```sh
+git clone https://github.com/seraphis-migration/monero monerodato && cd monerodato
+git checkout d80596ad18110390b6ca97a77e29aba36f4644c9
+git bundle verify ../monerodato-v0.bundle
+git fetch ../monerodato-v0.bundle 'refs/heads/monerodato-v0:refs/heads/monerodato-v0' \
+  'refs/tags/v0.19.0.0-beta.3.1-monerodato.0:refs/tags/v0.19.0.0-beta.3.1-monerodato.0'
+git checkout v0.19.0.0-beta.3.1-monerodato.0 && git submodule update --init --recursive
+```
+
+## The series (`git log --oneline --reverse d80596ad1811..v0.19.0.0-beta.3.1-monerodato.0`)
+
+```
+11d99d08d rctSigs: cap FCMP++ batch verification at physical cores for many-input proofs
+a33df8fe0 rctSigs: return freed FCMP++ verifier memory to the OS
+2dc921d46 cryptonote_core: keep block sync requests under the levin packet limit
+c09814458 patched/dalek-ff-group: import dalek-ff-group 0.5.0 from crates.io, unmodified
+6fd8e1743 dalek-ff-group: Field25519 as four saturated 64-bit limbs
+648c8311a dalek-ff-group: wide_reduce and random through the 2^256 = 38 fold
+9b3ace10b patched/monero-oxide: import monero-oxide 31c26d9, unmodified
+85e976fb0 fcmps: extract verifier_layout and build_verifier_circuits
+880489833 fcmps: verify with the constraints folded into one as they are produced
+6cdd72b72 fcmps: fold both circuits in one rebuild, peeking the second z past the first proof
+d5fec2ce9 [fork-only] TODO: the second reviewer's differential_fuzz harness and skip/peek property tests
+40291fa2a [fork-only] fcmp_pp_rust: build against patched/ monero-oxide and dalek-ff-group
+9522e9415 [fork-only] scripts: vendor.sh and check-vendor-rev.sh, with patched/bases.txt
+5cd340b61 [fork-only] vendor: output of scripts/vendor.sh (generated, not for reading)
+f45885e20 [fork-only] fcmp_pp_rust: run scripts/check-vendor-rev.sh before every cargo build
+26e5abd74 [fork-only] daemon: one startup warning on hardware that can run the reference monerod
+94b467ca1 [fork-only] version: -monerodato.0 suffix in the full version string
+3ed5daca7 [fork-only] MONERODATO.md: layout, review guide and build recipe
+```
+
+`git diff --stat` per series against its upstream:
+
+```
+== monerod series vs d80596ad1811 (11d99d08d..2dc921d46)
+ src/cryptonote_core/cryptonote_core.cpp | 24 +++++++++++++
+ src/cryptonote_core/cryptonote_core.h   |  1 +
+ src/ringct/rctSigs.cpp                  | 63 ++++++++++++++++++++++++++++++++-
+ src/ringct/rctSigs.h                    |  3 ++
+ 4 files changed, 90 insertions(+), 1 deletion(-)
+== dalek-ff-group series vs its import (c09814458..648c8311a)
+ .../patched/dalek-ff-group/src/field.rs            | 480 ++++++++++++++++++---
+ .../fcmp_pp_rust/patched/dalek-ff-group/src/lib.rs |   4 +
+ 2 files changed, 426 insertions(+), 58 deletions(-)
+== monero-oxide series vs its import (9b3ace10b..6cdd72b72)
+ .../crypto/fcmps/circuit-abstraction/src/lib.rs    | 177 +++++++-
+ .../monero-oxide/crypto/fcmps/src/circuit.rs       |  26 +-
+ .../patched/monero-oxide/crypto/fcmps/src/lib.rs   | 454 +++++++++++++++++----
+ .../patched/monero-oxide/crypto/fcmps/src/tests.rs | 307 ++++++++++++++
+ .../src/arithmetic_circuit_proof.rs                |  81 ++++
+ .../generalized-bulletproofs/src/transcript.rs     |   1 +
+ .../tests/arithmetic_circuit_proof.rs              |   6 +
+ 7 files changed, 958 insertions(+), 94 deletions(-)
+== fork-only commits (d5fec2ce9..3ed5daca7), vendor/ excluded
+ MONERODATO.md                               | 76 +++++++++++++++++++++++++++++
+ scripts/check-vendor-rev.sh                 | 67 +++++++++++++++++++++++++
+ scripts/vendor.sh                           | 26 ++++++++++
+ src/daemon/main.cpp                         | 34 +++++++++++++
+ src/fcmp_pp/fcmp_pp_rust/.cargo/config.toml | 21 ++++++++
+ src/fcmp_pp/fcmp_pp_rust/CMakeLists.txt     |  1 +
+ src/fcmp_pp/fcmp_pp_rust/Cargo.lock         |  9 +---
+ src/fcmp_pp/fcmp_pp_rust/Cargo.toml         | 11 +++++
+ src/fcmp_pp/fcmp_pp_rust/patched/bases.txt  |  4 ++
+ src/version.cpp.in                          |  3 +-
+ 10 files changed, 243 insertions(+), 9 deletions(-)
+== vendor/ (5cd340b61, generated): 2696 files changed, 690840 insertions(+)
+```
+
+**How the series relate to the measured code:**
+- **monerod:** the code, with comments stripped (`g++ -fpreprocessed -dD -E -P`, whitespace folded), is identical to lowmem-v2 `04cbc2ab7`, the code in the deployed 939c1170 binary, in `rctSigs.cpp`, `rctSigs.h` and `cryptonote_core.h`. In `cryptonote_core.cpp` the only difference is that the sync-cap block now sits after the `if/else` of `core::get_block_sync_size` rather than inside its `else`, which is the both-branches change. Comments were rewritten without internal experiment ids; the measurements are in the commit messages.
+- **dalek-ff-group:**
+  - The import commit is byte-identical to the crates.io `dalek-ff-group-0.5.0.crate` (sha256 `26103554...`).
+  - The series' final tree equals the s64 head `c9eb2d7` that 939c1170 was built from. The only difference is cargo's unpack metadata: `.cargo_vcs_info.json` is here, `.cargo-ok` was there.
+  - Extracted with `git format-patch --relative=src/fcmp_pp/fcmp_pp_rust/patched/dalek-ff-group`, the two patches apply to the pristine crate and reproduce `c9eb2d7` exactly.
+- **monero-oxide:**
+  - The import commit is byte-identical to `git archive 31c26d96eaadbba910ffe3613ad8b4cf9c598a93`, all 283 files.
+  - The series' final tree equals `bde81f4`.
+  - Extracted the same way, the three patches apply to upstream 31c26d9 and reproduce `bde81f4` exactly.
+- **Cargo.lock** after the `[patch]` commit is byte-identical to the one 939c1170 was built with (sha256 `09f58d19...`).
+
+## Host and toolchain
+
+build-box: Ryzen 9 3900X, Ubuntu 24.04.5 LTS, kernel 6.8.0-147-generic, gcc 13.3.0 (Ubuntu 13.3.0-6ubuntu2~24.04.1), cmake 3.28.3, ninja 1.11.1, rustc 1.99.1 (58cf8f9c3 2026-10-13), cargo 1.99.1 (5f94df478 2026-08-27), git 2.43.0. monero's CMake used ccache 4.9.1 (found on the host). ccache does not change the output, but an outside build will not have the same cache.
+
+## Exact command sequence
+
+```sh
+# 0. tree (the bundle is the result of this step)
+git clone --no-checkout <local seraphis-migration checkout> work/monerodato && cd work/monerodato
+git remote set-url origin https://github.com/seraphis-migration/monero
+git checkout -b monerodato-v0 d80596ad1811
+git submodule update --init --recursive
+# ... the 18 commits (scripts and messages kept in the optimizer's tools dir) ...
+sh scripts/vendor.sh                    # produced commit 5cd340b61's tree
+git tag -a v0.19.0.0-beta.3.1-monerodato.0 -m "..."
+
+# 1. depends (contrib/depends is unchanged from the base)
+make -C contrib/depends HOST=x86_64-linux-gnu -j10        # DEPENDS_DONE rc=0
+
+# 2. static build from the tag; the build script refused to run unless HEAD was exactly the tag,
+#    `git status --porcelain` was empty and every submodule was at its recorded commit
+rm -rf build/static
+cmake -G Ninja -S . -B build/static \
+  -DCMAKE_TOOLCHAIN_FILE=$PWD/contrib/depends/x86_64-linux-gnu/share/toolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Release -DARCH=default -DSTATIC=ON -DBUILD_TESTS=OFF
+ninja -C build/static -j10 daemon      # STATIC_BUILD_DONE rc=0
+sha256sum build/static/bin/monerod     # dd839ccd3d557924389669cb13d7f2624987278795c8b56025939ff1bc6d80b9
+```
+
+`-j10` instead of the recipe's `-j4` changes nothing in the output. The Rust step ran offline from `vendor/` (`[net] offline = true`), with `--locked` as upstream's CMake passes it. The build log shows the revision check running first: `check-vendor-rev: ok (monero-oxide 31c26d96...: 6 vendored crates match patched/monero-oxide; dalek-ff-group 0.5.0 from patched/)`.
+
+## Checks
+
+### Vendor regeneration
+In a fresh clone of the tag, `sh scripts/vendor.sh` then `git status --porcelain --ignored src/fcmp_pp/fcmp_pp_rust`:
+- with the local cargo cache: empty;
+- again with an empty `CARGO_HOME`, so every crate came fresh from crates.io and GitHub: empty.
+
+The regenerated `vendor/` (73 packages, 2,696 files, 34 MB) is identical to the committed one, and every file of it is tracked.
+
+### Revision check (`scripts/check-vendor-rev.sh`)
+Passes on the tag, and runs inside every build. Negative tests, each on a scratch copy and each caught with a FAIL message:
+- one byte appended to a vendored helioselene source;
+- the base rev in `patched/bases.txt` changed;
+- one byte appended to the same helioselene file in `patched/monero-oxide`;
+- `patched/dalek-ff-group` relabelled 0.5.1.
+
+### Tests
+- **monerod unit tests:** native Release build with `BUILD_TESTS=ON`, at `94b467ca1`, whose code is the tag's (the tag commit adds only MONERODATO.md). 1,506 tests ran: 1,503 passed, 3 skipped (`fcmp_pp.force_init_gen_u_v`, `is_hdd.rotational_drive`, `is_hdd.ssd`), 0 failed. These are the counts the v2+s64 source gave on 2026-11-07.
+- **Patched crates' own suites,** on copies of the fork's `patched/` trees (diff-identical), with monero-oxide resolving dalek-ff-group to the fork's s64 crate:
+  - dalek-ff-group: 10/10 in release and 10/10 in debug (overflow checks on);
+  - generalized-bulletproofs with its `tests` feature: 2 unit tests and 3 integration tests, including `fuzz_test_arithmetic_circuit` with the skip-vs-verify check;
+  - circuit-abstraction: no tests of its own;
+  - full-chain-membership-proofs: 9/9 in 647 s (`test_single_input`, `test_multiple_inputs`, `test_malleated_proofs`, both folded-vs-stored tests, `test_discarded_and_folded_circuit_statements`, `proof_sizes`, `verify_benchmark`, `verify_memory_benchmark`), with `prove_benchmark` skipped for time as in G006.
+  - My first generalized-bulletproofs run left out the `tests` feature its integration test needs, so it failed to compile. The rerun above is with the feature.
+
+### Per-binary checks
+Stock is `d80596ad1811` built static the same way, with the same depends prefix.
+
+```
+--version: Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.0-release)
+ldd: linux-vdso.so.1, libm.so.6, libc.so.6, /lib64/ld-linux-x86-64.so.2
+highest GLIBC symbol version: GLIBC_2.38 (monerodato, stock static, v2 bd2f0a26, v2s64 939c1170: all the same)
+
+instruction classes, objdump -d line counts, same regexes for all:
+binary            ymm      zmm   aesenc    sse4x    aesni      bmi      adx    kmask
+monerodato      23498    75666    18746        0    21540     1940     1059     2613
+stock           23498    75666    18746        0    21540     1940     1059     2613
+v2              23498    75666    18746        0    21540     1940     1059     2613
+v2s64           23498    75666    18746        0    21540     1940     1059     2613
+```
+
+- ymm, aesenc and sse4x use the adversary's regexes: `%ymm`, `aesenc`, `pminsd|pmaxsd|ptest|pcmpestri|crc32`.
+- The others: aesni = `v?aes(enc|enclast|dec|declast|imc|keygenassist)`; bmi = `andn|bextr|blsi|blsmsk|blsr|tzcnt|lzcnt|bzhi|mulx|pdep|pext|rorx|sarx|shlx|shrx`; adx = `adcx|adox`; kmask = `%k0-7`.
+- The counts are identical: no new instruction class, and nothing the Q6600 does not already run. The wide classes are in runtime-dispatched C code.
+- Stock static sha256: `3432fd203dd6a1e3e06439e06853e3b86c062d4ffc8d1997dc26a7bd29105a92`.
+
+### Smoke test: the explicit `--block-sync-size` branch, through the window that looped
+Stressnet DB restored to 3,105,401 (snapshot `stressnet_wedge_h3105401`, `pop_to` verified). The static binary then synced from ref-b over P2P with `--block-sync-size 20 --log-level 1`. That is the exact setting that, earlier on 2026-11-08 with a research build of lowmem-v2 + s64 (29d247ce), asked for the span 3,105,421-440 (a 125,278,845-byte response) and reconnected 1,139 times in 20 minutes.
+
+```
+smoke: --block-sync-size 20, from 3,105,401: height 3,105,449 reached in 128 s, 968 CPU-s (not a timing run)
+smoke: top block 3,105,450 after stop: hash 1d46560072a9222a426bfb9a0e97afbc9d43288b627acc8391425827c270f536, ref-b's at that height: the same
+smoke: 'capping block sync size' lines: 13, e.g.
+  INFO cn src/cryptonote_core/cryptonote_core.cpp:981 capping block sync size from 20 to 4 blocks (block weight limit 20000000 bytes)
+smoke: 'Maximum packet size exceed' lines: 0; 'now disconnected from the network' lines: 0
+smoke: startup notice present (WARNING daemon src/daemon/main.cpp:152 "monerodato is built for low-spec machines. ...")
+```
+
+With a 20 MB weight limit the cap is 90 MB / 20 MB = 4 blocks per request, so the response stays under levin's 100 MB limit.
+
+### Negative differential test (E015 harness; oracle = stock beta.3.1, native build of d80596ad1, sha256 2d1e3e9c...)
+How it works: the DB is restored and popped to the height, and each binary is started offline with the same cases file:
+- transactions with one bit flipped in the FCMP++ proof, at offsets spread over the proof ("tampered");
+- proofs swapped between transactions ("swapped");
+- the unmodified transactions ("original").
+
+The cases are submitted over RPC (`/send_raw_transaction`, `do_not_relay`), and every binary must return the oracle's (status, flags) for every case.
+
+- **3,105,401, scan 40** (four 128-input transactions):
+  - 135 cases: 128 tampered, 3 swapped, 4 original;
+  - stock and monerodato both PASS (every tampered and swapped case rejected, every original accepted);
+  - (status, flags) disagreements: 0, and reason-text differences: 0. **DIFF PASS.**
+  - Each binary logged 127 'Failed to verify input FCMP++' lines.
+  - Wall time: stock 166 s, monerodato 112 s (not a timing run).
+- **3,106,400, scan 400** (three 2-input transactions):
+  - 101 cases: 96 tampered, 2 swapped, 3 original;
+  - both binaries PASS, 0 disagreements. **DIFF PASS.**
+  - Each binary logged 98 'Failed to verify input FCMP++' lines.
+
+The case counts (135 and 101) are those of the earlier negdiff runs of v2, v2s64 and the G009 builds at the same heights.
+
+## Notes, and where this differs from the plan
+
+1. **`verify_stored` under `#[cfg(test)]`: no commit, because it already was.** In bde81f4, `Fcmp::verify_stored`, `Circuit::verify` and `ConstraintHandling::Store` are all `#[cfg(test)]`, so no stored-constraint verifier code ships. My 12:31 message said it could still be moved and would shrink the shipped code by about 100 lines. That was wrong. MONERODATO.md says why the code stays.
+2. **The Cargo `[patch]` commit is marked `[fork-only]`.** My 12:46 layout listed it as item 4 of the monerod series ("fork plumbing"). Upstream would take the crate series from their own repositories and bump the pinned rev and version instead, so it is dropped when upstreaming, like the other fork-only commits.
+3. **Version suffix:** only `MONERO_VERSION_FULL` carries `-monerodato.0`; `MONERO_VERSION` stays upstream's. What prints it:
+   - `--version`: `0.19.0.0-beta.3.1-monerodato.0-release` (the build is at a tag; otherwise `-<commit>`);
+   - the startup line;
+   - RPC `get_info`'s `version`.
+
+   `MONERO_VERSION` feeds `tools::vercmp` in update checks and the Ledger handshake.
+4. **Startup notice:**
+   - Fires when RAM ≥ 12 × 10^9 bytes (sysconf), physical cores ≥ 5 (boost) and AVX2 (`__builtin_cpu_supports`) all hold.
+   - It is an `MWARNING`, shown at the default log level, right after the version line.
+   - Seen on build-box: "monerodato is built for low-spec machines. This one has 16 GB of RAM, 12 physical cores and AVX2: the reference monerod can run here and will likely sync faster."
+   - The case where it stays silent was not run on real hardware; the condition is a plain AND.
+   - On Windows (no sysconf) it never fires.
+5. **The explicit-branch sync cap is new code.** Every lowmem-v2 measurement ran the adaptive branch. The smoke test above exercises the explicit branch.
+6. **Code comments now carry no internal experiment ids** (E012, E021, ...); the commit messages carry the measurements. The sync-cap comment and commit message also no longer say that a block's serialized size never exceeds its weight. FCMP++ weights count a 7-layer tree, so a proof against a deeper tree is larger than its weight, and the 10% margin is what covers that.
+7. **The adversary's gate tooling is a `[fork-only]` TODO commit** (d5fec2ce9), plus a TODO section in MONERODATO.md. When the tooling arrives it goes into the series it tests, and the TODO is removed.
+8. **Open item, also in MONERODATO.md:** the adversary's constant-time inspection of s64 was on a build with overflow checks off. `fcmp_pp_rust`'s release profile has `overflow-checks = true`, and that build has not been re-inspected.
+9. **Repeatable, not reproducible.** The depends libraries are built with the host gcc, so another host gives another hash. `contrib/guix` is the route to identical builds. Its Rust needs are now met by `vendor/`, but I have not checked the beta.3.1 guix scripts.
+10. **No node or RPC access beyond the optimizer's own boxes was used.** Blocks came from ref-b by P2P and tip hashes from ref-b by RPC reads, as in all earlier runs.

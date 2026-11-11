@@ -1,0 +1,122 @@
+# monerodato.4: build report
+
+From optimizer, 2026-11-10. Built in the same tree, build directory, toolchain and recipe as monerodato.3 (`monerodato-v0.3-build.md`). This report covers what changed and how it was checked.
+
+**Why:**
+- **The change:** W009 F2, less memory in the wallet's FCMP++ prover.
+  - The owner confirmed F in my chat at about 11:35 UTC.
+  - coordinator relayed "F2 goes in .4" at 15:01. The owner confirmed it in my chat at 18:49 UTC: "yes, F2 alone in .4 and warm-up as .5".
+- **The adversary** approved dot4-prep (ab82c524a) at 16:10 UTC (20261110T165500Z, a5584256; the file name's time is a slip on its side). Its own runs agreed with mine. It advised against rewriting c73c62026's message; the wording fix is in MONERODATO.md instead (the tag commit).
+
+## Deliverables (in <path>/files/)
+
+| file | sha256 | size |
+|---|---|---|
+| `monerodato-v0.4.bundle` | `c87546a64cfdb2362cb4206c68f4456aec121c16f30dea5febae90ed6c103268` | 24,870 B |
+| `monerodato-v0.4-monerod` | `c2a52832e64d43c0a9d70f8189e87c4b318d2a0f9e1ce21c7030971b513b5ad8` | 42,489,944 B |
+| `monerodato-v0.4-monero-wallet-rpc` | `4ed445fed38c56c59245100cd759cc5f4e25eaaf84f0c4691c2e24dab007514d` | 49,878,992 B |
+| `monerodato-v0.4-monero-wallet-cli` | `f3046331021f89ecb38a8ce57d7dae535838b0baaeae9089e6f7c476aae131ba` | 49,188,424 B |
+| `monerodato-v0.4-build.md` | this file; its sha256 is in the message | |
+
+All three binaries are static: they link only libc and libm. The change runs in the wallet; monerod is shipped too, so that the three come from one tag.
+
+**The bundle:**
+- **Contents:** branch `monerodato-v0` and the annotated tag `v0.19.0.0-beta.3.1-monerodato.4` (tag object `4b559b885445413032418afd1e92a99594dfe5c4`), both at commit `dfd1756da49f47ce13a021da3f333d1df48409ec`. The tag's tree is `2c63c2ba2fabc9bbe4d1922193ed9b2625ffbe35`.
+- **Thin** against `f29621fdc`, the .3 tag's commit.
+- **6 commits.**
+- **How it was checked:** in a new repo holding only the base, the v0, gate, review, .1, .2 and .3 bundles were fetched, then this one. Every `git bundle verify` listed only its expected prerequisite; this one's is `f29621fdc`. The branch, the tag object and the tag tree there equal the source repo's, and `git fsck` is clean.
+
+To use it, in the repo that already holds the earlier bundles:
+
+```sh
+git bundle verify ../monerodato-v0.4.bundle
+git fetch ../monerodato-v0.4.bundle 'refs/heads/monerodato-v0:refs/heads/monerodato-v0' \
+  'refs/tags/v0.19.0.0-beta.3.1-monerodato.4:refs/tags/v0.19.0.0-beta.3.1-monerodato.4'
+git checkout v0.19.0.0-beta.3.1-monerodato.4 && git submodule update --init --recursive
+```
+
+## The series (`git log --oneline --reverse .3..4`)
+
+```
+20ede8649 generalized-bulletproofs: test that the arithmetic circuit prover's output is unchanged, byte for byte
+36e239931 generalized-bulletproofs: free the l and r coefficient vectors after evaluation, zeroized
+6a4ae0778 generalized-bulletproofs: shrink each vector commitment's weight vector to the length it uses
+c73c62026 generalized-bulletproofs: move the vector commitments' values into l instead of copying them
+ab82c524a [fork-only] MONERODATO.md: the prover's memory change (after monerodato.3)
+dfd1756da [fork-only] monerodato.4: version suffix, the docs say .4, the differential wording
+```
+
+- **The adversary reviewed** the first five (bundle 5555213f).
+- **dfd1756da:**
+  - sets the version suffix;
+  - turns "after monerodato.3" into "since monerodato.4";
+  - sets the fork-only count to 34;
+  - replaces "each build verified the other's" with what was run. The new verifier accepted all 258 of .3's proofs. The other direction rests on the identical bytes and on the .3 review's run.
+  - It touches only `MONERODATO.md` and `src/version.cpp.in`.
+
+**Scope, outside `vendor/`:** 5 files, +232 / -7.
+- **Shipped code:** `generalized-bulletproofs/src/arithmetic_circuit_proof.rs` (the three memory-only commits) and `src/version.cpp.in` (the suffix).
+- **Tests:** `generalized-bulletproofs/tests/prove_unchanged.rs` and its data `tests/data/prove_unchanged.hex`.
+- **Docs:** MONERODATO.md.
+
+## Build
+- **Daemon:** `ninja -C build/static -j10 daemon` in .3's build directory (the depends toolchain, Release, `ARCH=default`, `STATIC=ON`; gcc 13.3.0, rustc 1.99.1). Then `ninja -C build/static -j10 wallet_rpc_server simplewallet`.
+- **The Rust library was rebuilt on purpose.** `libfcmp_pp_rust.a` was removed before the build. The gate required cargo's log to show `Compiling generalized-bulletproofs v0.1.0 (.../patched/monero-oxide/crypto/generalized-bulletproofs)`, and it does.
+- **`check-vendor-rev: ok`:** monero-oxide 31c26d96; 6 vendored crates match patched/monero-oxide; dalek-ff-group 0.5.0 and multiexp 0.5.2 from patched/.
+
+**Object identity:**
+- **Method:** every `.o`, `.a` and `bin/monerod` under the build directory was hashed twice, before the .4 daemon build (on .3's build of record, monerod 5b75f25f) and after it. 320 files.
+- **6 differ:**
+  - `bin/monerod`;
+  - the version object and `libversion.a`;
+  - `libfcmp_pp_rust.a` and its two copies in cargo's target directory.
+- **No C++ object of the daemon changed** apart from the version object. monerod is .3's code relinked with a library whose only change is in the prover. monerod builds no proofs. .3's call-graph check, that monerod does not reach the prover, was not re-run for .4.
+
+## Checks
+**Tests:**
+- **Crate copies** are taken from the tag's `patched/`, under rustc 1.99.1, as for .3. Their `Cargo.lock` holds one multiexp, 0.5.2, from a path.
+
+| check | result |
+|---|---|
+| gate 1, s64 field differential | 2 passed; "5783+ cases, failures 0" (as .3) |
+| multiexp crate tests | 4 passed, including `test_constant_time_straus_ed25519` and `_secp256k1`; the benchmark ignored |
+| generalized-bulletproofs suite | 4 + 3 + 1 passed: `verify_split_matches_verify_at_chunk_boundaries` and the new `prove_output_unchanged` |
+| gate 2, differential_fuzz | 1 passed; TOTAL: generated 900, unparsable 27, both_reject 873, both_accept 0, diverged 0, panics 0 (as v0 to .3) |
+| rest of the fcmps suite | 11 passed |
+| monero-fcmp-plus-plus | 2 passed |
+| gate 4, G009 fuzz | 3 passed; "g009 fuzz TOTAL: 374 cases, 0 malleations never parsed, ... divergences 0" (the case count is random; .3's run had 341); no SURVIVED line |
+| gate 5, FFI | 1 passed, in a fresh clean clone at the .4 tag |
+| unit tests (fcmp_pp, wallet_tx_builder, carrot_fcmp, bulletproofs_plus, curve_trees), built from the .4 tree | 41 passed, 1 skipped (`fcmp_pp.force_init_gen_u_v`, as in .1 to .3), 0 failed |
+| gate 3, constant-time census (`ct-scan.py` on `libfcmp_pp_rust.a`) | 160 lines for .3 and .4, one line different: an anonymous constant label in `FieldElement::random`'s calls, `.LCPI275_0` against `.LCPI276_0`. It is build-generated and comes from the codegen unit the prover shares. The functions, instruction counts, conditional jumps, panic guards and call targets are identical |
+
+**The wallet:**
+- **The run:** memprobe2 (the W009 memory probe, plus each transaction's fee, weight and count), on a fresh .3 static wallet-rpc (3203fd46) and a fresh .4 one (4ed445fe).
+  - Inputs: 8, then 32, then 128, one run each.
+  - `do_not_relay`, on W006 copies against an offline node.
+
+| inputs | fee | weight | txs | VmHWM .3 | VmHWM .4 | time .3 / .4 |
+|---|---|---|---|---|---|---|
+| 8 | 1,292,925 | 17,239 | 1 | 164 MB | 165 MB | 3.94 / 3.92 s |
+| 32 | 3,679,125 | 49,055 | 1 | 265 MB | 249 MB | 11.97 / 12.05 s |
+| 128 | 13,166,400 | 175,552 | 1 | 1,292 MB | 811 MB (-37%) | 51.87 / 51.44 s |
+
+- **Fee, weight and transaction count are identical** at every size.
+- **The peak at 128 inputs** is within 1% of W009's measurement (1,287.8 against 815.5 MB).
+- VmHWM is in MB of 1,000 kB. The times are one run each, not a timing comparison.
+
+**Runtime checks:**
+- **`--version`, all three binaries:** `Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.4-release)`.
+- **The notice on a 16 GB, 12-core AVX2 machine:** once, in stdout and in the log, unchanged.
+- **A 400-block sync from ref-b,** cleared by coordinator at 15:59:
+  - the DB was rewound to height 3,106,401;
+  - .4 synced 424 blocks from ref-b alone in 66 s (not a timing run);
+  - the hash at 3,106,800 is `74db18cf...b59c`, equal to ref-b's and to the reference;
+  - 0 oversize packets, 0 verification failures, 0 ERROR lines.
+
+## Notes
+1. **Not re-measured at the node,** because monerod's code is .3's (see Object identity).
+2. **The proof evidence for the change** is in the review material:
+   - `prove_output_unchanged`;
+   - the 258-case W009 differential (258/258 byte-identical to .3's proofs, and the new verifier accepted all of .3's);
+   - the adversary's own runs.
+3. **No access beyond the optimizer's own boxes.** Blocks came from ref-b by P2P, and tip hashes from ref-b by RPC reads.

@@ -1,0 +1,42 @@
+vendor/ and the patched crates, .6 against .7 (stat; empty = identical):
+ .../fcmp_pp_rust/patched/dalek-ff-group/tests/s64_differential.rs     | 4 ++--
+ .../fcmp_pp_rust/patched/monero-oxide/crypto/fcmps/src/tests.rs       | 4 ++--
+ .../patched/monero-oxide/crypto/fcmps/src/tests/differential_fuzz.rs  | 2 +-
+ .../patched/monero-oxide/crypto/fcmps/src/tests/g009_fuzz.rs          | 4 ++--
+ 4 files changed, 7 insertions(+), 7 deletions(-)
+of which outside comment lines (added or removed lines not starting with //, after the diff header):
+0
+vendor/ only: identical
+Cargo.lock files: identical
+README.md, LICENSE: identical
+--remap-path-prefix anywhere in .7's tree: 1 files
+names in the files the fork changes (BASE..7), docs and code:
+external/db_drivers/liblmdb/mdb.c:5004: *	mdb_tls_cbp prevents whole-program-optimizer from dropping the symbol.
+src/fcmp_pp/fcmp_pp_rust/vendor/bitvec-1.1.1/doc/macros/make_elem.md:10:code to do the translation and defers to the optimizer for evaluation.
+src/fcmp_pp/fcmp_pp_rust/vendor/bitvec-1.1.1/src/ptr/single.rs:585:	/// provenance regions, and the distinctions that the optimizer makes about
+src/fcmp_pp/fcmp_pp_rust/vendor/rand_core-0.6.4/src/lib.rs:423:// implementation and the optimizer to decide on inlining.
+src/fcmp_pp/fcmp_pp_rust/vendor/rand_core-0.6.4/src/lib.rs:448:// implementation and the optimizer to decide on inlining.
+src/fcmp_pp/fcmp_pp_rust/vendor/zerocopy-0.8.57/src/util/mod.rs:401:        // optimizer recognizes this, so replacing this branch
+src/fcmp_pp/fcmp_pp_rust/vendor/zerocopy-0.8.57/src/util/mod.rs:609:                        // optimizer recognizes this, so replacing this branch
+names in the 45 commit messages:
+6:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+34:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+50:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+81:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+99:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+113:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+122:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+165:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+187:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+232:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+262:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+278:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+313:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+331:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+356:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+371:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+402:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+455:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+495:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+570:Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+end of checks

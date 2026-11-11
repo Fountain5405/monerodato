@@ -1,0 +1,192 @@
+From 1d034e0c7de877d648f411e5937c63b144170e18 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 19:59:57 +0000
+Subject: [PATCH 6/11] rctSigs: one multiexp per curve per FCMP++ batch
+ verification call
+
+batchVerifyFcmpPpProofs now runs fcmp_pp::verify_prepare per batch on the
+pool, where it ran verify, then one verify_finish for the whole call, with
+the merged multiexp split over the pool threads.
+- A null state (a failed per-proof or ed25519 check) returns false, as a
+  false result did before.
+- A holder frees any state left behind by an early return or a throw, and
+  the guard that waits for queued batch tasks now protects `states`.
+- The grouping into batches, the cap for heavy calls and the trims are
+  unchanged.
+
+Why it is exact: every batch uses the same global generators and every
+proof its own random weight, so the merged multiexp is the sum of the
+per-batch ones. The call returns the same boolean as before, except with
+negligible probability, as for any batch verification.
+
+Measured against the same build without this change (stressnet small-tx
+window 3,106,400-3,106,800 with about 29 two-input transactions per block,
+and heavy window 3,105,401-3,105,441 with 128-input transactions):
+- Static builds, lowmem-v2 + s64, on a 6-core Ryzen 5 5600G (14 GB RAM):
+  - 12 threads: small-tx CPU -36.1%, wall -5.6%; heavy CPU -6.3%,
+    wall -7.2%;
+  - 4 threads: small-tx CPU -9.2%, wall 0.0%; heavy CPU -6.8%, wall -5.5%;
+  - CPU ranges disjoint everywhere; peak anon within +3.6%.
+- Native builds:
+  - 24 threads (a 12-core Ryzen 9 3900X, 16 GB RAM, SATA SSD): small-tx
+    CPU -46.7%, wall -3.7%; heavy CPU -17.5%, wall -13.8%;
+  - 12 threads (the 5600G): -34.4% / -5.5% and -8.0% / -10.1%;
+  - all ranges disjoint, and 36/36 tips equal the honest peer's.
+- Peak anon: unchanged on heavy blocks, +3% to +9% on small-tx blocks.
+- The gain grows with the thread count. A call's proofs form one batch per
+  pool thread, and the merge removes the repeated generator terms of every
+  batch but one.
+
+Correctness:
+- Unit test batch_verify_rejects_one_bad_proof_among_valid takes
+  single-bit changes of a 128-input proof that pass the per-proof checks,
+  so only the merged multiexp can reject them. It places each one first,
+  middle and last among valid proofs, and the call returns the single-proof
+  path's verdict every time.
+- Crate tests: those of the generalized-bulletproofs merge and split
+  commit.
+- A test build with a test-only switch that routes pool verification
+  through this path: the negative differential test (invalid transactions,
+  oracle stock v0.19.0.0-beta.3.1) gives DIFF PASS at heights 3,105,401
+  (135 cases) and 3,106,400 (101 cases).
+- Reviewed by the second reviewer: three fuzz passes, an FFI-level
+  prepare/finish test, and the early-exit guard.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/ringct/rctSigs.cpp       | 30 +++++++++++++--------
+ tests/unit_tests/fcmp_pp.cpp | 51 ++++++++++++++++++++++++++++++++++++
+ 2 files changed, 70 insertions(+), 11 deletions(-)
+
+diff --git a/src/ringct/rctSigs.cpp b/src/ringct/rctSigs.cpp
+index f4fa3224d..a6288b816 100644
+--- a/src/ringct/rctSigs.cpp
++++ b/src/ringct/rctSigs.cpp
+@@ -1773,12 +1773,20 @@ done:
+       }
+       CHECK_AND_ASSERT_MES(batches.size() <= n_batches, false, "Too many batches");
+ 
+-      std::deque<bool> results;
+-      results.resize(batches.size());
++      // Each batch runs its per-proof checks and returns its Selene/Helios verifier state. The states are
++      // merged below into one multiexp per curve for the whole call, so the generator terms all batches
++      // share are counted once instead of once per batch. The holder frees any state left behind by an
++      // early return or a throw.
++      struct BatchStates
++      {
++        std::vector<::FcmpPpBatchStateUnsafe *> v;
++        ~BatchStates() { for (auto *s : v) if (s) fcmp_pp::batch_state_free(s); }
++      } states;
++      states.v.assign(batches.size(), nullptr);
+       // If this call leaves early (a throw from waiter.wait(), e.g. on a thread interrupt, or from
+-      // tpool.submit) while tasks are still queued or running, those tasks would write into `results`
++      // tpool.submit) while tasks are still queued or running, those tasks would write into `states`
+       // and read `batches` after both are destroyed: the waiter's own destructor waits too, but it is
+-      // declared before them, so it runs after. This guard waits first. It is declared after `results`,
++      // declared before them, so it runs after. This guard waits first. It is declared after `states`,
+       // so it is destroyed before it, and it is disarmed once waiter.wait() has returned, when every
+       // task has finished.
+       struct WaitGuard
+@@ -1796,14 +1804,14 @@ done:
+ 
+         if (!multithreaded)
+         {
+-          results[i] = fcmp_pp::verify(batches[i].batch);
++          states.v[i] = fcmp_pp::verify_prepare(batches[i].batch);
+           continue;
+         }
+ 
+         tpool.submit(&waiter,
+-            [&batches, &results, i]()
++            [&batches, &states, i]()
+             {
+-              results[i] = fcmp_pp::verify(batches[i].batch);
++              states.v[i] = fcmp_pp::verify_prepare(batches[i].batch);
+ 
+               MDEBUG("Finished verifying FCMP++ batch " << (i+1) << " / " << batches.size());
+             },
+@@ -1836,11 +1844,11 @@ done:
+       }
+ #endif
+ 
+-      for (bool r : results) {
+-        if (!r)
++      for (const auto *s : states.v)
++        if (!s)
+           return false;
+-      }
+-      return true;
++      // one multiexp per curve for the whole call, split over the pool threads
++      return fcmp_pp::verify_finish(states.v, pool_threads);
+     }
+ 
+     void limitMaxMemArenas()
+diff --git a/tests/unit_tests/fcmp_pp.cpp b/tests/unit_tests/fcmp_pp.cpp
+index c65c6b964..46fac4b9e 100644
+--- a/tests/unit_tests/fcmp_pp.cpp
++++ b/tests/unit_tests/fcmp_pp.cpp
+@@ -1673,6 +1673,22 @@ struct BatchVerifyFixture
+             v.emplace_back(input((bad && i == bad_at) ? *bad : proof));
+         return v;
+     }
++    // true if this proof alone passes the per-proof checks of fcmp_pp::verify_prepare
++    bool passes_prepare(const std::vector<uint8_t> &p) const
++    {
++        std::vector<fcmp_pp::FcmpPpVerifyInput> one;
++        one.emplace_back(input(p));
++        ::FcmpPpBatchStateUnsafe *state = fcmp_pp::verify_prepare(one);
++        if (!state)
++            return false;
++        fcmp_pp::batch_state_free(state);
++        return true;
++    }
++    // the verdict of the single-proof path
++    bool single_path(const std::vector<uint8_t> &p) const
++    {
++        return fcmp_pp::verify(signable_tx_hash, p, n_layers, tree_root, pseudo_outs, key_images);
++    }
+ };
+ 
+ // at least one batch per pool thread
+@@ -1712,3 +1728,38 @@ TEST(fcmp_pp, batch_verify_early_exit_waits_for_tasks)
+     // The pool must still work after the early exits.
+     ASSERT_TRUE(rct::batchVerifyFcmpPpProofs(f.inputs(n_proofs)));
+ }
++
++TEST(fcmp_pp, batch_verify_rejects_one_bad_proof_among_valid)
++{
++    const BatchVerifyFixture f;
++    const std::size_t n_proofs = batch_verify_n_proofs();
++    MGINFO("batch verify: " << n_proofs << " proofs of 128 inputs per call, proof " << f.proof.size() << " bytes");
++    ASSERT_TRUE(f.single_path(f.proof));
++    ASSERT_TRUE(rct::batchVerifyFcmpPpProofs(f.inputs(n_proofs)));
++
++    // Single-bit changes spread over the proof. Keep those that pass the per-proof checks, so that only the merged
++    // multiexp can reject them; the call must then give the single-proof path's verdict wherever the bad proof sits.
++    const std::size_t slots = 97;
++    const std::size_t stride = std::max<std::size_t>(1, f.proof.size() / slots);
++    std::size_t tried = 0, deferred = 0, rejected = 0;
++    for (std::size_t k = 0; k < slots && rejected < 3; ++k)
++    {
++        const std::size_t pos = (k * stride + stride / 2) % f.proof.size();
++        std::vector<uint8_t> bad = f.proof;
++        bad[pos] ^= 0x01;
++        ++tried;
++        if (!f.passes_prepare(bad))
++            continue;
++        ++deferred;
++        const bool single_verdict = f.single_path(bad);
++        if (!single_verdict)
++            ++rejected;
++        for (const std::size_t at : {std::size_t{0}, n_proofs / 2, n_proofs - 1})
++            EXPECT_EQ(rct::batchVerifyFcmpPpProofs(f.inputs(n_proofs, at, &bad)), single_verdict)
++                << "bit 0 of byte " << pos << ", bad proof at " << at << " of " << n_proofs;
++        MGINFO("batch verify: byte " << pos << " passes the per-proof checks; single-proof path "
++            << (single_verdict ? "accepts" : "rejects"));
++    }
++    MGINFO("batch verify: tried " << tried << ", passed the per-proof checks " << deferred << ", rejected " << rejected);
++    EXPECT_GE(rejected, 1u) << "no single-bit change reached the merged multiexp as an invalid proof";
++}
+-- 
+2.43.0
+

@@ -1,0 +1,85 @@
+# Patches
+
+**WARNING: LLM GENERATED OPTIMIZATIONS. NOT VERIFIED CORRECT BY HUMANS.** The checks that were run are in
+[VERIFICATION.md](../VERIFICATION.md).
+
+These are monerodato's optimisations as plain `git format-patch` series, one for each upstream project. They let you
+read or apply the changes without the fork. The commits come from the
+[`monerodato-v0`](https://github.com/Fountain5405/monerodato/tree/monerodato-v0) branch.
+[MONERODATO.md](https://github.com/Fountain5405/monerodato/blob/monerodato-v0/MONERODATO.md) explains the reasons
+and the measurements for each change, and every commit message carries them too.
+The main [README](../README.md#the-13-commits) lists each commit with a link to it on GitHub.
+
+## monerodato.7
+
+Made from the tag `v0.19.0.0-beta.3.1-monerodato.7` (commit `f3c4ea5d9`).
+
+| Series | Apply to | Patches | Files changed |
+|---|---|---|---|
+| [`monero/`](monerodato.7/monero) | [seraphis-migration/monero](https://github.com/seraphis-migration/monero) `v0.19.0.0-beta.3.1` (`d80596ad1811`, branch `fcmp++-beta-stressnet-v3`) | 11 | 16 files, +1,448 / -13 |
+| [`dalek-ff-group/`](monerodato.7/dalek-ff-group) | the `dalek-ff-group` 0.5.0 crate as published on crates.io (`.crate` sha256 `26103554…`) | 2 | 2 files, +432 / -64 |
+| [`multiexp/`](monerodato.7/multiexp) | the `multiexp` 0.5.2 crate as published on crates.io | 1 | 4 files, +117 / -3 |
+| [`monero-oxide/`](monerodato.7/monero-oxide) | [monero-oxide/monero-oxide](https://github.com/monero-oxide/monero-oxide) at `31c26d9` | 9 | 12 files, +1,498 / -125 |
+
+**What each series does**
+- **monero:**
+  1. cap FCMP++ batch verification at the physical core count for calls with proofs of 8 or more inputs;
+  2. return freed verifier memory to the OS (`malloc_trim`);
+  3. keep block sync requests under the levin packet limit;
+  4. wait for queued batch tasks before an early exit;
+  5. a two-step batch verification FFI;
+  6. one multiexp per curve per batch verification call;
+  7. `mdb_env_warm_dbis()` in liblmdb, reading database trees into the page cache in file order;
+  8. a test of `mdb_env_warm_dbis`;
+  9. `warm_indexes()` in blockchain_db, reading the hash indexes into the page cache in a thread of its own;
+  10. start the index warm-up at the end of `core::init`;
+  11. a test of the background warm-up against `close()` and a resize.
+- **dalek-ff-group:** Field25519 as four saturated 64-bit limbs, and `wide_reduce` / `random` through the same fold.
+- **multiexp:** the constant-time multiexp uses Straus with a 4-bit window at every length.
+- **monero-oxide:**
+  1. extract the verifier layout;
+  2. verify FCMP++ proofs with the constraints folded as they are produced, instead of storing them;
+  3. fold both circuits in one rebuild;
+  4. merge batch verifiers and split the multiexp over threads;
+  5. a test of `verify_split` at its chunk boundaries;
+  6. a test that the prover's output is unchanged, byte for byte;
+  7. free the l and r coefficient vectors after evaluation, zeroized;
+  8. shrink each vector commitment's weight vector to the length it uses;
+  9. move the vector commitments' values into l instead of copying them.
+
+**Left out of the patches**
+- **The three import commits.** They add the untouched upstream crates.
+- **The 19 `[fork-only]` commits:**
+  - the gate tests written by the second reviewing agent;
+  - the vendored dependencies and the build plumbing;
+  - the startup notice and the version suffix;
+  - the docs.
+
+**Checked**
+- Each series applies with `git am --no-3way` to the base in the table: the stressnet tag, and the three crates' untouched imports in the fork (commits `ebb473d4e`, `d871e435c` and `254cc0520`).
+- The files it produces are then identical to the fork's at monerodato.7, with three exceptions (of 34 files touched):
+  - `src/fcmp_pp/fcmp_pp_rust/src/lib.rs` (monero): the fork adds a `mod g009_ffi_tests;` line that hooks in a left-out gate test;
+  - `tests/unit_tests/CMakeLists.txt` (monero): the fork adds `monerodato_guards.cpp` to the test sources, a left-out `[fork-only]` commit;
+  - `crypto/fcmps/src/tests.rs` (monero-oxide): the fork adds the `mod differential_fuzz;` and `mod g009_fuzz;` lines that hook in left-out gate tests.
+- Each of those three differs only by those added lines.
+
+**Not checked**
+- Applying the dalek-ff-group series to its git repository instead of the published crate.
+- Building or testing each series on its own, outside the fork. The fork's build and tests are in
+  [VERIFICATION.md](../VERIFICATION.md).
+
+**Other notes**
+- **Authors:** each patch keeps the author line of its fork commit, the GitHub noreply identity of the fork's owner.
+- **Checksums:** see [`monerodato.7/SHA256SUMS`](monerodato.7/SHA256SUMS).
+
+**To apply**
+```sh
+# monero, on a checkout of v0.19.0.0-beta.3.1:
+git am /path/to/patches/monerodato.7/monero/*.patch
+# monero-oxide, on a checkout of 31c26d9:
+git am /path/to/patches/monerodato.7/monero-oxide/*.patch
+# multiexp, in the unpacked 0.5.2 crate (git init and commit it first):
+git am /path/to/patches/monerodato.7/multiexp/*.patch
+# dalek-ff-group, in the unpacked 0.5.0 crate (git init and commit it first):
+git am /path/to/patches/monerodato.7/dalek-ff-group/*.patch
+```

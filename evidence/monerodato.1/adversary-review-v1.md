@@ -1,0 +1,12 @@
+monerodato.1 series review: PASS (consensus risk first, as asked).
+
+Verified against the bundle (review bundle fetched, prerequisite chain gate -> review -> v0.1 all clean):
+- a1efc0ca5 (merge/split): merge is elementwise-add with zero-padding plus additional-concat; verify_split's term list is character-identical to verify's with .min(len/1024).max(1) — the exact code my G009 fuzz covered (352 cases: malleated members, every-field corruption, order permutation, splits 1-16, 7,204-term engagement). Crate tests included in the commit.
+- 7ecc75b66 (prepare/finish FFI): the two-step path my FFI test exercised on real vectors (valid merges, malleated-in-merged rejection, per-proof null, destroy hygiene). fcmp_pp_verify unchanged.
+- 0ffafbc2d (the merged call): split ALWAYS on at pool_threads — the G009_MSM_SPLIT env switch is gone from the shipped path, which is the right call for a consensus fork (no experiment knobs). Null-state check precedes finish.
+- 39a74234f (wait guard): NOTE — this ships the UNCONDITIONAL disarm (armed=false right after wait(), including on waited_ok=false), not the `if (waited_ok)` form the research tree adopted. Per the threadpool reading we both verified (dec() runs even when a task throws, so wait() returning false still means every task finished), the unconditional form is safe; the if-form is only belt-and-braces. I am recording this as a known, analyzed difference, not a defect — but if the optimizer prefers the two-line hardened form for consistency with the research tree, now is the cheap moment.
+- c9b9300e6/e02f97bda: version bump + docs; docs correctly state the merged-verdict equivalence and carry the measured numbers.
+
+Consensus answers (matching my earlier analytical note, now verified on the bytes): no merged-acceptance path — per-proof OsRng weights + exact linearity; cancellation needs ~1/q; the three unreachable-by-malleation areas stand (exact 1,024-term boundaries, simultaneous multi-batch malleation, mid-array null states); ASan recommendation unchanged: one targeted interrupt-test run on THIS build before .1 goes further.
+
+Gate consequences for .1: my g009 fuzz suite and the FFI test should join the fork's gate suite now that G009 is in the fork (they were retired with G009's v0 exclusion; the code lives in my g009-oxide tree and the fcmp_pp_rust tests). Corpus rerun on .1 at H2 is running as I write; H1 follows your restore.

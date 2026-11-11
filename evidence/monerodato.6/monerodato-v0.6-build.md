@@ -1,0 +1,152 @@
+# monerodato.6: build report
+
+From optimizer, 2026-11-11. Built in the same tree, build directory, toolchain and recipe as monerodato.5 (`monerodato-v0.5-build.md`). This report covers what changed and how it was checked.
+
+**Why:**
+- **The change:** the startup warm-up of the hash indexes (.5) now runs in the background, so P2P and RPC no longer wait for it.
+- **The owner's decisions:**
+  - "move the warm-up to the background", in my chat, 2026-11-11 about 04:20 UTC;
+  - the tag, in my chat just before 11:24 UTC: "yes, tag .6".
+- **The adversary:**
+  - approved dot6-prep: the code (a3b933e2), the 64-page read-ahead window (91fad7f6) and the docs commit (783fd152);
+  - checked the tag commit's delta from the patch in my tag notice (its ack 65ce06b6).
+
+## Deliverables (in <path>/files/)
+
+| file | sha256 | size |
+|---|---|---|
+| `monerodato-v0.6.bundle` | `598fb4cbabb3c28f10b94628622c80559759080dec5c01eeec1bd53f121a31c4` | 17,777 B |
+| `monerodato-v0.6-monerod` | `210f649f95190196e207fba6f12e7e820d0981e0deee09366a8b9e040b736553` | 42,514,496 B |
+| `monerodato-v0.6-monero-wallet-rpc` | `f2388b156085253094a81e0fa367c11d02119a99252c76e26fb1b08df6eaca27` | 49,903,544 B |
+| `monerodato-v0.6-monero-wallet-cli` | `4d6a0dbb61d836bede38e50dd6c7684b86a7791b38f320f45ab7fbb55dcb9b43` | 49,221,176 B |
+| `monerodato-v0.6-build.md` | this file; its sha256 is in the message | |
+
+All three binaries are static: they link only libc and libm (ldd). The change runs in the node. The wallets are shipped too, so that the three come from one tag.
+
+**The bundle:**
+- **Contents:** branch `monerodato-v0` and the annotated tag `v0.19.0.0-beta.3.1-monerodato.6` (tag object `7f4e1cfebdc6765bff6454ade3c2f2ea22c766ac`), both at commit `9c66a6efa557539451ce6855239239272ba619e8`. The tag's tree is `f5ab1ac14facadf5274806a7ad28c676a67e3c01`.
+- **Thin** against `d87cc01dc`, the .5 tag's commit.
+- **9 commits.**
+- **How it was checked:** in a new repo holding only the base, the v0, gate, review, .1, .2, .3, .4 and .5 bundles were fetched, then this one. Every `git bundle verify` listed only its expected prerequisite; this one's is `d87cc01dc`. The branch, the tag object and the tag tree there equal the source repo's, and `git fsck` is clean.
+
+To use it, in the repo that already holds the earlier bundles:
+
+```sh
+git bundle verify ../monerodato-v0.6.bundle
+git fetch ../monerodato-v0.6.bundle 'refs/heads/monerodato-v0:refs/heads/monerodato-v0' \
+  'refs/tags/v0.19.0.0-beta.3.1-monerodato.6:refs/tags/v0.19.0.0-beta.3.1-monerodato.6'
+git checkout v0.19.0.0-beta.3.1-monerodato.6 && git submodule update --init --recursive
+```
+
+## The series (`git log --oneline --reverse .5..6`)
+
+```
+7d8040fb1 liblmdb: mdb_env_warm_dbis() takes a stop function
+63e1d29a8 tests: mdb_env_warm_dbis stops when its stop function says so
+594f2fe22 blockchain_db: the index warm-up runs in a thread of its own
+772be7fff cryptonote_core: start the index warm-up at the end of core::init
+7bb7530bf tests: the background warm-up against close() and a resize
+c712b36b4 liblmdb: the warm-up's read-ahead runs at most 64 pages ahead of the reading
+a093187c7 tests: the warm-up's read-ahead runs at most 64 pages ahead
+0ec2d2fb0 [fork-only] MONERODATO.md: the warm-up in the background (after monerodato.5)
+9c66a6efa [fork-only] monerodato.6: version suffix, the docs say .6
+```
+
+- **The adversary reviewed** the first eight, in three bundles: the code (0a0ce6e1), the window (d5939d1f) and the docs (d66b1e46).
+- **9c66a6efa:**
+  - sets the version suffix;
+  - turns "after monerodato.5" into "since monerodato.6" in six places: the introduction, the monero row, the background warm-up's heading and three later notes; the review-diffs line names monerodato.6;
+  - sets the fork-only count to 38.
+  - It touches only `MONERODATO.md` and `src/version.cpp.in`, +9 / -9.
+- 0ec2d2fb0's subject keeps "(after monerodato.5)" and is not rewritten, as with 0733a7b84 in .5.
+
+**Scope since .5, outside `vendor/`:** 9 files, +423 / -41.
+- **Shipped code:**
+  - `external/db_drivers/liblmdb/lmdb.h` and `mdb.c`;
+  - `src/blockchain_db/lmdb/db_lmdb.h` and `lmdb/db_lmdb.cpp`;
+  - `src/blockchain_db/blockchain_db.h` (the comment on `warm_indexes()` only);
+  - `src/cryptonote_core/cryptonote_core.cpp`;
+  - `src/version.cpp.in` (the suffix).
+- **Tests:** `tests/unit_tests/lmdb_warm.cpp`.
+- **Docs:** MONERODATO.md.
+- **Nothing changed under `src/fcmp_pp`, `vendor/` or `Cargo.lock`** since the .5 tag (`git diff --quiet`, checked by the gate).
+
+## Build
+- **Daemon:** `ninja -C build/static -j10 daemon` in .5's build directory (the depends toolchain, Release, `ARCH=default`, `STATIC=ON`; gcc 13.3.0, rustc 1.99.1). Then `ninja -C build/static -j10 wallet_rpc_server simplewallet`. CMake re-ran once, for the changed `version.cpp.in`.
+- **The Rust library:** `libfcmp_pp_rust.a` was deleted before the build (the stale-library rule). The build put it back without compiling anything: cargo printed 0 "Compiling" lines. It is byte-identical to .5's (`cmp` against a copy taken before the build; the gate stops otherwise).
+- **`check-vendor-rev: ok`:** monero-oxide 31c26d96; 6 vendored crates match patched/monero-oxide; dalek-ff-group 0.5.0 and multiexp 0.5.2 from patched/.
+
+**Object identity:**
+- **Method:** as for .5. Every `.o`, `.a` and `bin/monerod` under the build directory was hashed before the .6 daemon build (on .5's build of record, monerod 410748ae) and after it. 320 files.
+- **10 differ:**
+  - `bin/monerod`;
+  - the version object and `libversion.a`;
+  - `mdb.c.o` and `liblmdb.a`;
+  - `blockchain_db.cpp.o`, `db_lmdb.cpp.o` and `libblockchain_db.a`;
+  - `cryptonote_core.cpp.o` and `libcryptonote_core.a`.
+- **Which code changed:**
+  - `mdb.c.o`, `db_lmdb.cpp.o` and `cryptonote_core.cpp.o` hold the new code.
+  - `blockchain_db.cpp.o` includes `lmdb/db_lmdb.h` (line 37), whose class gained the warm-up thread's members.
+  - .5 had 18. This time `blockchain_db.h` changed only in a comment, so no other user of `BlockchainDB` changed. The adversary reads that asymmetry as evidence that .5's extra objects were the vtable change.
+- **The wallets:**
+  - After the wallet build the list was hashed again: still 10 of 320 differ, none beyond the daemon's list. So the wallet's own objects are byte-identical to .5's.
+  - None of the 14 wallet objects (`src/wallet`, `src/simplewallet`) has an undefined reference to `warm_indexes`, `mdb_env_warm_dbis` or the warm-up's stop function (`nm -u`). As for .5, the static wallets still contain the warm-up code from the shared libraries, and no call-graph check was done.
+
+## Checks
+**Tests:**
+
+| check | result |
+|---|---|
+| unit tests, built from the .6 tree: `lmdb_warm.*`, `BlockchainDBTest*`, and .5's set (fcmp_pp, wallet_tx_builder, carrot_fcmp, bulletproofs_plus, curve_trees) | 53 run in 7 suites: 51 passed, 2 skipped, 0 failed |
+| of which `lmdb_warm` | 7: 6 passed (`reads_the_pages_a_cursor_walk_reads`, `reads_the_leaves_only_if_all_of_them_fit_in_the_budget`, `checks_its_arguments`, `stops_when_its_stop_function_says_so`, `requests_at_most_64_pages_ahead_of_reading`, `background_warm_up_gives_way_to_close_and_resize`); 1 skipped, `background_warm_up_in_progress_gives_way_to_close_and_resize`, which runs only with `MONERODATO_WARM_DB` set to a real database (it passed that way during dot6-prep) |
+| of which `BlockchainDBTest` | 4 passed |
+| the other skip | `fcmp_pp.force_init_gen_u_v`, as in .1 to .5 |
+
+- **The Rust gates (1 to 5) were not re-run for .6.** No Rust source changed, and the library is .5's byte for byte.
+
+**The warm-up in the release monerod:**
+- **The runs:** three offline starts on build-box's stressnet DB. Before each, `data.mdb`, the monerod binary and `p2pstate.bin` were evicted from the page cache (a cold start; G015 stage 4c showed that evicting `data.mdb` alone hides the effect of a cold binary).
+- **The checks in each:** the warm-up's start line must come between "Initializing core" and "Core initialized OK", RPC must come up, the end line must appear, and the stop must be clean. Each start waited for the end line before stopping.
+
+| start | RPC answered | end line by | the end line | order | exit | ERROR lines |
+|---|---|---|---|---|---|---|
+| no limit (16 GB) | 1.4 s | 4.6 s | 202,493 pages (829 MB) in 3.2 s | yes | 0 | 0 |
+| 1 GiB cgroup (`MemoryMax=1G`) | 1.4 s | 1.4 s | the upper levels only, 3,864 pages (15 MB) in 0.1 s; "Their 198629 leaf pages (813 MB) were not read: more than 60% of the 1073 MB of memory" | yes | 0 | 0 |
+| 2 GiB cgroup (`MemoryMax=2G`) | 1.6 s | 4.6 s | 202,493 pages (829 MB) in 3.1 s | yes | 0 | 0 |
+
+- **RPC now answers before the warm-up ends**, as designed. In .5 the warm-up came first: 829 MB in 3.3 s, then RPC.
+- **The disk:** build-box's is a SATA SSD, so these times are not HDD times. The HDD measurement is G015 stage 4d, under Notes. These are not timing runs.
+- **On an empty DB** (the notice check), the end line reads 2 pages (0 MB) in 0.0 s. In .5 it read 0 pages: the warm-up ran right after the DB opened, and now it runs at the end of `core::init`, after the genesis block has been added.
+
+**The wallet:**
+- **.5's check could not be repeated.** It built an 8-input transaction on W006 copies (fee and weight against .3 and .4), against the W009 node and chain, which were removed after .5.
+- **The first replacement proved little.** In the gate, the .6 wallet-rpc created a throwaway wallet against the .6 node and called `refresh` with `start_height` 300 blocks back. It fetched 0 blocks: `create_wallet` sets the wallet's refresh height to the tip, and `start_height` does not move it below. The wallet's height equalled the node's (3,106,805), but no block was scanned. My tag notice described this check as a 300-block refresh; that was not what ran.
+- **The second form, run after the gate** (`dot6_wallet2.sh`):
+  - the .6 wallet-cli created a throwaway wallet with `refresh-from-block-height` 3,106,505, as W002 did;
+  - its creation output, which shows the seed, went to `/dev/null`;
+  - a second invocation refreshed from the .6 node: "Refresh done, blocks received: 300", rc 0, 0 ERROR lines in the wallet's and the node's logs;
+  - the throwaway wallet's directory was then deleted.
+- One run, a sanity check, not a measurement. It exercises the daemon's block-serving path and the wallet's scan. It does not build a transaction.
+
+**Runtime checks:**
+- **`--version`, all three binaries:** `Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.6-release)`.
+- **The notice on a 16 GB, 12-core AVX2 machine:** once, in stdout and in the log, unchanged.
+- **A 400-block sync from ref-b,** under coordinator's standing clearance for read-only ~400-block release gate syncs:
+  - the DB was rewound with the base build to height 3,106,401;
+  - .6 synced from ref-b alone to height 3,106,825 in 66 s from RPC up (not a timing run);
+  - the hash at 3,106,800 is `74db18cf...b59c`, equal to ref-b's and to the reference;
+  - 0 oversize packets, 0 verification failures, 0 ERROR lines;
+  - the warm-up: 202,493 pages (829 MB) in 0.2 s, since the rewind had just read them into the page cache.
+
+## Notes
+1. **The HDD evidence** is research G015 stage 4d: coordinator's VM on a 5,400 rpm disk with 4 GB, 3 runs per arm, pre-registered.
+   - RPC answered 30.1 s after launch [24.7-31.2], against 84.4 s for .5.
+   - A 400-block catch-up reached the top in 179 s, against 168 s for .5 (106%; the bar was 110%). Every background run finished after every .5 run.
+   - The warm-up took 75.8 s, against 61.7 s (123%; the bar was 125%).
+   - The binary there (78ef0d87) was built from a093187c7. The .6 tag adds only the docs commit and the version suffix to it.
+2. **Known limits, in MONERODATO.md:**
+   - if another process grows the same database's map while the warm-up runs, LMDB's resize handler waits for the warm-up to end;
+   - a map resize ends the warm-up for good. A fresh sync resizes often, so it in effect never warms. That is harmless: a fresh database has nothing worth warming.
+3. **The budget still has no absolute cap.** It is 60% of the memory the process may use, total rather than free (coordinator's note). Whether to cap it is the owner's decision, before mainnet.
+4. **Not run:** a Windows build, a 32-bit build, a mainnet DB. The adversary asks for Windows and 32-bit builds to be compiled and tested before any mainnet or release-binaries decision.
+5. **No access beyond the optimizer's own boxes.** Blocks came from ref-b by P2P, and tip hashes from ref-b by RPC reads.
