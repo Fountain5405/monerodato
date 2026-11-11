@@ -749,6 +749,11 @@ namespace cryptonote
       }
     }
 
+    // Start reading the hash indexes into the page cache, in the background: much faster than the
+    // random reads a sync would otherwise make for the same pages on a spinning disk. It starts last,
+    // so that the reads above do not queue behind it, and P2P and RPC start without waiting for it
+    m_blockchain_storage.get_db().warm_indexes();
+
     return load_state_data();
   }
   //-----------------------------------------------------------------------------------------------
