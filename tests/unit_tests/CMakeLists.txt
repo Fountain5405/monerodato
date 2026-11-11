@@ -74,6 +74,7 @@ set(unit_tests_sources
   logging.cpp
   long_term_block_weight.cpp
   lmdb.cpp
+  lmdb_warm.cpp
   main.cpp
   memwipe.cpp
   mlocker.cpp

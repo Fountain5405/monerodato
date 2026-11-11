@@ -1,0 +1,468 @@
+// Copyright (c) 2026, The Monero Project
+//
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without modification, are
+// permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice, this list of
+//    conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice, this list
+//    of conditions and the following disclaimer in the documentation and/or other
+//    materials provided with the distribution.
+//
+// 3. Neither the name of the copyright holder nor the names of its contributors may be
+//    used to endorse or promote products derived from this software without specific
+//    prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+// THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+// STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
+// THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+// Tests of mdb_env_warm_dbis() (monerodato) on a small generated environment whose three tables are
+// laid out as monerod lays out its hash indexes: one zero key, the values as sorted fixed-size
+// duplicates, so each table's items live in a sub-database.
+
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <cerrno>
+#include <chrono>
+#include <cstdint>
+#include <random>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include <boost/filesystem.hpp>
+
+#include <lmdb.h>
+
+#if defined(__linux__)
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
+namespace
+{
+  constexpr std::size_t VALUES = 60000; // per table
+  constexpr std::size_t BATCH = 1000; // values per table per write transaction
+  const char *const TABLES[3] = {"spent_keys", "tx_indices", "block_heights"};
+  constexpr std::size_t VALUE_SIZES[3] = {32, 48, 40};
+
+  struct temp_dir
+  {
+    boost::filesystem::path path;
+    temp_dir()
+      : path(boost::filesystem::temp_directory_path() / boost::filesystem::unique_path("monerodato-warm-%%%%-%%%%-%%%%"))
+    {
+      boost::filesystem::create_directories(path);
+    }
+    ~temp_dir()
+    {
+      boost::system::error_code ec;
+      boost::filesystem::remove_all(path, ec);
+    }
+    std::string data_file() const { return (path / "data.mdb").string(); }
+  };
+
+  struct env_guard
+  {
+    MDB_env *env = nullptr;
+    MDB_txn *txn = nullptr;
+    ~env_guard()
+    {
+      if (txn)
+        mdb_txn_abort(txn);
+      if (env)
+        mdb_env_close(env);
+    }
+  };
+
+  // Open the environment without read-ahead, as monerod does, begin a transaction and open the tables
+  void open_env(env_guard &g, const std::string &dir, bool rdonly, MDB_dbi dbis[3])
+  {
+    ASSERT_EQ(0, mdb_env_create(&g.env));
+    ASSERT_EQ(0, mdb_env_set_maxdbs(g.env, 8));
+    ASSERT_EQ(0, mdb_env_set_mapsize(g.env, std::size_t(256) << 20));
+    ASSERT_EQ(0, mdb_env_open(g.env, dir.c_str(), MDB_NORDAHEAD | (rdonly ? MDB_RDONLY : MDB_NOSYNC), 0644));
+    ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, rdonly ? MDB_RDONLY : 0, &g.txn));
+    for (int t = 0; t < 3; ++t)
+      ASSERT_EQ(0, mdb_dbi_open(g.txn, TABLES[t], rdonly ? 0 : (MDB_INTEGERKEY | MDB_CREATE | MDB_DUPSORT | MDB_DUPFIXED), &dbis[t]));
+  }
+
+  // Fill the three tables with random values, interleaved over many transactions as a growing chain does
+  void make_db(const std::string &dir)
+  {
+    env_guard g;
+    MDB_dbi dbis[3];
+    ASSERT_NO_FATAL_FAILURE(open_env(g, dir, false, dbis));
+    std::mt19937_64 rng(20261110);
+    uint64_t zero = 0;
+    std::vector<unsigned char> value(64);
+    for (std::size_t done = 0; done < VALUES; done += BATCH)
+    {
+      if (!g.txn)
+      {
+        ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, 0, &g.txn));
+      }
+      for (int t = 0; t < 3; ++t)
+      {
+        for (std::size_t i = 0; i < BATCH; ++i)
+        {
+          for (auto &b : value)
+            b = static_cast<unsigned char>(rng());
+          MDB_val k{sizeof(zero), &zero};
+          MDB_val v{VALUE_SIZES[t], value.data()};
+          ASSERT_EQ(0, mdb_put(g.txn, dbis[t], &k, &v, 0));
+        }
+      }
+      ASSERT_EQ(0, mdb_txn_commit(g.txn));
+      g.txn = nullptr;
+    }
+    ASSERT_EQ(0, mdb_env_sync(g.env, 1));
+  }
+
+  // Warm the three tables in a new read-only environment; rc is the function's return value
+  void warm(const std::string &dir, std::size_t max_leaf_bytes, MDB_warm_stat &st, int &rc,
+    MDB_warm_stop_func *stop = nullptr, void *ctx = nullptr)
+  {
+    env_guard g;
+    MDB_dbi dbis[3];
+    ASSERT_NO_FATAL_FAILURE(open_env(g, dir, true, dbis));
+    rc = mdb_env_warm_dbis(g.txn, dbis, 3, max_leaf_bytes, stop, ctx, &st);
+  }
+
+  // A stop function that counts its calls and says stop once it has been called more than stop_after times
+  struct stop_counter
+  {
+    std::size_t calls = 0;
+    std::size_t stop_after = SIZE_MAX;
+    static int stop(void *ctx)
+    {
+      stop_counter *c = static_cast<stop_counter *>(ctx);
+      return ++c->calls > c->stop_after;
+    }
+  };
+
+#if defined(__linux__)
+  // The file's pages that are in the page cache, by page number
+  std::vector<std::size_t> resident(const std::string &file)
+  {
+    std::vector<std::size_t> pages;
+    const int fd = open(file.c_str(), O_RDONLY);
+    if (fd < 0)
+      return pages;
+    struct stat st;
+    if (fstat(fd, &st) == 0 && st.st_size > 0)
+    {
+      const std::size_t size = st.st_size;
+      const std::size_t psize = sysconf(_SC_PAGESIZE);
+      void *map = mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0);
+      if (map != MAP_FAILED)
+      {
+        std::vector<unsigned char> vec((size + psize - 1) / psize);
+        if (mincore(map, size, vec.data()) == 0)
+          for (std::size_t i = 0; i < vec.size(); ++i)
+            if (vec[i] & 1)
+              pages.push_back(i);
+        munmap(map, size);
+      }
+    }
+    close(fd);
+    return pages;
+  }
+
+  // Drop the file's pages from the page cache; false if some stay (a tmpfs, for example)
+  bool evict(const std::string &file)
+  {
+    const int fd = open(file.c_str(), O_RDONLY);
+    if (fd < 0)
+      return false;
+    fdatasync(fd);
+    const bool advised = posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED) == 0;
+    close(fd);
+    return advised && resident(file).empty();
+  }
+
+  // The environment's page size must be the OS page size, so that mincore counts LMDB pages
+  bool lmdb_page_is_os_page(const std::string &dir)
+  {
+    env_guard g;
+    MDB_stat ms;
+    return mdb_env_create(&g.env) == 0 && mdb_env_open(g.env, dir.c_str(), MDB_RDONLY, 0644) == 0
+      && mdb_env_stat(g.env, &ms) == 0 && ms.ms_psize == static_cast<unsigned>(sysconf(_SC_PAGESIZE));
+  }
+
+  std::size_t count_new(const std::vector<std::size_t> &after, const std::vector<std::size_t> &before)
+  {
+    std::vector<std::size_t> diff;
+    std::set_difference(after.begin(), after.end(), before.begin(), before.end(), std::back_inserter(diff));
+    return diff.size();
+  }
+#endif
+}
+
+TEST(lmdb_warm, reads_the_pages_a_cursor_walk_reads)
+{
+#if !defined(__linux__)
+  GTEST_SKIP() << "needs mincore and posix_fadvise";
+#else
+  temp_dir dir;
+  const std::string file = dir.data_file();
+  ASSERT_NO_FATAL_FAILURE(make_db(dir.path.string()));
+  if (!lmdb_page_is_os_page(dir.path.string()) || !evict(file))
+    GTEST_SKIP() << "cannot count the environment's pages in the page cache here";
+
+  // The reference: every item, read with cursors
+  {
+    env_guard g;
+    MDB_dbi dbis[3];
+    ASSERT_NO_FATAL_FAILURE(open_env(g, dir.path.string(), true, dbis));
+    for (int t = 0; t < 3; ++t)
+    {
+      MDB_cursor *c;
+      ASSERT_EQ(0, mdb_cursor_open(g.txn, dbis[t], &c));
+      MDB_val k, v;
+      std::size_t items = 0;
+      for (int rc = mdb_cursor_get(c, &k, &v, MDB_FIRST); rc == 0; rc = mdb_cursor_get(c, &k, &v, MDB_NEXT))
+        ++items;
+      mdb_cursor_close(c);
+      EXPECT_EQ(VALUES, items);
+    }
+  }
+  const std::vector<std::size_t> walked = resident(file);
+
+  ASSERT_TRUE(evict(file));
+  std::vector<std::size_t> before;
+  MDB_warm_stat st;
+  int rc;
+  {
+    env_guard g;
+    MDB_dbi dbis[3];
+    ASSERT_NO_FATAL_FAILURE(open_env(g, dir.path.string(), true, dbis));
+    before = resident(file);
+    rc = mdb_env_warm_dbis(g.txn, dbis, 3, SIZE_MAX, nullptr, nullptr, &st);
+  }
+  if (rc == ENOSYS)
+    GTEST_SKIP() << "not available in this build";
+  ASSERT_EQ(0, rc);
+  const std::vector<std::size_t> warmed = resident(file);
+
+  EXPECT_EQ(walked, warmed);
+  EXPECT_EQ(st.mw_upper_pages + st.mw_leaf_pages, count_new(warmed, before));
+  EXPECT_EQ(0u, st.mw_leaf_skipped);
+  EXPECT_GT(st.mw_leaf_pages, 1000u);
+  EXPECT_GE(st.mw_levels, 3u); // the main-tree leaves, the sub-database roots, and at least one more branch level
+  EXPECT_GT(st.mw_requests, 0u);
+#endif
+}
+
+TEST(lmdb_warm, reads_the_leaves_only_if_all_of_them_fit_in_the_budget)
+{
+#if !defined(__linux__)
+  GTEST_SKIP() << "needs mincore and posix_fadvise";
+#else
+  temp_dir dir;
+  const std::string file = dir.data_file();
+  ASSERT_NO_FATAL_FAILURE(make_db(dir.path.string()));
+  if (!lmdb_page_is_os_page(dir.path.string()) || !evict(file))
+    GTEST_SKIP() << "cannot count the environment's pages in the page cache here";
+  const std::size_t psize = sysconf(_SC_PAGESIZE);
+
+  MDB_warm_stat full;
+  int rc;
+  ASSERT_NO_FATAL_FAILURE(warm(dir.path.string(), SIZE_MAX, full, rc));
+  if (rc == ENOSYS)
+    GTEST_SKIP() << "not available in this build";
+  ASSERT_EQ(0, rc);
+  const std::vector<std::size_t> all = resident(file);
+
+  // One byte short of the leaves: only the levels above them
+  ASSERT_TRUE(evict(file));
+  std::vector<std::size_t> before;
+  MDB_warm_stat st;
+  {
+    env_guard g;
+    MDB_dbi dbis[3];
+    ASSERT_NO_FATAL_FAILURE(open_env(g, dir.path.string(), true, dbis));
+    before = resident(file);
+    ASSERT_EQ(0, mdb_env_warm_dbis(g.txn, dbis, 3, full.mw_leaf_pages * psize - 1, nullptr, nullptr, &st));
+  }
+  const std::vector<std::size_t> upper = resident(file);
+  EXPECT_EQ(full.mw_upper_pages, st.mw_upper_pages);
+  EXPECT_EQ(full.mw_levels, st.mw_levels);
+  EXPECT_EQ(0u, st.mw_leaf_pages);
+  EXPECT_EQ(full.mw_leaf_pages, st.mw_leaf_skipped);
+  EXPECT_EQ(st.mw_upper_pages, count_new(upper, before));
+  EXPECT_TRUE(std::includes(all.begin(), all.end(), upper.begin(), upper.end()));
+  EXPECT_EQ(full.mw_leaf_pages, all.size() - upper.size());
+
+  // Exactly the leaves: all of them
+  ASSERT_TRUE(evict(file));
+  ASSERT_NO_FATAL_FAILURE(warm(dir.path.string(), full.mw_leaf_pages * psize, st, rc));
+  ASSERT_EQ(0, rc);
+  EXPECT_EQ(full.mw_leaf_pages, st.mw_leaf_pages);
+  EXPECT_EQ(0u, st.mw_leaf_skipped);
+  EXPECT_EQ(all, resident(file));
+#endif
+}
+
+TEST(lmdb_warm, checks_its_arguments)
+{
+  temp_dir dir;
+  ASSERT_NO_FATAL_FAILURE(make_db(dir.path.string()));
+  MDB_warm_stat st;
+
+  env_guard g;
+  MDB_dbi dbis[3];
+  ASSERT_NO_FATAL_FAILURE(open_env(g, dir.path.string(), false, dbis));
+  MDB_dbi empty;
+  ASSERT_EQ(0, mdb_dbi_open(g.txn, "empty", MDB_INTEGERKEY | MDB_CREATE | MDB_DUPSORT | MDB_DUPFIXED, &empty));
+  const int write_rc = mdb_env_warm_dbis(g.txn, dbis, 3, SIZE_MAX, nullptr, nullptr, &st);
+  if (write_rc == ENOSYS)
+    GTEST_SKIP() << "not available in this build";
+  EXPECT_EQ(EINVAL, write_rc); // a write transaction
+  ASSERT_EQ(0, mdb_txn_commit(g.txn));
+  g.txn = nullptr;
+
+  ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, MDB_RDONLY, &g.txn));
+  const MDB_dbi bad = 7;
+  EXPECT_EQ(EINVAL, mdb_env_warm_dbis(g.txn, &bad, 1, SIZE_MAX, nullptr, nullptr, &st));
+  EXPECT_EQ(EINVAL, mdb_env_warm_dbis(g.txn, dbis, 3, SIZE_MAX, nullptr, nullptr, nullptr));
+  EXPECT_EQ(EINVAL, mdb_env_warm_dbis(g.txn, nullptr, 3, SIZE_MAX, nullptr, nullptr, &st));
+  EXPECT_EQ(EINVAL, mdb_env_warm_dbis(nullptr, dbis, 3, SIZE_MAX, nullptr, nullptr, &st));
+
+  // An empty table and an empty list read nothing
+  EXPECT_EQ(0, mdb_env_warm_dbis(g.txn, &empty, 1, SIZE_MAX, nullptr, nullptr, &st));
+  EXPECT_EQ(0u, st.mw_upper_pages + st.mw_leaf_pages + st.mw_leaf_skipped + st.mw_levels);
+  EXPECT_EQ(0, mdb_env_warm_dbis(g.txn, nullptr, 0, SIZE_MAX, nullptr, nullptr, &st));
+  EXPECT_EQ(0u, st.mw_upper_pages + st.mw_leaf_pages + st.mw_leaf_skipped + st.mw_levels);
+
+  // Without leaves in the budget, still the levels above them
+  EXPECT_EQ(0, mdb_env_warm_dbis(g.txn, dbis, 3, 0, nullptr, nullptr, &st));
+  EXPECT_GT(st.mw_upper_pages, 6u);
+  EXPECT_EQ(0u, st.mw_leaf_pages);
+  EXPECT_GT(st.mw_leaf_skipped, 1000u);
+  EXPECT_EQ(0u, st.mw_stopped);
+}
+
+TEST(lmdb_warm, stops_when_its_stop_function_says_so)
+{
+  temp_dir dir;
+  ASSERT_NO_FATAL_FAILURE(make_db(dir.path.string()));
+  MDB_warm_stat full, st;
+  int rc;
+  ASSERT_NO_FATAL_FAILURE(warm(dir.path.string(), SIZE_MAX, full, rc));
+  if (rc == ENOSYS)
+    GTEST_SKIP() << "not available in this build";
+  ASSERT_EQ(0, rc);
+  EXPECT_EQ(0u, full.mw_stopped);
+
+  // A stop function that never stops changes nothing. It is asked once before each read-ahead request
+  // and once before each page.
+  stop_counter never;
+  ASSERT_NO_FATAL_FAILURE(warm(dir.path.string(), SIZE_MAX, st, rc, &stop_counter::stop, &never));
+  ASSERT_EQ(0, rc);
+  EXPECT_EQ(0u, st.mw_stopped);
+  EXPECT_EQ(full.mw_upper_pages, st.mw_upper_pages);
+  EXPECT_EQ(full.mw_leaf_pages, st.mw_leaf_pages);
+  EXPECT_EQ(full.mw_levels, st.mw_levels);
+  EXPECT_EQ(full.mw_requests, st.mw_requests);
+#if !defined(_WIN32)
+  EXPECT_EQ(full.mw_requests + full.mw_upper_pages + full.mw_leaf_pages, never.calls);
+#endif
+
+  // Stopping at once: nothing is requested or read, and it is not an error
+  stop_counter at_once;
+  at_once.stop_after = 0;
+  ASSERT_NO_FATAL_FAILURE(warm(dir.path.string(), SIZE_MAX, st, rc, &stop_counter::stop, &at_once));
+  EXPECT_EQ(0, rc);
+  EXPECT_EQ(1u, st.mw_stopped);
+  EXPECT_EQ(1u, at_once.calls);
+  EXPECT_EQ(0u, st.mw_requests + st.mw_upper_pages + st.mw_leaf_pages + st.mw_levels);
+
+  // Stopping partway: it stops at the first call that says so, with part of the pages read and no error
+  const auto stop_after = [&](std::size_t after, MDB_warm_stat &out)
+  {
+    stop_counter partway;
+    partway.stop_after = after;
+    ASSERT_NO_FATAL_FAILURE(warm(dir.path.string(), SIZE_MAX, out, rc, &stop_counter::stop, &partway));
+    EXPECT_EQ(0, rc);
+    EXPECT_EQ(1u, out.mw_stopped);
+    EXPECT_EQ(after + 1, partway.calls);
+    EXPECT_GT(out.mw_upper_pages + out.mw_leaf_pages, 0u);
+    EXPECT_LT(out.mw_upper_pages + out.mw_leaf_pages, full.mw_upper_pages + full.mw_leaf_pages);
+    EXPECT_EQ(0u, out.mw_leaf_skipped);
+  };
+  // Among the levels above the leaves: those levels make more calls than they have pages (a request
+  // and a page each, at least one level), and the first level's requests come before its pages
+  ASSERT_NO_FATAL_FAILURE(stop_after(full.mw_upper_pages, st));
+  EXPECT_EQ(0u, st.mw_leaf_pages);
+  // In the leaves, which make most of the calls
+  ASSERT_NO_FATAL_FAILURE(stop_after(never.calls / 2, st));
+  EXPECT_EQ(full.mw_upper_pages, st.mw_upper_pages);
+  EXPECT_GT(st.mw_leaf_pages, 0u);
+  // Before the last page
+  ASSERT_NO_FATAL_FAILURE(stop_after(never.calls - 1, st));
+  EXPECT_EQ(full.mw_upper_pages + full.mw_leaf_pages - 1, st.mw_upper_pages + st.mw_leaf_pages);
+}
+
+TEST(lmdb_warm, requests_at_most_64_pages_ahead_of_reading)
+{
+#if !defined(__linux__)
+  GTEST_SKIP() << "needs mincore and posix_fadvise";
+#else
+  // The read-ahead runs at most 64 pages ahead of the page being read, so that the warm-up never fills
+  // the disk's queue. Stopped halfway through the leaves, with what it had requested given time to
+  // arrive, the pages in the cache beyond those it read are at most 64, plus the longest run of
+  // adjacent pages (one request covers a whole run). Requesting a whole level at once, as monerodato.5
+  // did, leaves about half the leaves there.
+  temp_dir dir;
+  const std::string file = dir.data_file();
+  ASSERT_NO_FATAL_FAILURE(make_db(dir.path.string()));
+  if (!lmdb_page_is_os_page(dir.path.string()) || !evict(file))
+    GTEST_SKIP() << "cannot count the environment's pages in the page cache here";
+  MDB_warm_stat full, st;
+  int rc;
+  stop_counter never;
+  ASSERT_NO_FATAL_FAILURE(warm(dir.path.string(), SIZE_MAX, full, rc, &stop_counter::stop, &never));
+  if (rc == ENOSYS)
+    GTEST_SKIP() << "not available in this build";
+  ASSERT_EQ(0, rc);
+  ASSERT_GT(full.mw_leaf_pages, 1000u);
+  const std::vector<std::size_t> all = resident(file);
+  std::size_t longest = 0, run = 0;
+  for (std::size_t i = 0; i < all.size(); ++i)
+  {
+    run = (i > 0 && all[i] == all[i - 1] + 1) ? run + 1 : 1;
+    longest = std::max(longest, run);
+  }
+
+  ASSERT_TRUE(evict(file));
+  stop_counter half;
+  half.stop_after = never.calls / 2;
+  env_guard g;
+  MDB_dbi dbis[3];
+  ASSERT_NO_FATAL_FAILURE(open_env(g, dir.path.string(), true, dbis));
+  const std::size_t before = resident(file).size();
+  ASSERT_EQ(0, mdb_env_warm_dbis(g.txn, dbis, 3, SIZE_MAX, &stop_counter::stop, &half, &st));
+  ASSERT_EQ(1u, st.mw_stopped);
+  ASSERT_EQ(full.mw_upper_pages, st.mw_upper_pages);
+  ASSERT_GT(st.mw_leaf_pages, 0u);
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  const std::size_t now = resident(file).size(), read = st.mw_upper_pages + st.mw_leaf_pages;
+  const std::size_t ahead = now > before + read ? now - before - read : 0;
+  EXPECT_LE(ahead, 64 + longest) << "resident before " << before << ", after " << now << ", read " << read
+    << ", longest run " << longest << ", leaves " << full.mw_leaf_pages;
+#endif
+}
