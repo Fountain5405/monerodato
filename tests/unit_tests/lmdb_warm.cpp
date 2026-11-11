@@ -36,6 +36,8 @@
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
+#include <iostream>
 #include <random>
 #include <string>
 #include <thread>
@@ -44,6 +46,7 @@
 #include <boost/filesystem.hpp>
 
 #include <lmdb.h>
+#include "blockchain_db/lmdb/db_lmdb.h"
 
 #if defined(__linux__)
 #include <fcntl.h>
@@ -465,4 +468,66 @@ TEST(lmdb_warm, requests_at_most_64_pages_ahead_of_reading)
   EXPECT_LE(ahead, 64 + longest) << "resident before " << before << ", after " << now << ", read " << read
     << ", longest run " << longest << ", leaves " << full.mw_leaf_pages;
 #endif
+}
+
+namespace
+{
+  // A batch estimated at 7.65 times this many bytes, more than a new database's map has free: starting
+  // it makes BlockchainLMDB resize the map first
+  constexpr uint64_t RESIZING_BATCH_BYTES = uint64_t(256) << 20;
+
+  double seconds_since(std::chrono::steady_clock::time_point start)
+  {
+    return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+  }
+}
+
+TEST(lmdb_warm, background_warm_up_gives_way_to_close_and_resize)
+{
+  // On a new database the warm-up has little to read, so these runs race its thread's start and end
+  // against close() and a resize. Neither may hang or crash, and the database stays usable.
+  temp_dir dir;
+  for (int i = 0; i < 20; ++i)
+  {
+    cryptonote::BlockchainLMDB db;
+    ASSERT_NO_THROW(db.open(dir.path.string()));
+    db.warm_indexes();
+    if (i % 2)
+    {
+      ASSERT_TRUE(db.batch_start(1, RESIZING_BATCH_BYTES));
+      db.batch_abort();
+      db.warm_indexes();
+    }
+    ASSERT_NO_THROW(db.close());
+  }
+}
+
+TEST(lmdb_warm, background_warm_up_in_progress_gives_way_to_close_and_resize)
+{
+  // Needs a database whose warm-up takes a while: MONERODATO_WARM_DB names a copy of a monerod data
+  // directory's lmdb folder (opened for writing, though nothing is committed), with data.mdb out of the
+  // page cache and reads slowed, for example by a cgroup io.max of 15 MB/s. Two seconds into a warm-up,
+  // a resize and then close() must each return in a few seconds, not when the warm-up ends.
+  const char *path = std::getenv("MONERODATO_WARM_DB");
+  if (!path || !*path)
+    GTEST_SKIP() << "MONERODATO_WARM_DB not set";
+  cryptonote::BlockchainLMDB db;
+  ASSERT_NO_THROW(db.open(path));
+
+  db.warm_indexes();
+  std::this_thread::sleep_for(std::chrono::seconds(2));
+  auto start = std::chrono::steady_clock::now();
+  ASSERT_TRUE(db.batch_start(1, uint64_t(4) << 30)); // estimated at 33 GB, beyond any map's free space
+  const double resize_s = seconds_since(start);
+  db.batch_abort();
+
+  db.warm_indexes();
+  std::this_thread::sleep_for(std::chrono::seconds(2));
+  start = std::chrono::steady_clock::now();
+  ASSERT_NO_THROW(db.close());
+  const double close_s = seconds_since(start);
+
+  std::cout << "resize during the warm-up took " << resize_s << " s, close " << close_s << " s" << std::endl;
+  EXPECT_LT(resize_s, 5.0);
+  EXPECT_LT(close_s, 5.0);
 }
