@@ -137,6 +137,40 @@ alternating rounds. The verification code has not changed since that build:
 - With only the folded verification (working build monerodato.0), small-transaction blocks synced 7.9% slower than the reference build, because the folded verification rebuilds the circuits. With only the thread cap and the trim, the figure was +0.2%.
 - With the merged batch verifiers as well (monerodato.1 and later), small-transaction blocks take 4.0% longer than the reference build at 12 threads, and 7.4% less time at 24 threads.
 
+## CPU time
+
+Measured, not human-verified. "Wall" is elapsed time and "CPU" is processor time summed over all threads, for the
+node verifying a stretch of the stressnet chain: either small-transaction blocks, or the heavy blocks
+3,105,401–3,105,444 with their 128-input proofs.
+
+**The working build monerodato.1 against the reference build,** on a 12-core, 16 GB machine. The verification code
+has not changed since that build:
+
+| Threads | Heavy blocks, wall | Small-transaction blocks, wall |
+|---|---|---|
+| 24 | −56% | −7.4% |
+| 12 | −51% | +4.0% |
+
+**Each change by itself,** against the build just before it. The machines and baselines differ from row to row, so
+the percentages do not add up:
+
+| Change | Measured on | Small-transaction blocks | Heavy blocks |
+|---|---|---|---|
+| Field25519 as four 64-bit limbs, as the only change to the reference build | 6-core Ryzen 5 5600G | wall −15.3%, CPU −19.4% | wall −6.5%, CPU −7.3% |
+| Many-input proofs verified on at most one thread per physical core, 24 threads | 12-core Ryzen 9 3900X | not affected: the cap applies to proofs of 8 or more inputs | wall −9% |
+| Circuits built twice per proof instead of three times, against the folded verification before it | 12-core Ryzen 9 3900X | not measured | wall −12%, CPU −13% |
+| One multiexp per curve per call, 12 threads | 6-core Ryzen 5 5600G | wall −5.6%, CPU −36.1% | wall −7.2%, CPU −6.3% |
+| The same, 4 threads | 6-core Ryzen 5 5600G | wall 0.0%, CPU −9.2% | wall −5.5%, CPU −6.8% |
+
+- **The field arithmetic alone:** multiplication 1.98 times as fast, squaring 2.16 and inversion 2.63, on one core of
+  the 5600G; verifying one proof took 22.4–24.2% less time at 1 to 16 inputs.
+- **Why it matters most on old CPUs:** before the change, the generic field arithmetic was about 49% of the node's
+  CPU time on the heavy blocks on a Core 2 Quad Q6600.
+- **One change costs CPU:** the folded verification, which saves the most memory, rebuilds the circuits. Its cost
+  and what the later commits win back are under [Memory](#memory), "The cost".
+- **The merge gains more with more threads:** a call's proofs form one batch per thread, and the merge removes the
+  generator terms that every batch but one repeated.
+
 ## The wallet
 
 Measured, not human-verified. Both changes are in the wallet's FCMP++ prover; the proofs it produces are byte for
@@ -170,7 +204,7 @@ cache in file order, in a background thread, if they fit in 60% of the machine's
 - **RPC and P2P do not wait for it:** in the background, RPC answered about 30 s after launch on that disk.
 - **Not settled:** the budget is 60% of memory with no absolute cap, and the tables' size on mainnet was not measured.
 
-**Sources for all three sections:** the commit messages behind these figures are in [patches/](patches/), and
+**Sources for all four sections:** the commit messages behind these figures are in [patches/](patches/), and
 [MONERODATO.md](https://github.com/Fountain5405/monerodato/blob/monerodato-v0/MONERODATO.md) gives the full tables
 with their ranges and methods. The reports are listed in [VERIFICATION.md](VERIFICATION.md).
 
