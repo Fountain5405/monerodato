@@ -33,6 +33,13 @@
 #include <boost/circular_buffer.hpp>
 #include <memory>  // std::unique_ptr
 #include <cstring>  // memcpy
+#include <chrono>
+#include <cstdio>
+#include <fstream>
+#include <limits>
+#ifndef WIN32
+#include <unistd.h>  // sysconf
+#endif
 
 #ifdef WIN32
 #include <winioctl.h>
@@ -588,6 +595,10 @@ void BlockchainLMDB::do_resize(uint64_t increase_size)
   const uint64_t remainder = new_mapsize % mst.ms_psize;
   if (remainder)
     new_mapsize += mst.ms_psize - remainder;
+
+  // The index warm-up holds a read transaction while it runs, which the resize would wait for, with new
+  // transactions held up meanwhile: stop it first. Before prevent_new_txns(), which it could be waiting on
+  stop_warm_indexes();
 
   mdb_txn_safe::prevent_new_txns();
 
@@ -2893,6 +2904,8 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
 void BlockchainLMDB::close()
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  // The warm-up reads through the map, which is about to go
+  stop_warm_indexes();
   if (m_batch_active)
   {
     LOG_PRINT_L3("close() first calling batch_abort() due to active batch transaction");
@@ -2926,6 +2939,158 @@ void BlockchainLMDB::safesyncmode(const bool onoff)
 {
   MINFO("switching safe mode " << (onoff ? "on" : "off"));
   mdb_env_set_flags(m_env, MDB_NOSYNC|MDB_MAPASYNC, !onoff);
+}
+
+namespace
+{
+  // The memory this process may use, in bytes: the physical memory, lowered by a cgroup memory limit
+  // (v2: this process's group and each group above it; v1: its memory group). 0 if unknown.
+  uint64_t effective_memory_bytes()
+  {
+    uint64_t bytes = 0;
+#if defined(WIN32)
+    MEMORYSTATUSEX status;
+    status.dwLength = sizeof(status);
+    if (GlobalMemoryStatusEx(&status))
+      bytes = status.ullTotalPhys;
+#elif defined(_SC_PHYS_PAGES) && defined(_SC_PAGESIZE)
+    const long pages = sysconf(_SC_PHYS_PAGES);
+    const long page_size = sysconf(_SC_PAGESIZE);
+    if (pages > 0 && page_size > 0)
+      bytes = uint64_t(pages) * uint64_t(page_size);
+#endif
+#if defined(__linux__)
+    // A file holding a number lowers the value; "max", a missing file or no limit does not
+    const auto lower_to = [&bytes](const std::string &file)
+    {
+      std::ifstream in(file);
+      uint64_t limit = 0;
+      if ((in >> limit) && limit > 0 && (bytes == 0 || limit < bytes))
+        bytes = limit;
+    };
+    std::ifstream groups("/proc/self/cgroup");
+    std::string line;
+    while (std::getline(groups, line))
+    {
+      if (line.compare(0, 3, "0::") == 0)
+      {
+        std::string group = line.substr(3);
+        while (true)
+        {
+          lower_to("/sys/fs/cgroup" + (group == "/" ? std::string() : group) + "/memory.max");
+          const size_t slash = group.find_last_of('/');
+          if (group.empty() || group == "/" || slash == std::string::npos)
+            break;
+          group = slash == 0 ? std::string("/") : group.substr(0, slash);
+        }
+        continue;
+      }
+      const size_t first = line.find(':');
+      const size_t second = first == std::string::npos ? std::string::npos : line.find(':', first + 1);
+      if (second == std::string::npos)
+        continue;
+      const std::string controllers = "," + line.substr(first + 1, second - first - 1) + ",";
+      if (controllers.find(",memory,") == std::string::npos)
+        continue;
+      const std::string group = line.substr(second + 1);
+      lower_to("/sys/fs/cgroup/memory" + (group == "/" ? std::string() : group) + "/memory.limit_in_bytes");
+      lower_to("/sys/fs/cgroup/memory/memory.limit_in_bytes");
+    }
+#endif
+    return bytes;
+  }
+}
+
+void BlockchainLMDB::warm_indexes()
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  // Every block's sync looks up spent key images, transaction hashes and block hashes in these three
+  // tables, at random places. On a spinning disk each lookup that misses the page cache costs a seek.
+  // Reading the tables' pages first, one tree level at a time in file order, is far faster than the
+  // same pages read at random. The levels above the leaves are always read (about 2% of the pages);
+  // the leaves only if all of them fit in 60% of the memory.
+  // The reading runs in its own thread, so that P2P, RPC and the sync start without waiting for it.
+  // It holds a read transaction while it runs: close() and a resize stop it first.
+  boost::lock_guard<boost::mutex> lock(m_warm_lock);
+  if (m_warm_thread.joinable())
+    return;
+  try
+  {
+    check_open();
+    m_warm_stop = false;
+    MGINFO("Index warm-up: reading the spent key, transaction and block hash indexes in the background");
+    m_warm_thread = boost::thread(&BlockchainLMDB::warm_indexes_run, this);
+  }
+  catch (const std::exception &e)
+  {
+    MWARNING("Index warm-up failed to start: " << e.what() << ". Continuing without it");
+  }
+}
+
+int BlockchainLMDB::warm_indexes_stop(void *ctx)
+{
+  return static_cast<const BlockchainLMDB *>(ctx)->m_warm_stop.load(std::memory_order_relaxed) ? 1 : 0;
+}
+
+void BlockchainLMDB::stop_warm_indexes()
+{
+  boost::lock_guard<boost::mutex> lock(m_warm_lock);
+  if (!m_warm_thread.joinable())
+    return;
+  m_warm_stop = true;
+  m_warm_thread.join();
+}
+
+void BlockchainLMDB::warm_indexes_run()
+{
+  try
+  {
+    if (m_warm_stop)
+      return;
+    const uint64_t memory = effective_memory_bytes();
+    const uint64_t budget = memory / 10 * 6;
+    const size_t max_leaf_bytes = budget > std::numeric_limits<size_t>::max() ? std::numeric_limits<size_t>::max() : size_t(budget);
+    const MDB_dbi dbis[] = {m_spent_keys, m_tx_indices, m_block_heights};
+    MDB_warm_stat st;
+    int result;
+    const auto start = std::chrono::steady_clock::now();
+    {
+      TXN_PREFIX_RDONLY();
+      result = mdb_env_warm_dbis(m_txn, dbis, sizeof(dbis) / sizeof(dbis[0]), max_leaf_bytes, &BlockchainLMDB::warm_indexes_stop, this, &st);
+      TXN_POSTFIX_RDONLY();
+    }
+    char seconds[32];
+    snprintf(seconds, sizeof(seconds), "%.1f", std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
+    if (result)
+    {
+      MWARNING("Index warm-up stopped after " << seconds << " s: " << mdb_strerror(result) << ". Continuing without it");
+      return;
+    }
+    MDB_stat ms;
+    if (mdb_env_stat(m_env, &ms))
+      ms.ms_psize = 4096;
+    const auto mb = [&ms](size_t pages) { return uint64_t(pages) * ms.ms_psize / 1000000; };
+    if (st.mw_stopped)
+      MGINFO("Index warm-up stopped early, for a database resize or close, after " << seconds << " s: it had read "
+        << st.mw_upper_pages + st.mw_leaf_pages << " pages (" << mb(st.mw_upper_pages + st.mw_leaf_pages) << " MB)");
+    else if (st.mw_leaf_skipped)
+      MGINFO("Index warm-up: read the upper levels of the spent key, transaction and block hash indexes, "
+        << st.mw_upper_pages << " pages (" << mb(st.mw_upper_pages) << " MB), in " << seconds << " s. Their "
+        << st.mw_leaf_skipped << " leaf pages (" << mb(st.mw_leaf_skipped) << " MB) were not read: "
+        << (memory ? "more than 60% of the " + std::to_string(memory / 1000000) + " MB of memory" : std::string("the memory size is unknown")));
+    else
+      MGINFO("Index warm-up: read the spent key, transaction and block hash indexes, "
+        << st.mw_upper_pages + st.mw_leaf_pages << " pages (" << mb(st.mw_upper_pages + st.mw_leaf_pages) << " MB), in "
+        << seconds << " s");
+  }
+  catch (const std::exception &e)
+  {
+    MWARNING("Index warm-up failed: " << e.what() << ". Continuing without it");
+  }
+  catch (...)
+  {
+    MWARNING("Index warm-up failed. Continuing without it");
+  }
 }
 
 void BlockchainLMDB::reset()

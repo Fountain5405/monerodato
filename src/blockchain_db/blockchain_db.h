@@ -732,6 +732,15 @@ public:
   virtual void safesyncmode(const bool onoff) = 0;
 
   /**
+   * @brief start reading the hash indexes into the page cache, in the background, ahead of a sync
+   *
+   * Called once, at the end of core::init. It returns at once: the reading runs in its own thread
+   * while P2P, RPC and the sync start. It only reads, and a failure is logged and otherwise ignored.
+   * An implementation stops it before closing or resizing the DB. The default does nothing.
+   */
+  virtual void warm_indexes() {}
+
+  /**
    * @brief Remove everything from the BlockchainDB
    *
    * This function should completely remove all data from a BlockchainDB.

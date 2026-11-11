@@ -33,6 +33,8 @@
 #include "fcmp_pp/curve_trees.h"
 #include "ringct/rctTypes.h"
 #include <boost/thread/tss.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/thread.hpp>
 
 #include <lmdb.h>
 
@@ -215,6 +217,8 @@ public:
 
   void safesyncmode(const bool onoff) override;
 
+  void warm_indexes() override;
+
   void reset() override;
 
   std::vector<std::string> get_filenames() const override;
@@ -394,6 +398,11 @@ public:
 
 private:
   void do_resize(uint64_t size_increase=0);
+
+  // The index warm-up's thread: its body, and stopping it (asks it to stop, then waits for it)
+  void warm_indexes_run();
+  void stop_warm_indexes();
+  static int warm_indexes_stop(void *ctx);
 
   bool need_resize(uint64_t threshold_size=0) const;
   void check_and_resize_for_batch(uint64_t batch_num_blocks, uint64_t batch_bytes);
@@ -580,6 +589,10 @@ private:
 
   mdb_txn_cursors m_wcursors;
   mutable boost::thread_specific_ptr<mdb_threadinfo> m_tinfo;
+
+  boost::thread m_warm_thread; // the index warm-up, while it runs or until it is joined
+  boost::mutex m_warm_lock; // guards m_warm_thread
+  std::atomic<bool> m_warm_stop{false}; // asks the warm-up to stop
 
 #if defined(__arm__)
   // force a value so it can compile with 32-bit ARM
