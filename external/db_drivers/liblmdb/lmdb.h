@@ -497,6 +497,25 @@ typedef struct MDB_stat {
 	mdb_size_t		ms_entries;			/**< Number of data items */
 } MDB_stat;
 
+/** @brief Counts from #mdb_env_warm_dbis() */
+typedef struct MDB_warm_stat {
+	size_t			mw_upper_pages;		/**< Pages read above the leaves: the branch pages, and the
+											main-tree leaves of #MDB_DUPSORT databases, which hold
+											the roots of their sub-databases */
+	size_t			mw_leaf_pages;		/**< Leaf pages read */
+	size_t			mw_leaf_skipped;	/**< Leaf pages not read, because they did not fit in the budget */
+	size_t			mw_requests;		/**< Read-ahead requests made to the operating system */
+	unsigned int	mw_levels;			/**< Levels read above the leaves */
+	unsigned int	mw_stopped;			/**< Non-zero if the \b stop function ended the reading early */
+} MDB_warm_stat;
+
+/** @brief A function that #mdb_env_warm_dbis() calls to ask whether it should stop.
+ *
+ * @param[in] ctx The \b ctx given to #mdb_env_warm_dbis()
+ * @return Non-zero to stop reading
+ */
+typedef int (MDB_warm_stop_func)(void *ctx);
+
 /** @brief Information about the environment */
 typedef struct MDB_envinfo {
 	void	*me_mapaddr;			/**< Address of map, if fixed */
@@ -1185,6 +1204,38 @@ int  mdb_dbi_open(MDB_txn *txn, const char *name, unsigned int flags, MDB_dbi *d
 	 * </ul>
 	 */
 int  mdb_stat(MDB_txn *txn, MDB_dbi dbi, MDB_stat *stat);
+
+	/** @brief Read the pages of some databases into the operating system's page cache.
+	 *
+	 * Added in monerodato. It reads the B-trees of the given databases, and the sub-databases of
+	 * #MDB_DUPSORT databases, one level at a time across all of them. Each level's pages are sorted
+	 * by page number and requested from the operating system a little ahead of being read (at most
+	 * 64 pages ahead), so that a spinning disk reads them in file order without the warm-up filling
+	 * its queue: other readers of the disk wait behind at most those requests.
+	 * The leaf pages come last, and are read only if all of them fit in \b max_leaf_bytes;
+	 * otherwise only the levels above them are read. Overflow pages are not read.
+	 * It only reads: nothing in the environment changes.
+	 * It can run in its own thread while other threads use the environment, and can be stopped early
+	 * through \b stop: the transaction must then stay open until it returns.
+	 * @param[in] txn A read-only transaction handle returned by #mdb_txn_begin()
+	 * @param[in] dbis The database handles, returned by #mdb_dbi_open()
+	 * @param[in] n The number of handles in \b dbis
+	 * @param[in] max_leaf_bytes The most leaf data to read, in bytes
+	 * @param[in] stop NULL, or a function called before each read-ahead request and each page read.
+	 * When it returns non-zero, reading stops: \b mw_stopped is set in \b stat and 0 is returned.
+	 * @param[in] ctx Passed to \b stop
+	 * @param[out] stat The address of an #MDB_warm_stat structure where the counts will be copied
+	 * @return A non-zero error value on failure and 0 on success. Some possible
+	 * errors are:
+	 * <ul>
+	 *	<li>EINVAL - an invalid parameter was specified, or \b txn is not read-only.
+	 *	<li>ENOSYS - not available in builds with MDB_VL32.
+	 *	<li>ENOMEM - out of memory.
+	 *	<li>#MDB_PAGE_NOTFOUND, #MDB_CORRUPTED - a page is outside the file or not of the expected kind.
+	 * </ul>
+	 */
+int  mdb_env_warm_dbis(MDB_txn *txn, const MDB_dbi *dbis, unsigned int n, size_t max_leaf_bytes,
+	MDB_warm_stop_func *stop, void *ctx, MDB_warm_stat *stat);
 
 	/** @brief Retrieve the DB flags for a database handle.
 	 *
