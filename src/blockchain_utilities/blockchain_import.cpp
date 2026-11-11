@@ -27,6 +27,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <atomic>
+#include "common/monerodato_guards.h"
 #include <cstdio>
 #include <algorithm>
 #include <fstream>
@@ -674,6 +675,9 @@ int main(int argc, char* argv[])
     }
   }
 
+  // monerodato (fork-only): see common/monerodato_guards.h
+  monerodato::enforce_network(cryptonote::core::get_network_type_from_args(vm), monerodato::program::utility,
+    "monero-blockchain-import");
   m_config_folder = command_line::get_arg(vm, cryptonote::arg_data_dir);
 
   mlog_configure(mlog_get_default_log_path("monero-blockchain-import.log"), true);

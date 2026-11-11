@@ -32,6 +32,7 @@
 #include <boost/format.hpp>
 #include "common/i18n.h"
 #include "common/util.h"
+#include "common/monerodato_guards.h"
 #include "misc_log_ex.h"
 #include "string_tools.h"
 #include "version.h"
@@ -181,6 +182,17 @@ namespace wallet_args
 
     if (should_terminate)
       return {std::move(vm), should_terminate};
+
+    // monerodato (fork-only): wallets start only on the FCMP++ stressnet (--testnet), before any file is written.
+    // What is allowed is set in common/monerodato_guards.h; read the note there before changing anything.
+    {
+      const auto flag = [&vm](const char *name) {
+        const auto it = vm.find(name);
+        return it != vm.end() && !it->second.empty() && it->second.as<bool>();
+      };
+      monerodato::enforce_network(flag("testnet") ? cryptonote::TESTNET : flag("stagenet") ? cryptonote::STAGENET : cryptonote::MAINNET,
+        monerodato::program::wallet, "this wallet program");
+    }
 
     std::string log_path;
     if (!command_line::is_arg_defaulted(vm, arg_log_file))

@@ -27,6 +27,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <array>
+#include "common/monerodato_guards.h"
 #include <lmdb.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/system/error_code.hpp>
@@ -576,6 +577,9 @@ int main(int argc, char* argv[])
     return 1;
   }
 
+  // monerodato (fork-only): see common/monerodato_guards.h. Before the log file, the data dir and the database.
+  monerodato::enforce_network(cryptonote::core::get_network_type_from_args(vm), monerodato::program::utility,
+    "monero-blockchain-prune");
   mlog_configure(mlog_get_default_log_path("monero-blockchain-prune.log"), true);
   if (!command_line::is_arg_defaulted(vm, arg_log_level))
     mlog_set_log(command_line::get_arg(vm, arg_log_level).c_str());

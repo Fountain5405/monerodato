@@ -27,6 +27,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <boost/algorithm/string.hpp>
+#include "common/monerodato_guards.h"
 #include <boost/filesystem.hpp>
 #include "common/command_line.h"
 #include "serialization/crypto.h"
@@ -140,6 +141,9 @@ int main(int argc, char* argv[])
     return 1;
   }
 
+  // monerodato (fork-only): see common/monerodato_guards.h. Before the log file, the data dir and the database.
+  monerodato::enforce_network(cryptonote::core::get_network_type_from_args(vm), monerodato::program::utility,
+    "monero-blockchain-prune-known-spent-data");
   mlog_configure(mlog_get_default_log_path("monero-blockchain-prune-known-spent-data.log"), true);
   if (!command_line::is_arg_defaulted(vm, arg_log_level))
     mlog_set_log(command_line::get_arg(vm, arg_log_level).c_str());
