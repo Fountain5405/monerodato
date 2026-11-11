@@ -54,6 +54,7 @@ Tag `v0.19.0.0-beta.3.1-monerodato.7`, commit `f3c4ea5d9`. No binaries are publi
 | The allowed path against .6: wallet creation and refresh | optimizer | 300 blocks received by both; 0 ERROR lines | [parity](evidence/monerodato.7/parity.txt) |
 | Vendored and patched crates against .6 | optimizer | `vendor/`, the lock files and the licence files identical; 4 test files differ in comment lines only | [checks](evidence/monerodato.7/checks.txt) |
 | Clean build from the tag in a fresh Ubuntu 24.04 container | coordinator | monerod and both wallets build and report `v0.19.0.0-beta.3.1-monerodato.7-release` | this file |
+| The same build from an anonymous clone of this repository, after it was published | coordinator | commit `f3c4ea5d9` checked out; the three programs build in 6 min 46 s in all and report the same version | this file |
 | Scan of that build's three binaries for lab names, addresses and paths | coordinator | no lab name, address or path: the only path is the container's build directory. The adversary accepted this as closing its last gate item, given that no binaries are published. | [clearance](evidence/monerodato.7/adversary-final-clearance.md) |
 | Cold start and a sync of 404 blocks from 3,106,400 on a 5,400 rpm disk (4-vCPU, 4 GB VM), one run | coordinator | RPC answered 23.2 s after launch; top reached after 188.2 s; warm-up 829 MB in 86.0 s, in the background; hash at 3,106,800 equal to the reference node's; 0 ERROR lines | this file |
 

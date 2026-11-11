@@ -200,7 +200,8 @@ build/static/bin/monerod --version
 For the wallets, add their targets: `ninja -C build/static daemon simplewallet wallet_rpc_server`.
 
 **Tested with monerodato.7** on 2026-11-11: these commands with the two wallet targets and `-j4`, in a fresh Ubuntu
-24.04 container with 8 cores and 6 GiB of memory, on the tagged source. The three programs built and reported
+24.04 container with 8 cores and 6 GiB of memory, cloning this repository afresh and without credentials. The three
+programs built in 6 min 46 s in all, package installation included, and reported
 `v0.19.0.0-beta.3.1-monerodato.7-release`.
 
 **Memory and time,** measured on 2026-11-09 with the working build monerodato.2 and the daemon target only, in fresh
