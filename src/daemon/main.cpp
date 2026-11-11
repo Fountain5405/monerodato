@@ -32,6 +32,7 @@
 #include "common/scoped_message_writer.h"
 #include "common/password.h"
 #include "common/util.h"
+#include "common/monerodato_guards.h"
 #include "cryptonote_core/cryptonote_core.h"
 #include "cryptonote_basic/miner.h"
 #include "daemon/command_server.h"
@@ -279,6 +280,10 @@ int main(int argc, char const * argv[])
       std::cerr << "Can't specify more than one of --testnet and --stagenet and --regtest" << ENDL;
       return 1;
     }
+
+    // monerodato (fork-only): the safeguard, before anything is written to disk. What it allows is set in
+    // common/monerodato_guards.h; read the note there before changing anything.
+    monerodato::enforce_network(cryptonote::core::get_network_type_from_args(vm), monerodato::program::daemon, "monerod");
 
     // data_dir
     //   default: e.g. ~/.bitmonero/ or ~/.bitmonero/testnet
