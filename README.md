@@ -279,3 +279,12 @@ Stressnet only. FCMP++ is not on mainnet, and no mainnet binaries will be publis
 
 This is not a Monero project release and is not endorsed by the Monero project. "Monero" and "monerod" name the
 software this is derived from. The code keeps Monero's BSD-3-Clause license; the LICENSE file is on the code branch.
+
+## Here be bugs
+
+Optimising cryptographic code is where consensus bugs and exploits come from. We know that, and it is why this
+fork is for the stressnet only and why every change has to pass the checks in [VERIFICATION.md](VERIFICATION.md).
+
+<p align="center">
+  <img src="docs/mareoptima.jpg" width="100%" alt="An old-style sea chart titled Mare Optimizationum, the ocean of crypto optimizations. Sea monsters in the water are labelled RingCT flaws, bulletproof errors, inflation bugs, transaction proving errors, privacy breaking bugs, integer overflows, reentrancy exploits, faulty privacy schemes and double-spend exploits. Small ships labelled AI scout ships sail between them. The coast at the top is labelled the known lands, proven and audited code; the far shore is labelled the unknown land of hyper-efficient and optimized crypto-code. A banner in the middle reads: Here be deadly crypto bugs.">
+</p>
