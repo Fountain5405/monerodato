@@ -76,6 +76,7 @@ set(unit_tests_sources
   long_term_block_weight.cpp
   lmdb.cpp
   lmdb_cachedrop.cpp
+  lmdb_prefetch.cpp
   lmdb_warm.cpp
   main.cpp
   memwipe.cpp
