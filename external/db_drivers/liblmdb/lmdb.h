@@ -1421,6 +1421,33 @@ int  mdb_set_relctx(MDB_txn *txn, MDB_dbi dbi, void *ctx);
 	 */
 int  mdb_get(MDB_txn *txn, MDB_dbi dbi, MDB_val *key, MDB_val *data);
 
+	/** @brief Ask the OS to read the first page of a value's overflow run.
+	 *
+	 * Looks \b key up and, if its value is stored in overflow pages (a
+	 * value too large for a leaf page), asks the OS to read the first of
+	 * them into the page cache, with madvise(MADV_WILLNEED). The value
+	 * itself is not read, and the call does not wait for the read.
+	 *
+	 * The first page is the one #mdb_del() and #mdb_cursor_del() read to
+	 * free the run. An application that is about to delete many large values
+	 * from a database larger than RAM can call this for each of them first:
+	 * the OS then reads those pages in one batch, ahead of the deletes,
+	 * instead of one at a time as each delete needs its page. A value in a
+	 * leaf page, or in a page this transaction wrote, needs nothing.
+	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
+	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
+	 * @param[in] key The key to look up
+	 * @return A non-zero error value on failure and 0 on success, whether or
+	 * not the value has an overflow run. Some possible errors are:
+	 * <ul>
+	 *	<li>#MDB_NOTFOUND - the key was not in the database.
+	 *	<li>EINVAL - an invalid parameter was specified, or the database
+	 *	was opened with #MDB_DUPSORT (its values are never in overflow pages).
+	 *	<li>ENOSYS - not available on Windows, nor in builds with MDB_VL32.
+	 * </ul>
+	 */
+int  mdb_prefetch_overflow(MDB_txn *txn, MDB_dbi dbi, MDB_val *key);
+
 	/** @brief Store items into a database.
 	 *
 	 * This function stores key/data pairs in the database. The default behavior

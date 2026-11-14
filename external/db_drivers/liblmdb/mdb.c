@@ -7222,6 +7222,43 @@ mdb_get(MDB_txn *txn, MDB_dbi dbi,
 	return rc;
 }
 
+int
+mdb_prefetch_overflow(MDB_txn *txn, MDB_dbi dbi, MDB_val *key)
+{
+#if defined(_WIN32) || defined(MDB_VL32)
+	(void)txn; (void)dbi; (void)key;
+	return ENOSYS;
+#else
+	MDB_cursor	mc;
+	MDB_node	*leaf;
+	MDB_page	*omp;
+	pgno_t		pgno;
+	int exact = 0, lvl, rc;
+
+	if (!key || !TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
+		return EINVAL;
+	if (txn->mt_dbs[dbi].md_flags & MDB_DUPSORT)
+		return EINVAL;
+	if (txn->mt_flags & MDB_TXN_BLOCKED)
+		return MDB_BAD_TXN;
+
+	mdb_cursor_init(&mc, txn, dbi, NULL);
+	/* no data: the leaf is found, its value is not read */
+	if ((rc = mdb_cursor_set(&mc, key, NULL, MDB_SET, &exact)) != MDB_SUCCESS)
+		return rc;
+	leaf = NODEPTR(mc.mc_pg[mc.mc_top], mc.mc_ki[mc.mc_top]);
+	if (!F_ISSET(leaf->mn_flags, F_BIGDATA))
+		return MDB_SUCCESS;
+	memcpy(&pgno, NODEDATA(leaf), sizeof(pgno));
+	/* only a page of the map: a page this transaction wrote is in memory already */
+	if ((rc = mdb_page_get(&mc, pgno, &omp, &lvl)) != MDB_SUCCESS)
+		return rc;
+	if (lvl == 0)
+		madvise(omp, txn->mt_env->me_psize, MADV_WILLNEED);
+	return MDB_SUCCESS;
+#endif
+}
+
 /** Find a sibling for a page.
  * Replaces the page at the top of the cursor's stack with the
  * specified sibling, if one exists.
