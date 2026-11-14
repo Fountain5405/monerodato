@@ -128,6 +128,23 @@ extern int cacheflush(char *addr, int nbytes, int cache);
 #define	BROKEN_FDATASYNC
 #endif
 
+#if defined(__linux__) && !defined(MDB_VL32)
+#include <sys/syscall.h>
+# if defined(__NR_cachestat)
+#  define MDB_NR_CACHESTAT	__NR_cachestat
+# elif defined(__x86_64__) || defined(__i386__) || defined(__aarch64__) || defined(__arm__) || \
+	defined(__riscv) || defined(__powerpc__) || defined(__s390__)
+	/* older kernel headers: cachestat(2) is 451 on these */
+#  define MDB_NR_CACHESTAT	451
+# endif
+# ifdef MDB_NR_CACHESTAT
+/** The cache drop, #mdb_env_set_cachedrop(). It needs cachestat(2), and a
+ *	map of the whole file (not MDB_VL32).
+ */
+#  define MDB_CACHEDROP	1
+# endif
+#endif
+
 #include <errno.h>
 #include <limits.h>
 #include <stddef.h>
@@ -1458,6 +1475,55 @@ typedef struct MDB_pgstate {
 } MDB_pgstate;
 
 	/** The database environment. */
+#ifdef MDB_CACHEDROP
+/** @defgroup cachedrop	Cache drop
+ *	@{
+ *	State of #mdb_env_set_cachedrop(), kept by the write transactions'
+ *	commits and by #mdb_page_alloc(), so it needs no lock of its own.
+ */
+	/** A range of pages waiting in one of the cache drop's queues */
+typedef struct MDB_cdrange {
+	pgno_t		cr_lo;		/**< first page */
+	pgno_t		cr_n;		/**< number of pages */
+	txnid_t		cr_txnid;	/**< the freeing transaction; 0 for a written overflow run */
+	double		cr_time;	/**< when it was queued, in seconds */
+	unsigned int	cr_written;	/**< a written overflow run, not a freed range */
+	unsigned int	cr_tries;	/**< times it was found still dirty */
+} MDB_cdrange;
+
+	/** A FIFO of ranges */
+typedef struct MDB_cdqueue {
+	MDB_cdrange	*cq_r;
+	size_t		cq_head;	/**< index of the oldest range */
+	size_t		cq_n;		/**< number of ranges */
+	size_t		cq_cap;		/**< allocated ranges */
+} MDB_cdqueue;
+
+	/** The free-list DB's overflow runs remembered per transaction */
+#define MDB_CDROP_FDOV	256
+
+typedef struct MDB_cdrop {
+	double		cd_delay;	/**< seconds a range waits for writeback */
+	/** Clean freed ranges, waiting until no reader can see them */
+	MDB_cdqueue	cd_held;
+	/** Dirty freed ranges and written overflow runs, waiting for writeback */
+	MDB_cdqueue	cd_delayed;
+	/** One bit per page: a queued range covers the page */
+	unsigned char	*cd_pend;
+	/** One bit per page: handed out again while a queued range covered it */
+	unsigned char	*cd_reused;
+	size_t		cd_bytes;	/**< size of each bitmap */
+	/** The overflow runs this commit writes: first page, page count */
+	pgno_t		*cd_ov;
+	size_t		cd_ovn, cd_ovcap;
+	/** The free-list DB's overflow runs allocated in this transaction */
+	pgno_t		cd_fdov[2 * MDB_CDROP_FDOV];
+	size_t		cd_fdovn;
+	txnid_t		cd_fdovtxn;	/**< the transaction #cd_fdov belongs to */
+} MDB_cdrop;
+/** @} */
+#endif
+
 struct MDB_env {
 	HANDLE		me_fd;		/**< The main data file */
 	HANDLE		me_lfd;		/**< The lock file */
@@ -1538,6 +1604,9 @@ struct MDB_env {
 #endif
 	void		*me_userctx;	 /**< User-settable context */
 	MDB_assert_func *me_assert_func; /**< Callback for assertion failures */
+#ifdef MDB_CACHEDROP
+	MDB_cdrop	*me_cdrop;	/**< the cache drop's state, or NULL when it is off */
+#endif
 };
 
 	/** Nested transaction */
@@ -2403,6 +2472,385 @@ mdb_page_dirty(MDB_txn *txn, MDB_page *mp)
 	txn->mt_dirty_room--;
 }
 
+#ifdef MDB_CACHEDROP
+/** @addtogroup cachedrop
+ *	@{
+ *
+ *	Without #MDB_WRITEMAP, a commit writes its pages with pwrite(), so the
+ *	OS keeps them in its page cache, and the pages of the map that readers
+ *	touched stay there too. Two kinds of those pages are rarely read again:
+ *	the pages a commit frees (they hold dead copies until LMDB hands them
+ *	out again, and are then overwritten whole), and the overflow pages a
+ *	commit writes, when the application writes large values once and reads
+ *	them rarely. The cache keeps both as long as live pages, and under
+ *	memory pressure they push out the branch and leaf pages that are read.
+ *	The cache drop removes them from the page cache: madvise(MADV_DONTNEED)
+ *	on the map first (posix_fadvise skips pages that are still mapped), then
+ *	posix_fadvise(POSIX_FADV_DONTNEED). Nothing is written and no page
+ *	changes; a page that is read again is read from the file.
+ *
+ *	It never drops a dirty page or one under writeback: fadvise() would
+ *	start its writeback early, and a page whose writeback is under way stays
+ *	cached once it is clean. cachestat(2) (Linux 6.5) tells them apart, so
+ *	the cache drop needs it.
+ *
+ *	- A clean freed range waits in #MDB_cdrop.cd_held until no reader's
+ *	  snapshot can see it: until the oldest reader is newer than the freeing
+ *	  transaction (#mdb_find_oldest(), the rule LMDB uses to reuse pages).
+ *	  It is dropped at the first commit after that.
+ *	- A dirty freed range, and every overflow run a commit writes, wait in
+ *	  #MDB_cdrop.cd_delayed for at least #MDB_cdrop.cd_delay seconds, for
+ *	  the kernel's writeback. A range still dirty then waits again, at most
+ *	  3 times, and is dropped anyway after that. A freed range also waits
+ *	  until no reader can see it.
+ *	- A page that #mdb_page_alloc() hands out again while a queued range
+ *	  covers it is live again: it is skipped when that range comes due. A
+ *	  page freed, reused and freed again can be covered by two queued
+ *	  ranges; the older one consumes the mark and skips the page, so it
+ *	  cannot drop the later free's page before its own time.
+ *	- The free-list DB's own overflow runs are not queued: LMDB reads them
+ *	  back when it consumes the free list.
+ *
+ *	When memory for the queues runs out, the ranges concerned are simply
+ *	not dropped.
+ */
+	/** A dirty range waits again at most this many times */
+#define MDB_CDROP_TRIES	3
+
+	/** The page cache's counts for a range of the data file, from cachestat(2) */
+typedef struct MDB_cdstat {
+	uint64_t	cs_cache, cs_dirty, cs_writeback, cs_evicted, cs_recently_evicted;
+} MDB_cdstat;
+
+static int
+mdb_cd_stat(MDB_env *env, pgno_t lo, pgno_t n, MDB_cdstat *cs)
+{
+	struct { uint64_t off, len; } r;
+	r.off = (uint64_t)lo * env->me_psize;
+	r.len = (uint64_t)n * env->me_psize;
+	return syscall(MDB_NR_CACHESTAT, env->me_fd, &r, cs, 0) ? ErrCode() : 0;
+}
+
+static double
+mdb_cd_now(void)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec + ts.tv_nsec / 1e9;
+}
+
+	/** Drop a range from the page cache: unmap it, then advise */
+static void
+mdb_cd_advise(MDB_env *env, pgno_t lo, pgno_t n)
+{
+	madvise(env->me_map + (size_t)lo * env->me_psize, (size_t)n * env->me_psize, MADV_DONTNEED);
+	posix_fadvise(env->me_fd, (off_t)lo * env->me_psize, (off_t)n * env->me_psize, POSIX_FADV_DONTNEED);
+}
+
+	/** Append a range to a queue. ENOMEM: the range is not queued. */
+static int
+mdb_cd_push(MDB_cdqueue *q, pgno_t lo, pgno_t n, double t, unsigned int written,
+	unsigned int tries, txnid_t txnid)
+{
+	MDB_cdrange *e;
+	if (q->cq_head + q->cq_n == q->cq_cap) {
+		if (q->cq_head > q->cq_cap / 2) {
+			memmove(q->cq_r, q->cq_r + q->cq_head, q->cq_n * sizeof *q->cq_r);
+			q->cq_head = 0;
+		} else {
+			size_t c = q->cq_cap ? 2 * q->cq_cap : 65536;
+			MDB_cdrange *r = realloc(q->cq_r, c * sizeof *r);
+			if (!r)
+				return ENOMEM;
+			q->cq_r = r;
+			q->cq_cap = c;
+		}
+	}
+	e = &q->cq_r[q->cq_head + q->cq_n++];
+	e->cr_lo = lo; e->cr_n = n; e->cr_time = t;
+	e->cr_written = written; e->cr_tries = tries; e->cr_txnid = txnid;
+	return MDB_SUCCESS;
+}
+
+	/** Remove and return the oldest range of a queue */
+static MDB_cdrange
+mdb_cd_pop(MDB_cdqueue *q)
+{
+	MDB_cdrange e = q->cq_r[q->cq_head++];
+	if (!--q->cq_n)
+		q->cq_head = 0;
+	return e;
+}
+
+static void
+mdb_cd_freeq(MDB_cdqueue *q)
+{
+	free(q->cq_r);
+	q->cq_r = NULL;
+	q->cq_head = q->cq_n = q->cq_cap = 0;
+}
+
+	/** Mark a queued range's pages. On ENOMEM they stay unmarked, so they are never dropped. */
+static void
+mdb_cd_setpend(MDB_cdrop *cd, pgno_t lo, pgno_t n)
+{
+	pgno_t k;
+	size_t need = (size_t)((lo + n) >> 3) + 1;
+	if (need > cd->cd_bytes) {
+		size_t c = need + need / 2 + 4096;
+		unsigned char *p, *r;
+		if (!(p = realloc(cd->cd_pend, c)))
+			return;
+		cd->cd_pend = p;
+		if (!(r = realloc(cd->cd_reused, c)))
+			return;
+		cd->cd_reused = r;
+		memset(cd->cd_pend + cd->cd_bytes, 0, c - cd->cd_bytes);
+		memset(cd->cd_reused + cd->cd_bytes, 0, c - cd->cd_bytes);
+		cd->cd_bytes = c;
+	}
+	for (k = lo; k < lo + n; k++)
+		cd->cd_pend[k >> 3] |= (unsigned char)(1u << (k & 7));
+}
+
+static void
+mdb_cd_unpend(MDB_cdrop *cd, pgno_t lo, pgno_t n)
+{
+	pgno_t k;
+	for (k = lo; k < lo + n; k++)
+		if ((size_t)(k >> 3) < cd->cd_bytes)
+			cd->cd_pend[k >> 3] &= (unsigned char)~(1u << (k & 7));
+}
+
+	/** Pages #mdb_page_alloc() took from the free list: live again; marked reused if a range covers them */
+static void
+mdb_cd_reuse(MDB_cdrop *cd, pgno_t lo, pgno_t n)
+{
+	pgno_t k;
+	for (k = lo; k < lo + n; k++) {
+		size_t b = (size_t)(k >> 3);
+		unsigned char m = (unsigned char)(1u << (k & 7));
+		if (b < cd->cd_bytes && (cd->cd_pend[b] & m)) {
+			cd->cd_pend[b] &= (unsigned char)~m;
+			cd->cd_reused[b] |= m;
+		}
+	}
+}
+
+	/** May the range now due drop page \b k? Not if it was handed out again
+	 *	since (this consumes the mark), nor if it is not marked.
+	 */
+static int
+mdb_cd_take(MDB_cdrop *cd, pgno_t k)
+{
+	size_t b = (size_t)(k >> 3);
+	unsigned char m = (unsigned char)(1u << (k & 7));
+	if (b >= cd->cd_bytes)
+		return 0;
+	if (cd->cd_reused[b] & m) {
+		cd->cd_reused[b] &= (unsigned char)~m;
+		return 0;
+	}
+	return (cd->cd_pend[b] & m) != 0;
+}
+
+	/** A range freed by transaction \b txnid, at its commit */
+static void
+mdb_cd_freed(MDB_env *env, pgno_t lo, pgno_t n, double now, txnid_t txnid)
+{
+	MDB_cdrop *cd = env->me_cdrop;
+	MDB_cdstat cs;
+	if (mdb_cd_stat(env, lo, n, &cs))
+		return;
+	if (!cs.cs_cache)
+		return;
+	if (cs.cs_dirty || cs.cs_writeback) {
+		if (!mdb_cd_push(&cd->cd_delayed, lo, n, now, 0, 0, txnid))
+			mdb_cd_setpend(cd, lo, n);
+		return;
+	}
+	if (!mdb_cd_push(&cd->cd_held, lo, n, 0, 0, 0, txnid))
+		mdb_cd_setpend(cd, lo, n);
+}
+
+	/** A clean freed range no reader can see any more */
+static void
+mdb_cd_release(MDB_env *env, pgno_t lo, pgno_t n, txnid_t txnid, double now)
+{
+	MDB_cdrop *cd = env->me_cdrop;
+	MDB_cdstat cs;
+	if (mdb_cd_stat(env, lo, n, &cs)) {
+		mdb_cd_unpend(cd, lo, n);
+		return;
+	}
+	if (cs.cs_dirty || cs.cs_writeback) {	/* not expected: wait for writeback */
+		mdb_cd_push(&cd->cd_delayed, lo, n, now, 0, 0, txnid);
+		return;
+	}
+	if (cs.cs_cache)
+		mdb_cd_advise(env, lo, n);
+	mdb_cd_unpend(cd, lo, n);
+}
+
+	/** A delayed range now due: still dirty, it waits again (at most #MDB_CDROP_TRIES times); otherwise dropped */
+static void
+mdb_cd_delayed(MDB_env *env, pgno_t lo, pgno_t n, unsigned int written,
+	unsigned int tries, double now, txnid_t txnid)
+{
+	MDB_cdrop *cd = env->me_cdrop;
+	MDB_cdstat cs;
+	if (mdb_cd_stat(env, lo, n, &cs)) {
+		mdb_cd_unpend(cd, lo, n);
+		return;
+	}
+	if ((cs.cs_dirty || cs.cs_writeback) && tries < MDB_CDROP_TRIES) {
+		mdb_cd_push(&cd->cd_delayed, lo, n, now, written, tries + 1, txnid);
+		return;
+	}
+	if (cs.cs_cache)
+		mdb_cd_advise(env, lo, n);
+	mdb_cd_unpend(cd, lo, n);
+}
+
+	/** Call \b fn for each run of pages in [lo, lo+n) that \b may still drop (#mdb_cd_take()) */
+static void
+mdb_cd_each_taken(MDB_env *env, const MDB_cdrange *e, double now,
+	void (*fn)(MDB_env *, const MDB_cdrange *, pgno_t, pgno_t, double))
+{
+	pgno_t k, end = e->cr_lo + e->cr_n, rs = 0;
+	int in = 0;
+	for (k = e->cr_lo; k <= end; k++) {
+		int d = k < end && mdb_cd_take(env->me_cdrop, k);
+		if (d && !in) {
+			rs = k;
+			in = 1;
+		} else if (!d && in) {
+			fn(env, e, rs, k - rs, now);
+			in = 0;
+		}
+	}
+}
+
+static void
+mdb_cd_release_fn(MDB_env *env, const MDB_cdrange *e, pgno_t lo, pgno_t n, double now)
+{
+	mdb_cd_release(env, lo, n, e->cr_txnid, now);
+}
+
+static void
+mdb_cd_delayed_fn(MDB_env *env, const MDB_cdrange *e, pgno_t lo, pgno_t n, double now)
+{
+	mdb_cd_delayed(env, lo, n, e->cr_written, e->cr_tries, now, e->cr_txnid);
+}
+
+	/** At commit, after #mdb_freelist_save(): queue the ranges the
+	 *	transaction freed (\b ids, sorted either way), and note the
+	 *	overflow runs it writes (the dirty list is final now).
+	 */
+static void
+mdb_cd_commit(MDB_txn *txn)
+{
+	MDB_env *env = txn->mt_env;
+	MDB_cdrop *cd = env->me_cdrop;
+	MDB_IDL ids = txn->mt_free_pgs;
+	MDB_ID2L dl = txn->mt_u.dirty_list;
+	size_t i, n = ids[0];
+	pgno_t lo, hi;
+
+	if (n) {
+		double now = mdb_cd_now();
+		lo = hi = ids[1];
+		for (i = 2; i <= n + 1; i++) {
+			if (i <= n && ids[i] + 1 == lo) { lo = ids[i]; continue; }
+			if (i <= n && ids[i] == hi + 1) { hi = ids[i]; continue; }
+			mdb_cd_freed(env, lo, hi - lo + 1, now, txn->mt_txnid);
+			if (i <= n)
+				lo = hi = ids[i];
+		}
+	}
+
+	cd->cd_ovn = 0;
+	if (cd->cd_fdovtxn != txn->mt_txnid)
+		cd->cd_fdovn = 0;
+	n = dl[0].mid;
+	for (i = 1; i <= n; i++) {
+		MDB_page *mp = dl[i].mptr;
+		size_t f;
+		if (!(mp->mp_flags & P_OVERFLOW) || (mp->mp_flags & P_LOOSE))
+			continue;
+		for (f = 0; f + 1 < cd->cd_fdovn; f += 2)
+			if (cd->cd_fdov[f] == dl[i].mid)
+				break;
+		if (f + 1 < cd->cd_fdovn)	/* the free-list DB's own */
+			continue;
+		if (cd->cd_ovn + 2 > cd->cd_ovcap) {
+			size_t c = cd->cd_ovcap ? 2 * cd->cd_ovcap : 8192;
+			pgno_t *v = realloc(cd->cd_ov, c * sizeof *v);
+			if (!v)
+				continue;
+			cd->cd_ov = v;
+			cd->cd_ovcap = c;
+		}
+		cd->cd_ov[cd->cd_ovn++] = dl[i].mid;
+		cd->cd_ov[cd->cd_ovn++] = mp->mp_pages;
+	}
+	cd->cd_fdovn = 0;
+}
+
+	/** At commit, after #mdb_page_flush(): queue the overflow runs just
+	 *	written, then drop the queued ranges that are due.
+	 */
+static void
+mdb_cd_flushed(MDB_txn *txn)
+{
+	MDB_env *env = txn->mt_env;
+	MDB_cdrop *cd = env->me_cdrop;
+	double now = mdb_cd_now();
+	txnid_t oldest = mdb_find_oldest(txn);
+	MDB_cdrange e;
+	size_t i, due;
+
+	for (i = 0; i + 1 < cd->cd_ovn; i += 2)
+		if (!mdb_cd_push(&cd->cd_delayed, cd->cd_ov[i], cd->cd_ov[i + 1], now, 1, 0, 0))
+			mdb_cd_setpend(cd, cd->cd_ov[i], cd->cd_ov[i + 1]);
+	cd->cd_ovn = 0;
+
+	/* clean freed ranges that no reader can see any more */
+	while (cd->cd_held.cq_n && cd->cd_held.cq_r[cd->cd_held.cq_head].cr_txnid < oldest) {
+		e = mdb_cd_pop(&cd->cd_held);
+		mdb_cd_each_taken(env, &e, now, mdb_cd_release_fn);
+	}
+
+	/* delayed ranges, oldest first. A range that waits again goes to the
+	 * back of the queue: look at each queued range at most once. */
+	for (due = cd->cd_delayed.cq_n; due && cd->cd_delayed.cq_n &&
+		cd->cd_delayed.cq_r[cd->cd_delayed.cq_head].cr_time <= now - cd->cd_delay; due--) {
+		e = mdb_cd_pop(&cd->cd_delayed);
+		if (!e.cr_written && e.cr_txnid >= oldest) {	/* a reader can still see it */
+			mdb_cd_push(&cd->cd_delayed, e.cr_lo, e.cr_n, now, 0, e.cr_tries, e.cr_txnid);
+			continue;
+		}
+		mdb_cd_each_taken(env, &e, now, mdb_cd_delayed_fn);
+	}
+}
+
+static void
+mdb_cd_free(MDB_env *env)
+{
+	MDB_cdrop *cd = env->me_cdrop;
+	if (!cd)
+		return;
+	mdb_cd_freeq(&cd->cd_held);
+	mdb_cd_freeq(&cd->cd_delayed);
+	free(cd->cd_pend);
+	free(cd->cd_reused);
+	free(cd->cd_ov);
+	free(cd);
+	env->me_cdrop = NULL;
+}
+/** @} */
+#endif
+
 /** Allocate page numbers and memory for writing.  Maintain me_pglast,
  * me_pghead and mt_next_pgno.  Set #MDB_TXN_ERROR on failure.
  *
@@ -2595,6 +3043,10 @@ search_done:
 		}
 	}
 	if (i) {
+#ifdef MDB_CACHEDROP
+		if (env->me_cdrop)	/* taken from the free list: live again */
+			mdb_cd_reuse(env->me_cdrop, pgno, num);
+#endif
 		mop[0] = mop_len -= num;
 		/* Move any stragglers down */
 		for (j = i-num; j < mop_len; )
@@ -2603,6 +3055,20 @@ search_done:
 		txn->mt_next_pgno = pgno + num;
 	}
 	np->mp_pgno = pgno;
+#ifdef MDB_CACHEDROP
+	if (env->me_cdrop && num > 1 && mc->mc_dbi == FREE_DBI) {
+		/* the free-list DB's own overflow run: not to be dropped */
+		MDB_cdrop *cd = env->me_cdrop;
+		if (cd->cd_fdovtxn != txn->mt_txnid) {
+			cd->cd_fdovtxn = txn->mt_txnid;
+			cd->cd_fdovn = 0;
+		}
+		if (cd->cd_fdovn + 2 <= 2 * MDB_CDROP_FDOV) {
+			cd->cd_fdov[cd->cd_fdovn++] = pgno;
+			cd->cd_fdov[cd->cd_fdovn++] = num;
+		}
+	}
+#endif
 	mdb_page_dirty(txn, np);
 	*mp = np;
 
@@ -4004,6 +4470,10 @@ mdb_txn_commit(MDB_txn *txn)
 	rc = mdb_freelist_save(txn);
 	if (rc)
 		goto fail;
+#ifdef MDB_CACHEDROP
+	if (env->me_cdrop)
+		mdb_cd_commit(txn);
+#endif
 
 	mdb_midl_free(env->me_pghead);
 	env->me_pghead = NULL;
@@ -4015,6 +4485,10 @@ mdb_txn_commit(MDB_txn *txn)
 
 	if ((rc = mdb_page_flush(txn, 0)))
 		goto fail;
+#ifdef MDB_CACHEDROP
+	if (env->me_cdrop)
+		mdb_cd_flushed(txn);
+#endif
 	if (!F_ISSET(txn->mt_flags, MDB_TXN_NOSYNC) &&
 		(rc = mdb_env_sync0(env, 0, txn->mt_next_pgno)))
 		goto fail;
@@ -4489,6 +4963,32 @@ mdb_env_map(MDB_env *env, void *addr)
 	env->me_metas[1] = (MDB_meta *)((char *)env->me_metas[0] + env->me_psize);
 
 	return MDB_SUCCESS;
+}
+
+int ESECT
+mdb_env_set_cachedrop(MDB_env *env, int on, unsigned int delay)
+{
+#ifdef MDB_CACHEDROP
+	MDB_cdstat cs;
+	int rc;
+	if (!env || !(env->me_flags & MDB_ENV_ACTIVE) || env->me_fd == INVALID_HANDLE_VALUE || env->me_txn)
+		return EINVAL;
+	if (!on) {
+		mdb_cd_free(env);
+		return MDB_SUCCESS;
+	}
+	if (env->me_flags & (MDB_RDONLY|MDB_WRITEMAP))
+		return EINVAL;
+	if ((rc = mdb_cd_stat(env, 0, 1, &cs)) != 0)	/* ENOSYS before Linux 6.5 */
+		return rc;
+	if (!env->me_cdrop && !(env->me_cdrop = calloc(1, sizeof(MDB_cdrop))))
+		return ENOMEM;
+	env->me_cdrop->cd_delay = delay;
+	return MDB_SUCCESS;
+#else
+	(void)env; (void)on; (void)delay;
+	return ENOSYS;
+#endif
 }
 
 int ESECT
@@ -5633,6 +6133,9 @@ mdb_env_close0(MDB_env *env, int excl)
 		free(env->me_dbxs);
 	}
 
+#ifdef MDB_CACHEDROP
+	mdb_cd_free(env);
+#endif
 	free(env->me_pbuf);
 	free(env->me_dbiseqs);
 	free(env->me_dbflags);

@@ -1237,6 +1237,44 @@ int  mdb_stat(MDB_txn *txn, MDB_dbi dbi, MDB_stat *stat);
 int  mdb_env_warm_dbis(MDB_txn *txn, const MDB_dbi *dbis, unsigned int n, size_t max_leaf_bytes,
 	MDB_warm_stop_func *stop, void *ctx, MDB_warm_stat *stat);
 
+	/** @brief Drop freed pages, and the overflow pages commits write, from the OS page cache.
+	 *
+	 * Off by default. When it is on, each commit of a write transaction
+	 * removes from the page cache two kinds of pages that are rarely read
+	 * again: the pages earlier commits freed, once no reader's snapshot can
+	 * see them, and the overflow pages (large values) earlier commits wrote,
+	 * once the kernel has written them back. It uses madvise(MADV_DONTNEED)
+	 * on the map, then posix_fadvise(POSIX_FADV_DONTNEED). Nothing in the
+	 * database changes: a dropped page that is read again is read from the
+	 * file. A page LMDB has handed out again is never dropped, nor is a dirty
+	 * page or one under writeback.
+	 *
+	 * It is meant for databases larger than RAM that a long run of commits
+	 * writes once, such as a blockchain. Without it, under memory pressure,
+	 * the pages written once push the branch and leaf pages that are read
+	 * out of the cache.
+	 *
+	 * Call it after #mdb_env_open(), when no write transaction is active in
+	 * this process. The state it keeps is freed by #mdb_env_close(), or by a
+	 * call with \b on 0.
+	 * @param[in] env An environment handle returned by #mdb_env_create()
+	 * @param[in] on Non-zero to turn the cache drop on, 0 to turn it off.
+	 * @param[in] delay Seconds a dirty range waits for the kernel's writeback
+	 * before it is looked at again (a dirty range is checked at most 3 more
+	 * times, then dropped anyway). The kernel's default writeback interval is
+	 * 30 seconds.
+	 * @return A non-zero error value on failure and 0 on success. Some possible
+	 * errors are:
+	 * <ul>
+	 *	<li>EINVAL - the environment is not open, a write transaction is
+	 *	active, or it was opened with #MDB_RDONLY or #MDB_WRITEMAP.
+	 *	<li>ENOSYS - not available: it needs Linux with cachestat(2)
+	 *	(Linux 6.5), and is not built with MDB_VL32.
+	 *	<li>ENOMEM - out of memory.
+	 * </ul>
+	 */
+int  mdb_env_set_cachedrop(MDB_env *env, int on, unsigned int delay);
+
 	/** @brief Retrieve the DB flags for a database handle.
 	 *
 	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
