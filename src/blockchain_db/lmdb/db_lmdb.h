@@ -27,6 +27,7 @@
 #pragma once
 
 #include <atomic>
+#include <deque>
 
 #include "blockchain_db/blockchain_db.h"
 #include "cryptonote_basic/blobdatatype.h" // for type blobdata
@@ -404,6 +405,9 @@ private:
   void stop_warm_indexes();
   static int warm_indexes_stop(void *ctx);
 
+  // Asks the OS for the pages pruning will read, ahead of it (called by prune_worker when the page cache drop is on)
+  void prefetch_pruned_data(MDB_txn *txn, uint64_t blockchain_height, uint32_t pruning_seed);
+
   bool need_resize(uint64_t threshold_size=0) const;
   void check_and_resize_for_batch(uint64_t batch_num_blocks, uint64_t batch_bytes);
   uint64_t get_estimated_batch_size(uint64_t batch_num_blocks, uint64_t batch_bytes) const;
@@ -594,6 +598,18 @@ private:
   boost::thread m_warm_thread; // the index warm-up, while it runs or until it is joined
   boost::mutex m_warm_lock; // guards m_warm_thread
   std::atomic<bool> m_warm_stop{false}; // asks the warm-up to stop
+
+  // Pruning's prefetch: where its next walk of txs_prunable_tip starts, and the records it asked for that
+  // the pruning has not reached yet, as (block height, number of records)
+  struct prune_prefetch_state
+  {
+    uint64_t next_tx_id = 0;
+    uint64_t height = 0;
+    std::deque<std::pair<uint64_t, size_t>> ahead;
+    size_t ahead_n = 0;
+    bool unavailable = false; // mdb_prefetch_overflow returned ENOSYS
+  };
+  prune_prefetch_state m_prune_prefetch;
 
 #if defined(__arm__)
   // force a value so it can compile with 32-bit ARM

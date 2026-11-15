@@ -76,6 +76,11 @@ namespace
 // writeback interval (30 s by default) plus a margin
 constexpr unsigned int CACHEDROP_DELAY_SECONDS = 40;
 
+// Pruning's prefetch (BlockchainLMDB::prefetch_pruned_data): how many blocks ahead of the pruning it asks
+// for the pages the pruning will read, and at most how many records it keeps asked for ahead
+constexpr uint64_t PRUNE_PREFETCH_BLOCKS = 100;
+constexpr size_t PRUNE_PREFETCH_MAX_RECORDS = 4096;
+
 template <typename T>
 inline void throw0(const T &e)
 {
@@ -3495,6 +3500,74 @@ static bool is_v1_tx(MDB_cursor *c_txs_pruned, MDB_val *tx_id)
 
 enum { prune_mode_prune, prune_mode_update, prune_mode_check };
 
+// Pruning deletes each pruned transaction's prunable data, a large value that LMDB stores in overflow
+// pages, and reads its pruned data to check its version (is_v1_tx). Each delete and each check reads the
+// first page of the value's overflow run, one at a time. On a spinning disk, when the database is larger
+// than RAM, each of those reads is a seek. This asks the OS for those pages ahead of the pruning, in one
+// batch per call: for the records that this call prunes, and for those the next PRUNE_PREFETCH_BLOCKS
+// blocks will prune, at most PRUNE_PREFETCH_MAX_RECORDS of those ahead. It walks txs_prunable_tip from where
+// the last call stopped. A record asked for ahead is asked for once; its pages may leave the page cache
+// again before the pruning reaches it, and are then read as without the prefetch.
+void BlockchainLMDB::prefetch_pruned_data(MDB_txn *txn, uint64_t blockchain_height, uint32_t pruning_seed)
+{
+  prune_prefetch_state &s = m_prune_prefetch;
+  if (s.unavailable)
+    return;
+  if (blockchain_height < s.height) // blocks were popped: start again
+  {
+    s.next_tx_id = 0;
+    s.ahead.clear();
+    s.ahead_n = 0;
+  }
+  s.height = blockchain_height;
+  // records that mature now are pruned by this call: no longer ahead
+  while (!s.ahead.empty() && s.ahead.front().first + CRYPTONOTE_PRUNING_TIP_BLOCKS < blockchain_height)
+  {
+    s.ahead_n -= s.ahead.front().second;
+    s.ahead.pop_front();
+  }
+
+  MDB_cursor *c_tip;
+  if (mdb_cursor_open(txn, m_txs_prunable_tip, &c_tip))
+    return;
+  uint64_t key = s.next_tx_id;
+  MDB_val k = {sizeof(key), (void *)&key}, v;
+  int ret = mdb_cursor_get(c_tip, &k, &v, MDB_SET_RANGE);
+  while (ret == 0 && k.mv_size == sizeof(uint64_t) && v.mv_size == sizeof(uint64_t))
+  {
+    uint64_t tx_id, block_height;
+    memcpy(&tx_id, k.mv_data, sizeof(tx_id));
+    memcpy(&block_height, v.mv_data, sizeof(block_height));
+    const bool now = block_height + CRYPTONOTE_PRUNING_TIP_BLOCKS < blockchain_height;
+    if (!now && (block_height + CRYPTONOTE_PRUNING_TIP_BLOCKS >= blockchain_height + PRUNE_PREFETCH_BLOCKS ||
+        s.ahead_n >= PRUNE_PREFETCH_MAX_RECORDS))
+      break;
+    // the stripe as the pruning will see it, at the height where this record matures
+    const uint64_t at = now ? blockchain_height : block_height + CRYPTONOTE_PRUNING_TIP_BLOCKS + 1;
+    if (!tools::has_unpruned_block(block_height, at, pruning_seed))
+    {
+      MDB_val kp = {sizeof(tx_id), (void *)&tx_id};
+      const int result = mdb_prefetch_overflow(txn, m_txs_prunable, &kp);
+      if (result == ENOSYS)
+      {
+        s.unavailable = true;
+        break;
+      }
+      mdb_prefetch_overflow(txn, m_txs_pruned, &kp);
+      if (result == 0 && !now)
+      {
+        if (s.ahead.empty() || s.ahead.back().first != block_height)
+          s.ahead.emplace_back(block_height, 0);
+        ++s.ahead.back().second;
+        ++s.ahead_n;
+      }
+    }
+    s.next_tx_id = tx_id + 1;
+    ret = mdb_cursor_get(c_tip, &k, &v, MDB_NEXT_NODUP);
+  }
+  mdb_cursor_close(c_tip);
+}
+
 bool BlockchainLMDB::prune_worker(int mode, uint32_t pruning_seed)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
@@ -3602,6 +3675,9 @@ bool BlockchainLMDB::prune_worker(int mode, uint32_t pruning_seed)
   if (result)
     throw0(DB_ERROR(lmdb_error("Failed to open a cursor for txs_prunable_tip: ", result).c_str()));
   const uint64_t blockchain_height = height();
+
+  if (m_cache_drop && mode == prune_mode_update && prune_tip_table && !resume_pruning)
+    prefetch_pruned_data(txn, blockchain_height, pruning_seed);
 
   if (prune_tip_table || resume_pruning)
   {
