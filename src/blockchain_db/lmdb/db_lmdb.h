@@ -586,6 +586,7 @@ private:
 
   bool m_batch_transactions; // support for batch transactions
   bool m_batch_active; // whether batch transaction is in progress
+  bool m_cache_drop = false; // whether LMDB's page cache drop is on (--db-cache-drop)
 
   mdb_txn_cursors m_wcursors;
   mutable boost::thread_specific_ptr<mdb_threadinfo> m_tinfo;

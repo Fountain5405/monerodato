@@ -72,6 +72,10 @@ using namespace crypto;
 namespace
 {
 
+// How long the LMDB page cache drop lets a dirty page wait before it looks at it again: the kernel's
+// writeback interval (30 s by default) plus a margin
+constexpr unsigned int CACHEDROP_DELAY_SECONDS = 40;
+
 template <typename T>
 inline void throw0(const T &e)
 {
@@ -2726,6 +2730,26 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
   {
     LOG_PRINT_L0("LMDB memory map needs to be resized, doing that now.");
     do_resize();
+  }
+
+  // On request (--db-cache-drop), drop the pages that commits free, and the transaction data they write once,
+  // from the OS page cache, so that they do not push the pages every block reads out of it (see mdb_env_set_cachedrop)
+  m_cache_drop = false;
+  if (db_flags & DBF_CACHE_DROP)
+  {
+    if (mdb_flags & MDB_RDONLY)
+      MGINFO("LMDB page cache drop: off (read-only)");
+    else if (mdb_flags & MDB_WRITEMAP)
+      MGINFO("LMDB page cache drop: off (not with --db-sync-mode fastest)");
+    else
+    {
+      const int result = mdb_env_set_cachedrop(m_env, 1, CACHEDROP_DELAY_SECONDS);
+      m_cache_drop = result == 0;
+      if (result == 0)
+        MGINFO("LMDB page cache drop: on");
+      else
+        MGINFO("LMDB page cache drop: off (" << (result == ENOSYS ? "needs Linux 6.5 or later" : mdb_strerror(result)) << ")");
+    }
   }
 
   int txn_flags = 0;

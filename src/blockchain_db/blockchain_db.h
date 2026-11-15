@@ -109,6 +109,7 @@ typedef std::pair<crypto::hash, uint64_t> tx_out_index;
 
 extern const command_line::arg_descriptor<std::string> arg_db_sync_mode;
 extern const command_line::arg_descriptor<bool, false> arg_db_salvage;
+extern const command_line::arg_descriptor<bool> arg_db_cache_drop;
 
 enum class relay_category : uint8_t
 {
@@ -226,6 +227,7 @@ static_assert(offsetof(txpool_tx_meta_t, valid_input_verification_id) == 160, "v
 #define DBF_FASTEST    4
 #define DBF_RDONLY     8
 #define DBF_SALVAGE 0x10
+#define DBF_CACHE_DROP 0x20
 
 /***********************************
  * Exception Definitions

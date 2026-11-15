@@ -160,6 +160,13 @@ const command_line::arg_descriptor<bool> arg_db_salvage  = {
 , "Try to salvage a blockchain database if it seems corrupted"
 , false
 };
+const command_line::arg_descriptor<bool> arg_db_cache_drop  = {
+  "db-cache-drop"
+, "Drop database pages that are freed or written once from the OS page cache, so they do not push out the pages "
+  "every block reads (Linux 6.5 or later). Helps a sync on a hard disk with less memory than the database; "
+  "otherwise it can cost a few percent. Off by default"
+, false
+};
 
 BlockchainDB *new_db()
 {
@@ -170,6 +177,7 @@ void BlockchainDB::init_options(boost::program_options::options_description& des
 {
   command_line::add_arg(desc, arg_db_sync_mode);
   command_line::add_arg(desc, arg_db_salvage);
+  command_line::add_arg(desc, arg_db_cache_drop);
 }
 
 void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transaction& tx, epee::span<const std::uint8_t> blob, const std::unordered_map<uint64_t, rct::key> &transparent_amount_commitments, const crypto::hash* tx_hash_ptr, const crypto::hash* tx_prunable_hash_ptr)
