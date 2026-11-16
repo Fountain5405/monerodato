@@ -1,0 +1,251 @@
+// Same license as the rest of this repository (see LICENSE).
+//
+// Batch-verification gates: a batched check must return the same verdict as checking each
+// transaction alone. The block path verifies a block's range proofs and sum checks as one
+// batch, or in sub-batches over the thread pool; the pool path checks one transaction at a
+// time. Batch verifiers in other projects have accepted bad proofs that the single checks
+// reject, so these tests put one defect at every position of a batch, at and around every
+// size where the block path changes how it splits the work:
+//  - a bad range proof, and mutated proofs (swapped, reordered, truncated or spliced fields);
+//  - a broken sum (fee or output-mask tamper);
+//  - duplicated proofs, and the same batch verified repeatedly.
+
+#include "gtest/gtest.h"
+
+#include <cstdint>
+#include <algorithm>
+#include <vector>
+
+#include "ringct/rctTypes.h"
+#include "ringct/rctSigs.h"
+#include "ringct/rctOps.h"
+#include "device/device.hpp"
+
+using namespace rct;
+using namespace std;
+
+// 1-in/2-out BP+ simple signature, built as in the ringct tests
+static rct::rctSig make_bpp_sig(uint64_t a, uint64_t b, uint64_t fee)
+{
+    ctkeyV sc, pc;
+    ctkey sctmp, pctmp;
+    vector<xmr_amount> inamounts{a + b + fee}, outamounts{a, b};
+    keyV destinations, amount_keys;
+    key Sk, Pk;
+    tie(sctmp, pctmp) = ctskpkGen(a + b + fee);
+    sc.push_back(sctmp);
+    pc.push_back(pctmp);
+    for (int n = 0; n < 2; ++n) {
+        amount_keys.push_back(skGen());
+        skpkGen(Sk, Pk);
+        destinations.push_back(Pk);
+    }
+    const rct::RCTConfig rct_config { RangeProofPaddedBulletproof, 4 };
+    return genRctSimple(rct::zero(), sc, pc, destinations, inamounts, outamounts, amount_keys, fee, 3, rct_config, hw::get_device("default"));
+}
+
+static std::vector<rct::rctSig> make_bpp_batch(size_t n)
+{
+    std::vector<rct::rctSig> v;
+    for (size_t i = 0; i < n; ++i)
+        v.push_back(make_bpp_sig(1000 + i, 2000 + 3 * i, 7 + i));
+    return v;
+}
+
+static bool ver_pool_form(const rct::rctSig &rv)
+{
+    return rct::verRctSemanticsSimple(rv);   // the pool path's per-transaction entry
+}
+
+static bool ver_block_form(const std::vector<rct::rctSig> &sigs)
+{
+    std::vector<const rctSig*> p;            // the block path's batched entry
+    for (const auto &s : sigs)
+        p.push_back(&s);
+    return rct::verRctSemanticsSimple(p);
+}
+
+TEST(rct_batch_gates, batches_valid_baseline)
+{
+    for (size_t n : {1u, 2u, 7u, 8u, 15u, 16u, 17u, 31u, 32u, 33u, 63u, 64u})
+    {
+        auto sigs = make_bpp_batch(n);
+        ASSERT_EQ(sigs[0].type, RCTTypeBulletproofPlus);
+        ASSERT_TRUE(ver_pool_form(sigs[0])) << "pool form rejects valid, n=" << n;
+        ASSERT_TRUE(ver_block_form(sigs)) << "block form rejects valid, n=" << n;
+    }
+}
+
+TEST(rct_batch_gates, bad_proof_every_position_both_forms)
+{
+    const size_t N = 64;
+    auto sigs = make_bpp_batch(N);
+    ASSERT_TRUE(ver_block_form(sigs));
+    for (size_t pos = 0; pos < N; ++pos)
+    {
+        auto bad = sigs;
+        bad[pos].p.bulletproofs_plus[0].r1 = skGen();
+        ASSERT_FALSE(ver_pool_form(bad[pos])) << "pool form accepted bad proof at " << pos;
+        for (size_t n : {8u, 16u, 17u, 32u, 64u})
+        {
+            std::vector<rct::rctSig> sub(bad.begin(), bad.begin() + n);
+            if (pos < n)
+                ASSERT_FALSE(ver_block_form(sub)) << "block form accepted bad proof at " << pos << " n=" << n;
+        }
+        std::vector<rct::rctSig> rotated = bad;
+        std::rotate(rotated.begin(), rotated.begin() + pos, rotated.end());
+        ASSERT_FALSE(ver_block_form(rotated)) << "block form accepted bad proof (front) at " << pos;
+        std::rotate(rotated.begin(), rotated.begin() + N - 1, rotated.end());
+        ASSERT_FALSE(ver_block_form(rotated)) << "block form accepted bad proof (back) at " << pos;
+    }
+}
+
+TEST(rct_batch_gates, bad_sum_every_position_both_forms)
+{
+    const size_t N = 33;
+    auto sigs = make_bpp_batch(N);
+    ASSERT_TRUE(ver_block_form(sigs));
+    for (size_t pos = 0; pos < N; ++pos)
+    {
+        auto bad = sigs;
+        bad[pos].txnFee += 1;
+        ASSERT_FALSE(ver_pool_form(bad[pos])) << "pool form accepted bad sum at " << pos;
+        for (size_t n : {16u, 17u, 33u})
+        {
+            std::vector<rct::rctSig> sub(bad.begin(), bad.begin() + n);
+            if (pos < n)
+                ASSERT_FALSE(ver_block_form(sub)) << "block form accepted bad sum at " << pos << " n=" << n;
+        }
+    }
+}
+
+TEST(rct_batch_gates, bad_output_mask_rejected_both_forms)
+{
+    auto sigs = make_bpp_batch(17);
+    ASSERT_TRUE(ver_block_form(sigs));
+    for (size_t pos : {0u, 8u, 16u})
+    {
+        auto bad = sigs;
+        bad[pos].outPk[0].mask = skGen();
+        ASSERT_FALSE(ver_pool_form(bad[pos])) << "pool accepted bad mask at " << pos;
+        ASSERT_FALSE(ver_block_form(bad)) << "block accepted bad mask at " << pos;
+    }
+}
+
+TEST(rct_batch_gates, verdicts_stable_across_repeats)
+{
+    auto sigs = make_bpp_batch(20);
+    for (int i = 0; i < 20; ++i)
+        ASSERT_TRUE(ver_block_form(sigs)) << "valid batch flipped verdict at repeat " << i;
+    auto bad = sigs;
+    bad[10].p.bulletproofs_plus[0].r1 = skGen();
+    for (int i = 0; i < 20; ++i)
+        ASSERT_FALSE(ver_block_form(bad)) << "invalid batch flipped verdict at repeat " << i;
+}
+
+// Mutations of otherwise valid BP+ proofs, of the kinds batch verifiers elsewhere have
+// missed. Every mutant must be rejected in the pool form, and in the block form at every
+// position of a batch. rct::BulletproofPlus has the fields V, A, A1, B, r1, s1, d1, L, R.
+
+static void bpp_perm_mutate(rct::rctSig &sig, int which, const rct::rctSig &donor)
+{
+    rct::BulletproofPlus &p = sig.p.bulletproofs_plus[0];
+    switch (which)
+    {
+        case 0: std::swap(p.L, p.R); break;                  // swap L <-> R vectors
+        case 1: std::reverse(p.L.begin(), p.L.end()); break; // reverse L element order
+        case 2: p.L.pop_back(); break;                       // drop last element of L
+        case 3: p.L.push_back(p.L.back()); break;            // duplicate last element of L
+        case 4: std::swap(p.A, p.A1); break;                 // swap A <-> A1
+        case 5: p.r1 = rct::zero(); break;                   // r1 = 0
+        case 6: p.d1 = rct::zero(); break;                   // d1 = 0
+        case 7: p.s1 = rct::zero(); break;                   // s1 = 0
+        case 8: p.V = donor.p.bulletproofs_plus[0].V; break; // splice another proof's V
+    }
+}
+
+static void run_perm_case(int which, const char *name)
+{
+    // the UNMUTATED baseline must still verify, in both forms
+    auto sigs = make_bpp_batch(17);
+    ASSERT_TRUE(ver_pool_form(sigs[0])) << name << ": pool form rejects the unmutated baseline";
+    ASSERT_TRUE(ver_block_form(sigs)) << name << ": block form rejects the unmutated baseline";
+    // donor proof over a DIFFERENT statement, for the splice transform
+    const rct::rctSig donor = make_bpp_sig(99991, 88883, 550);
+    ASSERT_TRUE(ver_pool_form(donor)) << name << ": splice donor itself invalid";
+    // every position of an 8-batch and a 17-batch, both entry paths
+    for (size_t n : {8u, 17u})
+    {
+        std::vector<rct::rctSig> batch(sigs.begin(), sigs.begin() + n);
+        ASSERT_TRUE(ver_block_form(batch)) << name << ": valid " << n << "-batch rejected";
+        for (size_t pos = 0; pos < n; ++pos)
+        {
+            auto bad = batch;
+            bpp_perm_mutate(bad[pos], which, donor);
+            ASSERT_FALSE(ver_pool_form(bad[pos])) << name << " accepted (pool) at " << pos << " n=" << n;
+            ASSERT_FALSE(ver_block_form(bad)) << name << " accepted (block) at " << pos << " n=" << n;
+        }
+    }
+}
+
+TEST(rct_batch_gates_mutations, swap_LR_rejected)
+{
+    run_perm_case(0, "swapLR");
+}
+
+TEST(rct_batch_gates_mutations, reverse_L_rejected)
+{
+    run_perm_case(1, "revL");
+}
+
+TEST(rct_batch_gates_mutations, drop_last_L_rejected)
+{
+    run_perm_case(2, "dropL");
+}
+
+TEST(rct_batch_gates_mutations, dup_last_L_rejected)
+{
+    run_perm_case(3, "dupL");
+}
+
+TEST(rct_batch_gates_mutations, swap_A_A1_rejected)
+{
+    run_perm_case(4, "swapAA1");
+}
+
+TEST(rct_batch_gates_mutations, r1_zero_rejected)
+{
+    run_perm_case(5, "r1zero");
+}
+
+TEST(rct_batch_gates_mutations, d1_zero_rejected)
+{
+    run_perm_case(6, "d1zero");
+}
+
+TEST(rct_batch_gates_mutations, s1_zero_rejected)
+{
+    run_perm_case(7, "s1zero");
+}
+
+TEST(rct_batch_gates_mutations, splice_V_rejected)
+{
+    run_perm_case(8, "spliceV");
+}
+
+TEST(rct_batch_gates, mixed_sizes_and_duplications)
+{
+    // duplicated (identical) proofs in one batch: proofs of the same tx twice must not
+    // cancel or alias anywhere (no aliasing between batch entries)
+    auto sigs = make_bpp_batch(8);
+    sigs.push_back(sigs[3]);   // exact duplicate of a valid proof
+    sigs.push_back(sigs[5]);
+    ASSERT_TRUE(ver_block_form(sigs)) << "duplicate valid proofs broke a valid batch";
+    auto bad = sigs;
+    bad[3].p.bulletproofs_plus[0].r1 = skGen();   // now one of the duplicated pair is bad
+    ASSERT_FALSE(ver_block_form(bad)) << "bad proof hidden behind a duplicate accepted";
+    // the duplicate of a bad proof is also bad
+    auto bad2 = sigs;
+    bad2[8].p.bulletproofs_plus[0].r1 = skGen();  // mutate the copy of sigs[3]
+    ASSERT_FALSE(ver_block_form(bad2)) << "bad duplicate accepted";
+}
