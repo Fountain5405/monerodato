@@ -1372,6 +1372,66 @@ done:
         }
     }
 
+    // A simple signature's sum check: its output commitments plus the fee commitment equal its pseudo-outs
+    static bool verRctSumsSimple(const rctSig &rv)
+    {
+      const bool bulletproof = is_rct_bulletproof(rv.type);
+      const bool bulletproof_plus = is_rct_bulletproof_plus(rv.type);
+      const keyV &pseudoOuts = bulletproof || bulletproof_plus ? rv.p.pseudoOuts : rv.pseudoOuts;
+
+      rct::keyV masks(rv.outPk.size());
+      for (size_t i = 0; i < rv.outPk.size(); i++) {
+        masks[i] = rv.outPk[i].mask;
+      }
+      key sumOutpks = addKeys(masks);
+      DP(sumOutpks);
+      const key txnFeeKey = scalarmultH(d2h(rv.txnFee));
+      addKeys(sumOutpks, txnFeeKey, sumOutpks);
+
+      key sumPseudoOuts = addKeys(pseudoOuts);
+      DP(sumPseudoOuts);
+
+      //check pseudoOuts vs Outs..
+      return equalKeys(sumPseudoOuts, sumOutpks);
+    }
+
+    // The sum checks of a batch of simple signatures. A batch of SUMS_PARALLEL_MIN_SIGS or more (a block's) is
+    // checked in contiguous chunks over the compute pool, one chunk per pool thread; a smaller batch, or a pool of one
+    // thread, on the calling thread. True iff every signature's sum checks.
+    static constexpr size_t SUMS_PARALLEL_MIN_SIGS = 16;
+    static bool verRctSumsSimpleBatch(const std::vector<const rctSig*> &rvv, tools::threadpool &tpool)
+    {
+      const size_t n_threads = tpool.get_max_concurrency();
+      if (rvv.size() < SUMS_PARALLEL_MIN_SIGS || n_threads < 2)
+      {
+        for (const rctSig *rvp: rvv)
+          if (!verRctSumsSimple(*rvp))
+            return false;
+        return true;
+      }
+
+      const size_t chunk = (rvv.size() + n_threads - 1) / n_threads;
+      std::vector<uint8_t> chunk_ok((rvv.size() + chunk - 1) / chunk, 0);
+      tools::threadpool::waiter waiter(tpool);
+      for (size_t c = 0; c < chunk_ok.size(); ++c)
+      {
+        tpool.submit(&waiter, [&rvv, &chunk_ok, c, chunk] {
+          const size_t end = std::min(rvv.size(), (c + 1) * chunk);
+          bool ok = true;
+          try
+          {
+            for (size_t s = c * chunk; s < end && ok; ++s)
+              ok = verRctSumsSimple(*rvv[s]);
+          }
+          catch (...) { ok = false; }
+          chunk_ok[c] = ok ? 1 : 0;
+        });
+      }
+      if (!waiter.wait())
+        return false;
+      return std::all_of(chunk_ok.begin(), chunk_ok.end(), [](uint8_t ok) { return ok != 0; });
+    }
+
     //ver RingCT simple
     //assumes only post-rct style inputs (at least for max anonymity)
     bool verRctSemanticsSimple(const std::vector<const rctSig*> & rvv) {
@@ -1433,6 +1493,13 @@ done:
             max_non_bp_proofs += rv.p.rangeSigs.size();
         }
 
+        // every signature's sum check, before any range proof is verified
+        if (!verRctSumsSimpleBatch(rvv, tpool))
+        {
+          LOG_PRINT_L1("Sum check failed");
+          return false;
+        }
+
         results.resize(max_non_bp_proofs);
         for (const rctSig *rvp: rvv)
         {
@@ -1440,25 +1507,6 @@ done:
 
           const bool bulletproof = is_rct_bulletproof(rv.type);
           const bool bulletproof_plus = is_rct_bulletproof_plus(rv.type);
-          const keyV &pseudoOuts = bulletproof || bulletproof_plus ? rv.p.pseudoOuts : rv.pseudoOuts;
-
-          rct::keyV masks(rv.outPk.size());
-          for (size_t i = 0; i < rv.outPk.size(); i++) {
-            masks[i] = rv.outPk[i].mask;
-          }
-          key sumOutpks = addKeys(masks);
-          DP(sumOutpks);
-          const key txnFeeKey = scalarmultH(d2h(rv.txnFee));
-          addKeys(sumOutpks, txnFeeKey, sumOutpks);
-
-          key sumPseudoOuts = addKeys(pseudoOuts);
-          DP(sumPseudoOuts);
-
-          //check pseudoOuts vs Outs..
-          if (!equalKeys(sumPseudoOuts, sumOutpks)) {
-            LOG_PRINT_L1("Sum check failed");
-            return false;
-          }
 
           if (bulletproof_plus)
           {

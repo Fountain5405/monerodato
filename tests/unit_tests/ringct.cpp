@@ -532,6 +532,71 @@ static rct::rctSig make_sample_rct_sig(int n_inputs, const uint64_t input_amount
     return genRct(rct::zero(), sc, pc, destinations, amounts, amount_keys, 3, rct_config, hw::get_device("default"));
 }
 
+// A BP+ (CLSAG) simple signature with one input and two outputs
+static rct::rctSig make_bpp_simple_rct_sig(uint64_t a, uint64_t b, uint64_t fee)
+{
+    ctkeyV sc, pc;
+    ctkey sctmp, pctmp;
+    vector<xmr_amount> inamounts{a + b + fee}, outamounts{a, b};
+    keyV destinations, amount_keys;
+    key Sk, Pk;
+    tie(sctmp, pctmp) = ctskpkGen(a + b + fee);
+    sc.push_back(sctmp);
+    pc.push_back(pctmp);
+    for (int n = 0; n < 2; ++n) {
+        amount_keys.push_back(skGen());
+        skpkGen(Sk, Pk);
+        destinations.push_back(Pk);
+    }
+    const rct::RCTConfig rct_config { RangeProofPaddedBulletproof, 4 };
+    return genRctSimple(rct::zero(), sc, pc, destinations, inamounts, outamounts, amount_keys, fee, 3, rct_config, hw::get_device("default"));
+}
+
+// 64 valid BP+ simple signatures, made once
+static const std::vector<rct::rctSig> &bpp_batch_sigs()
+{
+    static const std::vector<rct::rctSig> sigs = [] {
+        std::vector<rct::rctSig> v;
+        for (uint64_t i = 0; i < 64; ++i)
+            v.push_back(make_bpp_simple_rct_sig(1000 + i, 2000 + 3 * i, 7 + i));
+        return v;
+    }();
+    return sigs;
+}
+
+static bool ver_semantics_batch(const std::vector<rct::rctSig> &sigs)
+{
+    std::vector<const rct::rctSig*> p;
+    for (const auto &s : sigs)
+        p.push_back(&s);
+    return rct::verRctSemanticsSimple(p);
+}
+
+TEST(ringct, semantics_batch_accepts_valid)
+{
+    const auto &sigs = bpp_batch_sigs();
+    ASSERT_EQ(sigs.size(), 64);
+    ASSERT_EQ(sigs[0].type, rct::RCTTypeBulletproofPlus);
+    ASSERT_TRUE(ver_semantics_batch(sigs));
+    ASSERT_TRUE(rct::verRctSemanticsSimple(sigs[5]));
+    // below the parallel thresholds
+    ASSERT_TRUE(ver_semantics_batch(std::vector<rct::rctSig>(sigs.begin(), sigs.begin() + 7)));
+}
+
+TEST(ringct, semantics_batch_rejects_one_bad_sum)
+{
+    // 64 signatures take the parallel sum checks (with a pool of 2 or more threads), 7 the serial ones
+    for (size_t n : {64, 7})
+    {
+        for (size_t pos : {size_t(0), n / 2, n - 1})
+        {
+            std::vector<rct::rctSig> sigs(bpp_batch_sigs().begin(), bpp_batch_sigs().begin() + n);
+            sigs[pos].txnFee += 1;
+            ASSERT_FALSE(ver_semantics_batch(sigs)) << "bad sum at " << pos << " of " << n;
+        }
+    }
+}
+
 static rct::rctSig make_sample_simple_rct_sig(int n_inputs, const uint64_t input_amounts[], int n_outputs, const uint64_t output_amounts[], uint64_t fee)
 {
     ctkeyV sc, pc;
