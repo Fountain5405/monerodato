@@ -175,6 +175,24 @@ impl<'a> VerifierTranscript<'a> {
     Ok(point)
   }
 
+  /// Advance past a point as `read_point` does, without decoding it.
+  ///
+  /// The point's bytes are transcripted exactly as `read_point` transcripts them, so the
+  /// transcript's state afterwards is the same. Whether they encode a valid, canonically
+  /// serialized point is not checked. This is only for advancing a transcript past points which
+  /// are later read with `read_point`, such as when skipping past a proof which will still be
+  /// verified.
+  pub(crate) fn skip_point<C: Ciphersuite>(&mut self) -> io::Result<()> {
+    self.digest.update([POINT]);
+    let point_len = <C::G as GroupEncoding>::Repr::default().as_ref().len();
+    if self.transcript.len() < point_len {
+      Err(io::Error::other("not enough bytes to skip_point"))?;
+    }
+    self.digest.update(&self.transcript[.. point_len]);
+    self.transcript = &self.transcript[point_len ..];
+    Ok(())
+  }
+
   /// Read the Pedersen (vector) Commitments from the transcript.
   ///
   /// The lengths of the vectors are not transcripted.

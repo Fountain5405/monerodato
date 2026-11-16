@@ -221,9 +221,26 @@ fn fuzz_test_arithmetic_circuit() {
     // `skip_verify_transcript` must leave a transcript exactly where `verify` leaves it
     let mut skipped = transcript.clone();
     skip_verify_transcript::<Ristretto>(&mut skipped, 16, C.len()).unwrap();
-    statement.verify(&mut OsRng, &mut verifier, &mut transcript).unwrap();
+    statement.clone().verify(&mut OsRng, &mut verifier, &mut transcript).unwrap();
     assert_eq!(skipped.clone().challenge_bytes(), transcript.clone().challenge_bytes());
-    assert_eq!(skipped.complete(), transcript.complete());
+    let rest = skipped.complete();
+    assert_eq!(rest, transcript.complete());
     assert!(generators.verify(verifier));
+
+    // A point which does not decode, where the skip reads its first point (AI) or its last (the
+    // inner-product argument's last R, before the two final scalars): the skip does not decode
+    // points, so it succeeds and lands where it lands for the valid proof, and `verify` rejects
+    let first_point = 32 * (C.len() + V.len());
+    for at in [first_point, proof.len() - 64 - 32] {
+      let mut bad = proof.clone();
+      bad[at .. (at + 32)].copy_from_slice(&[0xff; 32]);
+      let mut transcript = VerifierTranscript::new([0; 32], &bad);
+      transcript.read_commitments::<Ristretto>(C.len(), V.len()).unwrap();
+      let mut skipped = transcript.clone();
+      skip_verify_transcript::<Ristretto>(&mut skipped, 16, C.len()).unwrap();
+      assert_eq!(skipped.complete().len(), rest.len());
+      let mut verifier = Generators::batch_verifier();
+      assert!(statement.clone().verify(&mut OsRng, &mut verifier, &mut transcript).is_err());
+    }
   }
 }

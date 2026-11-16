@@ -224,6 +224,10 @@ where
 /// caller may skip past one proof to peek at the next proof's challenges (`peek_z`) before either
 /// proof's constraints exist. The skipped proof MUST still be verified on the real transcript, and
 /// the caller SHOULD check the real transcript then matches the skipped one.
+///
+/// The proof's points are transcripted as `verify` transcripts them but not decoded, as decoding
+/// them is most of the cost of a skip and `verify` decodes them again. A proof with a point which
+/// does not decode is therefore skipped successfully, and rejected when it is verified.
 pub fn skip_verify_transcript<C: Ciphersuite>(
   transcript: &mut VerifierTranscript<'_>,
   n: usize,
@@ -237,17 +241,17 @@ where
 
   // AI, AO, S, then y and z
   for _ in 0 .. 3 {
-    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+    transcript.skip_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
   }
   let _y = transcript.challenge::<C>();
   let _z = transcript.challenge::<C>();
 
   // T, before and after `ni`, then x
   for _ in (ni / 2) .. ni {
-    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+    transcript.skip_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
   }
   for _ in (ni + 1) .. t_poly_len {
-    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+    transcript.skip_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
   }
   let _x = transcript.challenge::<C>();
 
@@ -263,8 +267,8 @@ where
     lr_len += 1;
   }
   for _ in 0 .. lr_len {
-    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
-    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+    transcript.skip_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+    transcript.skip_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
     let _x = transcript.challenge::<C>();
   }
   for _ in 0 .. 2 {
