@@ -112,6 +112,18 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_block_big_major_version);
     GENERATE_AND_PLAY(gen_block_big_minor_version);
     GENERATE_AND_PLAY(gen_block_ts_not_checked);
+    GENERATE_AND_PLAY(gen_bad_tx_in_block_bp_9);
+    GENERATE_AND_PLAY(gen_bad_tx_in_block_bp_17);
+    GENERATE_AND_PLAY(gen_bad_tx_in_block_ki_9);
+    GENERATE_AND_PLAY(gen_bad_tx_in_block_ki_17);
+    GENERATE_AND_PLAY(gen_bad_tx_in_block_bal_9);
+    GENERATE_AND_PLAY(gen_bad_tx_in_block_bal_17);
+    GENERATE_AND_PLAY(gen_bad_tx_in_block_sig_9);
+    GENERATE_AND_PLAY(gen_bad_tx_in_block_sig_17);
+    GENERATE_AND_PLAY(gen_bad_tx_in_block_sig_8);
+    GENERATE_AND_PLAY(gen_bad_tx_in_block_sig_16);
+    GENERATE_AND_PLAY(gen_bad_tx_in_block_perm_8);
+    GENERATE_AND_PLAY(gen_bad_tx_in_block_perm_16);
     GENERATE_AND_PLAY(gen_block_ts_in_past);
     GENERATE_AND_PLAY(gen_block_ts_in_future);
     GENERATE_AND_PLAY(gen_block_invalid_prev_id);
