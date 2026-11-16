@@ -124,6 +124,10 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_bad_tx_in_block_sig_16);
     GENERATE_AND_PLAY(gen_bad_tx_in_block_perm_8);
     GENERATE_AND_PLAY(gen_bad_tx_in_block_perm_16);
+    GENERATE_AND_PLAY(gen_bad_miner_tx_over_1);
+    GENERATE_AND_PLAY(gen_bad_miner_tx_over_17);
+    GENERATE_AND_PLAY(gen_bad_miner_tx_fee_1);
+    GENERATE_AND_PLAY(gen_bad_miner_tx_fee_17);
     GENERATE_AND_PLAY(gen_block_ts_in_past);
     GENERATE_AND_PLAY(gen_block_ts_in_future);
     GENERATE_AND_PLAY(gen_block_invalid_prev_id);
