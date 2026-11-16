@@ -105,6 +105,31 @@ private:
 typedef serialized_object<cryptonote::block> serialized_block;
 typedef serialized_object<cryptonote::transaction> serialized_transaction;
 
+// A block delivered together with its transactions via the 5-arg
+// handle_incoming_block(blob, block, bvc, pool_supplement&) core overload: the txs
+// never touch the mempool, they ride the pool supplement into block verification.
+struct supplemented_block
+{
+  cryptonote::block blk;
+  std::vector<cryptonote::transaction> txs;
+
+  supplemented_block() { }
+  supplemented_block(const cryptonote::block& a_blk, const std::vector<cryptonote::transaction>& a_txs)
+    : blk(a_blk), txs(a_txs)
+  {
+  }
+
+private:
+  friend class boost::serialization::access;
+
+  template<class Archive>
+  void serialize(Archive & ar, const unsigned int /*version*/)
+  {
+    ar & blk;
+    ar & txs;
+  }
+};
+
 struct event_visitor_settings
 {
   int mask;
@@ -156,8 +181,9 @@ VARIANT_TAG(binary_archive, serialized_block, 0xcd);
 VARIANT_TAG(binary_archive, serialized_transaction, 0xce);
 VARIANT_TAG(binary_archive, event_visitor_settings, 0xcf);
 VARIANT_TAG(binary_archive, event_replay_settings, 0xda);
+VARIANT_TAG(binary_archive, supplemented_block, 0xdb);
 
-typedef boost::variant<cryptonote::block, cryptonote::transaction, std::vector<cryptonote::transaction>, cryptonote::account_base, callback_entry, serialized_block, serialized_transaction, event_visitor_settings, event_replay_settings> test_event_entry;
+typedef boost::variant<cryptonote::block, cryptonote::transaction, std::vector<cryptonote::transaction>, cryptonote::account_base, callback_entry, serialized_block, serialized_transaction, event_visitor_settings, event_replay_settings, supplemented_block> test_event_entry;
 typedef std::unordered_map<crypto::hash, const cryptonote::transaction*> map_hash2tx_t;
 
 class test_chain_unit_base
@@ -658,6 +684,40 @@ public:
       bvc.m_verifivation_failed = true;
     bool r = m_validator.check_block_verification_context(bvc, m_ev_index, b);
     CHECK_AND_NO_ASSERT_MES(r, false, "block verification context check failed");
+    return r;
+  }
+
+  bool operator()(const supplemented_block& sb) const
+  {
+    log_event("supplemented_block");
+
+    cryptonote::block_verification_context bvc{};
+    cryptonote::blobdata bd = t_serializable_object_to_blob(sb.blk);
+    std::vector<cryptonote::block> pblocks;
+    cryptonote::block_complete_entry bce;
+    bce.pruned = false;
+    bce.block = bd;
+    bce.txs = {};
+    cryptonote::pool_supplement ps{};
+    for (const auto &tx : sb.txs)
+    {
+      const cryptonote::blobdata tx_blob = t_serializable_object_to_blob(tx);
+      cryptonote::transaction tx_copy = tx;
+      ps.add_tx(get_transaction_hash(tx), std::move(tx_copy), tx_blob);
+    }
+    if (m_c.prepare_handle_incoming_blocks(std::vector<cryptonote::block_complete_entry>(1, bce), pblocks))
+    {
+      m_c.handle_incoming_block(bd, &sb.blk, bvc, ps);
+      m_c.cleanup_handle_incoming_blocks();
+    }
+    else
+      bvc.m_verifivation_failed = true;
+    bool r = m_validator.check_block_verification_context(bvc, m_ev_index, sb.blk);
+    CHECK_AND_NO_ASSERT_MES(r, false, "block verification context check failed");
+    // the supplement route must never seed the mempool
+    size_t n_pool = m_c.get_pool_transactions_count();
+    MDEBUG("supplemented_block: pool count " << n_pool << " (must be 0: supplement txs must never touch the pool)");
+    CHECK_AND_NO_ASSERT_MES(n_pool == 0, false, "supplemented txs leaked into the pool");
     return r;
   }
 
