@@ -105,6 +105,7 @@ set(unit_tests_sources
   test_protocol_pack.cpp
   threadpool.cpp
   tree_cache.cpp
+  tx_batch_gates.cpp
   tx_construction_helpers.cpp
   tx_proof.cpp
   tx_verification_utils.cpp
