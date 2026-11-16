@@ -31,6 +31,7 @@
 #pragma once
 
 #include "chaingen.h"
+#include "bad_extra_tx_in_block.h"
 #include "bad_miner_tx_in_block.h"
 #include "bad_tx_in_block.h"
 #include "block_reward.h"

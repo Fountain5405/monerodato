@@ -124,6 +124,12 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_bad_tx_in_block_sig_16);
     GENERATE_AND_PLAY(gen_bad_tx_in_block_perm_8);
     GENERATE_AND_PLAY(gen_bad_tx_in_block_perm_16);
+    GENERATE_AND_PLAY(gen_bad_extra_tx_bp_first);
+    GENERATE_AND_PLAY(gen_bad_extra_tx_ki_mid);
+    GENERATE_AND_PLAY(gen_bad_extra_tx_sum_last);
+    GENERATE_AND_PLAY(gen_bad_extra_tx_bp_mid_33);
+    GENERATE_AND_PLAY(gen_bad_extra_tx_valid_17);
+    GENERATE_AND_PLAY(gen_bad_extra_tx_valid_33);
     GENERATE_AND_PLAY(gen_bad_miner_tx_over_1);
     GENERATE_AND_PLAY(gen_bad_miner_tx_over_17);
     GENERATE_AND_PLAY(gen_bad_miner_tx_fee_1);
