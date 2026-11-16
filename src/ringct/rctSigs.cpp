@@ -1432,6 +1432,48 @@ done:
       return std::all_of(chunk_ok.begin(), chunk_ok.end(), [](uint8_t ok) { return ok != 0; });
     }
 
+    bool verBulletproofPlusSubBatches(const std::vector<const BulletproofPlus*> &proofs, size_t n_sub_batches)
+    {
+      n_sub_batches = std::min(n_sub_batches, proofs.size());
+      if (n_sub_batches < 2)
+        return verBulletproofPlus(proofs);
+
+      // A batch accepts only if every proof in it verifies, and each batch draws its own random weight per proof, so
+      // the sub-batches accept exactly the proofs the single batch would. Only the per-batch fixed cost is repeated.
+      std::vector<std::vector<const BulletproofPlus*>> sub_batches(n_sub_batches);
+      for (size_t i = 0; i < proofs.size(); ++i)
+        sub_batches[i % n_sub_batches].push_back(proofs[i]);
+
+      tools::threadpool &tpool = tools::threadpool::getInstanceForCompute();
+      std::vector<uint8_t> sub_batch_ok(n_sub_batches, 0);
+      tools::threadpool::waiter waiter(tpool);
+      for (size_t b = 0; b < n_sub_batches; ++b)
+      {
+        tpool.submit(&waiter, [&sub_batches, &sub_batch_ok, b] {
+          bool ok = false;
+          try { ok = verBulletproofPlus(sub_batches[b]); }
+          catch (...) { ok = false; }
+          sub_batch_ok[b] = ok ? 1 : 0;
+        });
+      }
+      if (!waiter.wait())
+        return false;
+      return std::all_of(sub_batch_ok.begin(), sub_batch_ok.end(), [](uint8_t ok) { return ok != 0; });
+    }
+
+    // How many sub-batches a batch of n_proofs BP+ proofs is verified in: one per pool thread, but at most one per
+    // physical core (the verification is compute-bound and SMT siblings slow it, as in batchVerifyFcmpPpProofs), and
+    // with at least BPP_SUB_BATCH_MIN_PROOFS proofs in each, so that the per-batch fixed cost stays small. If the
+    // physical core count is unknown, the pool size is used.
+    static constexpr size_t BPP_SUB_BATCH_MIN_PROOFS = 8;
+    static size_t bppSubBatchCount(size_t n_proofs, const tools::threadpool &tpool)
+    {
+      const size_t pool_threads = std::max<size_t>(1, tpool.get_max_concurrency());
+      const size_t physical_cores = boost::thread::physical_concurrency();
+      const size_t n_threads = physical_cores > 0 ? std::min(pool_threads, physical_cores) : pool_threads;
+      return std::min(n_threads, n_proofs / BPP_SUB_BATCH_MIN_PROOFS);
+    }
+
     //ver RingCT simple
     //assumes only post-rct style inputs (at least for max anonymity)
     bool verRctSemanticsSimple(const std::vector<const rctSig*> & rvv) {
@@ -1525,7 +1567,7 @@ done:
             offset += rv.p.rangeSigs.size();
           }
         }
-        if (!bpp_proofs.empty() && !verBulletproofPlus(bpp_proofs))
+        if (!bpp_proofs.empty() && !verBulletproofPlusSubBatches(bpp_proofs, bppSubBatchCount(bpp_proofs.size(), tpool)))
         {
           LOG_PRINT_L1("Aggregate range proof verified failed");
           if (!waiter.wait())

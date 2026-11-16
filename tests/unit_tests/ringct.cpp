@@ -597,6 +597,40 @@ TEST(ringct, semantics_batch_rejects_one_bad_sum)
     }
 }
 
+static std::vector<const rct::BulletproofPlus*> bpp_proof_ptrs(const std::vector<rct::rctSig> &sigs)
+{
+    std::vector<const rct::BulletproofPlus*> p;
+    for (const auto &s : sigs)
+        for (const auto &proof : s.p.bulletproofs_plus)
+            p.push_back(&proof);
+    return p;
+}
+
+TEST(ringct, bpp_sub_batches_accept_valid)
+{
+    const auto proofs = bpp_proof_ptrs(bpp_batch_sigs());
+    ASSERT_EQ(proofs.size(), 64);
+    // 0 and 1 are one batch; 3 leaves unequal batches; 64 is one proof per batch; 100 is capped at 64
+    for (size_t n_sub : {0, 1, 2, 3, 8, 64, 100})
+        ASSERT_TRUE(rct::verBulletproofPlusSubBatches(proofs, n_sub)) << n_sub << " sub-batches";
+    ASSERT_TRUE(rct::verBulletproofPlusSubBatches({proofs[0]}, 4));
+}
+
+TEST(ringct, bpp_sub_batches_reject_one_bad_proof)
+{
+    for (size_t pos : {0, 5, 8, 37, 63})
+    {
+        auto sigs = bpp_batch_sigs();
+        sigs[pos].p.bulletproofs_plus[0].r1 = skGen();
+        const auto proofs = bpp_proof_ptrs(sigs);
+        // the bad proof lands in a different sub-batch, and at a different place in it, for each count
+        for (size_t n_sub : {1, 2, 3, 8, 64})
+            ASSERT_FALSE(rct::verBulletproofPlusSubBatches(proofs, n_sub)) << "bad BP+ at " << pos << ", " << n_sub << " sub-batches";
+        // and through the block path, with the pool's own count
+        ASSERT_FALSE(ver_semantics_batch(sigs)) << "bad BP+ at " << pos;
+    }
+}
+
 static rct::rctSig make_sample_simple_rct_sig(int n_inputs, const uint64_t input_amounts[], int n_outputs, const uint64_t output_amounts[], uint64_t fee)
 {
     ctkeyV sc, pc;

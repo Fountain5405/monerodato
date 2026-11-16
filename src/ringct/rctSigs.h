@@ -134,6 +134,9 @@ namespace rct {
     static inline bool verRct(const rctSig & rv) { return verRct(rv, true) && verRct(rv, false); }
     bool verRctSemanticsSimple(const rctSig & rv);
     bool verRctSemanticsSimple(const std::vector<const rctSig*> & rv);
+    // Verify BP+ proofs as n_sub_batches batches over the compute pool: proof i goes to batch i % n_sub_batches. True iff
+    // every batch verifies, so the result is verBulletproofPlus(proofs)'s. Fewer than 2 batches: verBulletproofPlus(proofs).
+    bool verBulletproofPlusSubBatches(const std::vector<const BulletproofPlus*> &proofs, size_t n_sub_batches);
     bool verRctNonSemanticsSimple(const rctSig & rv);
     // Return freed FCMP++ verifier memory to the OS once no batch verification has run for idle_ms.
     // Returns true if a trim was performed. No-op on non-glibc builds.
