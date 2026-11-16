@@ -27,6 +27,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <boost/iterator/transform_iterator.hpp>
+#include <atomic>
 
 #include "carrot_impl/format_utils.h"
 #include "common/threadpool.h"
@@ -48,6 +49,11 @@
 #define VER_ASSERT_EQ(a, b, msgexpr) VER_ASSERT(a == b, msgexpr << " (" << a << " != " << b << ")");
 
 using namespace cryptonote;
+
+// ver_non_input_consensus checks the key images of a batch of this many transactions or more in one batch
+static constexpr size_t KEYIMAGES_BATCH_MIN_TXS = 8;
+// ver_keyimages_domain_batch gives each pool job at least this many key images
+static constexpr size_t KEYIMAGES_BATCH_MIN_CHUNK = 32;
 
 // Sanity checks on expanded FCMP++ tx
 static bool check_fcmp_pp_expanded_tx(const transaction& tx)
@@ -326,6 +332,11 @@ static bool ver_non_input_consensus_templated(TxForwardIt tx_begin,
 
     const size_t tx_weight_limit = get_non_coinbase_tx_weight_limit(hf_version);
 
+    // For a batch of KEYIMAGES_BATCH_MIN_TXS or more transactions (a block's), rule 5's key-image domain check runs
+    // once for the whole batch after the loop, over the compute pool, instead of inside core::check_tx_semantic
+    const bool batch_key_images = static_cast<size_t>(std::distance(tx_begin, tx_end)) >= KEYIMAGES_BATCH_MIN_TXS;
+    std::vector<crypto::key_image> key_images;
+
     for (; tx_begin != tx_end; ++tx_begin)
     {
         const transaction& tx = *tx_begin;
@@ -379,9 +390,24 @@ static bool ver_non_input_consensus_templated(TxForwardIt tx_begin,
             return false;
         }
 
-        // Rule 5
-        if (!core::check_tx_semantic(tx, tvc, hf_version))
+        // Rule 5 (with batch_key_images, all but its key-image domain check, which follows the loop)
+        if (!core::check_tx_semantic(tx, tvc, hf_version, /*skip_keyimages_domain=*/batch_key_images))
             return false;
+        if (batch_key_images)
+        {
+            for (const auto &in : tx.vin)
+            {
+                const txin_to_key *in_to_key = boost::get<txin_to_key>(&in);
+                if (!in_to_key)
+                {
+                    // as core::check_tx_inputs_keyimages_domain fails it
+                    tvc.m_verifivation_failed = true;
+                    tvc.m_invalid_input = true;
+                    return false;
+                }
+                key_images.push_back(in_to_key->k_image);
+            }
+        }
 
         // Rule 6
         if (!Blockchain::check_tx_outputs(tx, tvc, hf_version) || tvc.m_verifivation_failed)
@@ -407,6 +433,15 @@ static bool ver_non_input_consensus_templated(TxForwardIt tx_begin,
             tvc.m_verifivation_failed = true;
             return false;
         }
+    }
+
+    // Rule 5, the key-image domain check of the batch
+    if (batch_key_images && !ver_keyimages_domain_batch(key_images))
+    {
+        MERROR("tx uses key image not in the valid domain");
+        tvc.m_verifivation_failed = true;
+        tvc.m_invalid_input = true;
+        return false;
     }
 
     // Rule 7
@@ -772,6 +807,38 @@ crypto::hash make_input_verification_id(const transaction &tx,
         return make_input_verification_id(get_transaction_hash(tx), dereferenced_fcmp_root, tx.rct_signatures.p.n_tree_layers);
     else
         return make_input_verification_id(get_transaction_hash(tx), dereferenced_mix_ring);
+}
+
+bool ver_keyimages_domain_batch(const std::vector<crypto::key_image> &key_images)
+{
+    if (key_images.empty())
+        return true;
+
+    tools::threadpool& tpool = tools::threadpool::getInstanceForCompute();
+    const size_t n_threads = std::max<size_t>(1, tpool.get_max_concurrency());
+    const size_t chunk = std::max<size_t>(KEYIMAGES_BATCH_MIN_CHUNK, (key_images.size() + n_threads - 1) / n_threads);
+    std::atomic<bool> all_ok{true};
+    tools::threadpool::waiter waiter(tpool);
+    for (size_t begin = 0; begin < key_images.size(); begin += chunk)
+    {
+        const size_t end = std::min(key_images.size(), begin + chunk);
+        tpool.submit(&waiter, [&key_images, &all_ok, begin, end] {
+            try
+            {
+                for (size_t i = begin; i < end && all_ok.load(std::memory_order_relaxed); ++i)
+                {
+                    // core::check_tx_inputs_keyimages_domain's test
+                    const rct::key k = rct::ki2rct(key_images[i]);
+                    if (k == rct::identity() || !(rct::scalarmultKey(k, rct::curveOrder()) == rct::identity()))
+                        all_ok.store(false, std::memory_order_relaxed);
+                }
+            }
+            catch (...) { all_ok.store(false, std::memory_order_relaxed); }
+        });
+    }
+    if (!waiter.wait())
+        return false;
+    return all_ok.load();
 }
 
 bool ver_mixed_rct_semantics(std::vector<const rct::rctSig*> rvv)

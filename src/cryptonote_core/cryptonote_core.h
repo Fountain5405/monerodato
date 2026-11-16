@@ -883,11 +883,13 @@ namespace cryptonote
       * @param tx the transaction to check
       * @param tvc tx verification context where extra fail flags are stored
       * @param hf_version hard fork version
+      * @param skip_keyimages_domain true to leave out the key-image domain check (check_tx_inputs_keyimages_domain),
+      *        for a caller that checks the domain of every key image itself, as ver_non_input_consensus does for a batch
       *
       * @return true if all the checks pass, otherwise false
       */
      static bool check_tx_semantic(const transaction& tx, tx_verification_context& tvc,
-      uint8_t hf_version);
+      uint8_t hf_version, bool skip_keyimages_domain = false);
 
      /**
       * @brief verify that each input key image in a transaction is unique

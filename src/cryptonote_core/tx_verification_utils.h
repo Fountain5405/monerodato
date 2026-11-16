@@ -179,6 +179,17 @@ crypto::hash make_input_verification_id(const transaction &tx,
 bool ver_mixed_rct_semantics(std::vector<const rct::rctSig*> rvv);
 
 /**
+ * @brief Check that key images are in the valid domain, over the compute thread pool
+ *
+ * The test is core::check_tx_inputs_keyimages_domain's, for each key image: not the identity, and in the prime-order
+ * subgroup. A key image that does not decode fails.
+ *
+ * @param key_images the key images to check
+ * @return true if every key image is in the valid domain (or there are none), false otherwise
+ */
+bool ver_keyimages_domain_batch(const std::vector<crypto::key_image> &key_images);
+
+/**
  * @brief Used to provide transaction info that skips the mempool to block handling code 
  */
 struct pool_supplement
@@ -244,7 +255,8 @@ bool batch_ver_fcmp_pp_consensus
  *     2. Check tx version >= get_minimum_transaction_version()
  *     3. Check tx version <= get_maximum_transaction_version()
  *     4. Check tx weight < get_non_coinbase_tx_weight_limit()
- *     5. Passes core::check_tx_semantic()
+ *     5. Passes core::check_tx_semantic() [For 8 or more transactions, its key-image domain check runs
+ *        once for all of them after the loop, over the thread pool: ver_keyimages_domain_batch()]
  *     6. Passes Blockchain::check_tx_outputs()
  *     7. Passes ver_mixed_rct_semantics() [Uses batch RingCT verification when applicable]
  *     8. Check unlock time is 0 from hardfork v17

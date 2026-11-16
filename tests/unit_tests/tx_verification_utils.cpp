@@ -33,6 +33,7 @@
 #include "cryptonote_core/cryptonote_tx_utils.h"
 #include "cryptonote_core/tx_verification_utils.h"
 #include "misc_log_ex.h"
+#include "ringct/rctOps.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "unit_tests.tx_verification_utils"
@@ -329,4 +330,46 @@ TEST(tx_verification_utils, max_v17_coinbase_size)
     ASSERT_TRUE(prevalidate_miner_transaction(tx2));
     tx2.extra.push_back(0);
     ASSERT_FALSE(prevalidate_miner_transaction(tx2));
+}
+
+TEST(tx_verification_utils, keyimages_domain_batch)
+{
+    std::vector<crypto::key_image> kis;
+    for (int i = 0; i < 200; ++i)
+        kis.push_back(rct::rct2ki(rct::scalarmultBase(rct::skGen())));
+    ASSERT_TRUE(cryptonote::ver_keyimages_domain_batch(kis));
+    ASSERT_TRUE(cryptonote::ver_keyimages_domain_batch({}));
+
+    // (0, -1), the point of order 2: adding it leaves the prime-order subgroup
+    rct::key t = rct::identity();
+    t.bytes[0] = 0xec;
+    for (int b = 1; b < 31; ++b)
+        t.bytes[b] = 0xff;
+    t.bytes[31] = 0x7f;
+    for (size_t pos : {0, 99, 199})
+    {
+        auto bad = kis;
+        bad[pos] = rct::rct2ki(rct::addKeys(rct::ki2rct(kis[pos]), t));
+        ASSERT_FALSE(cryptonote::ver_keyimages_domain_batch(bad)) << "torsion at " << pos;
+        ASSERT_FALSE(cryptonote::ver_keyimages_domain_batch({bad[pos]})) << "torsion alone";
+    }
+
+    // the identity
+    auto ident = kis;
+    ident[50] = rct::rct2ki(rct::identity());
+    ASSERT_FALSE(cryptonote::ver_keyimages_domain_batch(ident));
+
+    // a key image that does not decode
+    rct::key undecodable = rct::zero();
+    bool found = false;
+    for (int y = 2; y < 256 && !found; ++y)
+    {
+        undecodable.bytes[0] = static_cast<unsigned char>(y);
+        try { rct::scalarmultKey(undecodable, rct::curveOrder()); }
+        catch (...) { found = true; }
+    }
+    ASSERT_TRUE(found);
+    auto bad = kis;
+    bad[150] = rct::rct2ki(undecodable);
+    ASSERT_FALSE(cryptonote::ver_keyimages_domain_batch(bad));
 }

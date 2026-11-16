@@ -822,7 +822,7 @@ namespace cryptonote
   }
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_semantic(const transaction& tx, tx_verification_context& tvc,
-      uint8_t hf_version)
+      uint8_t hf_version, bool skip_keyimages_domain)
   {
     if(!tx.vin.size())
     {
@@ -907,7 +907,7 @@ namespace cryptonote
       return false;
     }
 
-    if (!check_tx_inputs_keyimages_domain(tx))
+    if (!skip_keyimages_domain && !check_tx_inputs_keyimages_domain(tx))
     {
       MERROR_VER("tx uses key image not in the valid domain");
       tvc.m_verifivation_failed = true;
