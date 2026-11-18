@@ -103,7 +103,7 @@ Each commit message gives the reasons and the measurements.
 | [0013](patches/monerodato.8/monero/0013-tests-mdb_env_set_cachedrop-on-a-generated-environme.patch) | [`87f401be7`](https://github.com/Fountain5405/monerodato/commit/87f401be7) | Test | — | — | — | tests it on a generated environment of large values |
 | [0014](patches/monerodato.8/monero/0014-liblmdb-add-mdb_prefetch_overflow-asking-the-OS-for-.patch) | [`a3b780722`](https://github.com/Fountain5405/monerodato/commit/a3b780722) | Disk | see 0016 | — | — | adds `mdb_prefetch_overflow()`: asks the OS for the first page of a value's overflow run |
 | [0015](patches/monerodato.8/monero/0015-tests-mdb_prefetch_overflow-on-a-generated-environme.patch) | [`b3a2bf8c0`](https://github.com/Fountain5405/monerodato/commit/b3a2bf8c0) | Test | — | — | — | tests it on a generated environment of large values |
-| [0016](patches/monerodato.8/monero/0016-blockchain_db-db-cache-drop-to-drop-freed-pages-and-.patch) | [`bd5c6b340`](https://github.com/Fountain5405/monerodato/commit/bd5c6b340) | Disk | pruned sync: ⁴<br>3.69x capped<br>0.98x uncapped | — | — | `--db-cache-drop`: drops freed pages and written-once transaction data from the page cache |
+| [0016](patches/monerodato.8/monero/0016-blockchain_db-db-cache-drop-to-drop-freed-pages-and-.patch) | [`bd5c6b340`](https://github.com/Fountain5405/monerodato/commit/bd5c6b340) | Disk | pruned sync: ⁴<br>wall −72.9% capped<br>wall +1.4% uncapped | — | — | `--db-cache-drop`: drops freed pages and written-once transaction data from the page cache |
 | [0017](patches/monerodato.8/monero/0017-blockchain_db-ask-the-OS-for-the-pages-pruning-will-.patch) | [`da1dcb451`](https://github.com/Fountain5405/monerodato/commit/da1dcb451) | Disk | see 0016 | — | — | asks the OS for the pages pruning will read, ahead of the pruning |
 | 0018 | `321f251ab` (.9) | CPU | not measured | not measured | wall −4.2%<br>CPU +0.5% | checks a block's RingCT sum checks in chunks over the compute pool instead of on one thread |
 | 0019 | `cf163c91c` (.9) | CPU | not measured | not measured | wall −11.1%<br>CPU +0.7% ⁵ | verifies a block's BP+ range proofs as sub-batches over the compute pool, at most one per physical core, instead of one batch on one thread |
@@ -112,7 +112,7 @@ Each commit message gives the reasons and the measurements.
 ¹ With 0004, on 0001.  
 ² With 0006 and monero-oxide 0004, on 0001 + 0002 + 0004.  
 ³ Start-up, not a block type: with 0009 and 0010, from a dropped page cache, launch to the top of a 400-block sync, on a 5,400 rpm disk and on an SSD. RPC answers 4.4 s later on the spinning disk. See [Slow disks](#slow-disks).  
-⁴ Not a block type, and **against .7, not stock**: with 0012, 0014 and 0017, a 7,000-block sync onto a pruned database on a 5,400 rpm disk, under a 1,536 MB memory cap and without. Against stock: pending, see [Slow disks](#slow-disks).  
+⁴ Not a block type, and **against .7, not stock**: with 0012, 0014 and 0017, a 7,000-block sync onto a pruned database on a 5,400 rpm disk, under a 1,536 MB memory cap and without; wall time over the sync's last 6,000 blocks. Against stock: pending, see [Slow disks](#slow-disks).  
 ⁵ On 0018.
 
 **dalek-ff-group** (2 commits)
@@ -377,18 +377,18 @@ through this sync under the 1,536 MB cap, and the test would then measure the me
 | .8 | **Pruning prefetch** (runs only with the cache drop on) | [`da1dcb451`](https://github.com/Fountain5405/monerodato/commit/da1dcb451) | the same | pending: against stock + 0001, 0002, 0004 + the cache drop, being measured |
 
 **Measured so far for .8, against .7, not against the reference build.** The same 7,000-block sync onto a pruned
-database (3,106,401–3,113,400) on the test VM, in blocks per second over its last 6,000 blocks, two runs a side
+database (3,106,401–3,113,400) on the test VM: the change in wall time over its last 6,000 blocks, with the blocks per second, two runs a side
 unless stated. The 1,536 MB cgroup cap stands in for a chain larger than the machine's memory:
 
 | | 1,536 MB cap | No cap |
 |---|---|---|
-| .8 with the cache drop, against .7 | 5.83 vs 1.58: **3.69x** | 5.83 vs 5.91: **0.98x** |
-| the cache drop alone, against both off | 3.37x | 0.89x |
+| .8 with the cache drop, against .7 | **−72.9%** (5.83 vs 1.58 blocks/s) | **+1.4%** (5.83 vs 5.91 blocks/s) |
+| the cache drop alone, against both off | −70.2% (5.21 vs 1.55 blocks/s) | +12.2% (5.23 vs 5.87 blocks/s) |
 
 - **Under the cap**, with the cache drop and the prefetch: launch to the top took 1,261 s against 4,119 s; the disk
   read 32 kB per block against 145 kB; and the time inside pruning was 2.7 s against 150 s.
-- **The prefetch, on top of the cache drop,** on a 12-core Ryzen 9 3900X (SSD, 4 CPUs): the time inside pruning 0.23x, and the first
-  1,000 blocks (10 MB each, where pruning deletes the most) 1.25x faster. Reads and CPU time within 1.2%.
+- **The prefetch, on top of the cache drop,** on a 12-core Ryzen 9 3900X (SSD, 4 CPUs): the time inside pruning −77%, and the first
+  1,000 blocks (10 MB each, where pruning deletes the most) took 20% less time. Reads and CPU time within 1.2%.
 
 **Who should turn it on:** a node syncing onto a hard disk with a database larger than the memory it can use.
 Without memory pressure it costs about 2% over this sync, and about 4% in its last 1,000 blocks, where pruning reaches
