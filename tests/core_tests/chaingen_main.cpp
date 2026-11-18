@@ -124,6 +124,9 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_bad_tx_in_block_sig_16);
     GENERATE_AND_PLAY(gen_bad_tx_in_block_perm_8);
     GENERATE_AND_PLAY(gen_bad_tx_in_block_perm_16);
+    GENERATE_AND_PLAY(gen_bad_ser_block_flip_0);
+    GENERATE_AND_PLAY(gen_bad_ser_block_flip_4);
+    GENERATE_AND_PLAY(gen_bad_ser_block_flip_8);
     GENERATE_AND_PLAY(gen_bad_extra_tx_bp_first);
     GENERATE_AND_PLAY(gen_bad_extra_tx_ki_mid);
     GENERATE_AND_PLAY(gen_bad_extra_tx_sum_last);

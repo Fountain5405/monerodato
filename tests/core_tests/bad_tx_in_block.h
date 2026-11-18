@@ -75,6 +75,11 @@ struct gen_bad_tx_in_block_sig_8  : gen_bad_tx_in_block { gen_bad_tx_in_block_si
 struct gen_bad_tx_in_block_sig_16 : gen_bad_tx_in_block { gen_bad_tx_in_block_sig_16() : gen_bad_tx_in_block(16, 3, 8) {} };
 struct gen_bad_tx_in_block_perm_8  : gen_bad_tx_in_block { gen_bad_tx_in_block_perm_8()  : gen_bad_tx_in_block(8,  4, 4) {} };
 struct gen_bad_tx_in_block_perm_16 : gen_bad_tx_in_block { gen_bad_tx_in_block_perm_16() : gen_bad_tx_in_block(16, 4, 8) {} };
+// serialized route, bitflip mode: the valid 9-tx block with one bit flipped in tx-hash entry 0, 4 or 8
+// (bytes 0, 15, 31), so that the blob still parses and only verification refuses it
+struct gen_bad_ser_block_flip_0 : gen_bad_tx_in_block { gen_bad_ser_block_flip_0() : gen_bad_tx_in_block(9, 0, 4, true, true, 0, 0)  {} };
+struct gen_bad_ser_block_flip_4 : gen_bad_tx_in_block { gen_bad_ser_block_flip_4() : gen_bad_tx_in_block(9, 0, 4, true, true, 4, 15) {} };
+struct gen_bad_ser_block_flip_8 : gen_bad_tx_in_block { gen_bad_ser_block_flip_8() : gen_bad_tx_in_block(9, 0, 4, true, true, 8, 31) {} };
 
 // The replay derives the hardfork schedule from get_test_options<T> (chaingen.h),
 // NOT from the block versions in the events; without a specialization the default
@@ -103,3 +108,6 @@ template<> struct get_test_options<gen_bad_tx_in_block_sig_8> : public get_bad_t
 template<> struct get_test_options<gen_bad_tx_in_block_sig_16> : public get_bad_tx_in_block_test_options {};
 template<> struct get_test_options<gen_bad_tx_in_block_perm_8> : public get_bad_tx_in_block_test_options {};
 template<> struct get_test_options<gen_bad_tx_in_block_perm_16> : public get_bad_tx_in_block_test_options {};
+template<> struct get_test_options<gen_bad_ser_block_flip_0> : public get_bad_tx_in_block_test_options {};
+template<> struct get_test_options<gen_bad_ser_block_flip_4> : public get_bad_tx_in_block_test_options {};
+template<> struct get_test_options<gen_bad_ser_block_flip_8> : public get_bad_tx_in_block_test_options {};
