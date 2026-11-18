@@ -96,7 +96,9 @@ the prefetch before pruning, which runs only while the option is on. Without the
   - on the 3900X (4 CPUs, under 1,536 MB, two pairs of runs): rate within 1.2%, disk reads within 0.6%, CPU time within 1%
   - Evidence: [data/perf/3900x-dot8-equivalence/](evidence/monerodato.9/data/perf/3900x-dot8-equivalence/)
 - **The release candidate against .7 on a 5,400 rpm test VM: a 7,000-block sync onto a pruned database** (coordinator ran, optimizer scored)
-  - 3.69x under a 1,536 MB cap, 0.98x without; every pre-registered criterion met. The hash check is pending from the kit's results.
+  - wall time over the sync's last 6,000 blocks −72.9% under a 1,536 MB cap and +1.4% without (5.83 against 1.58
+    and 5.91 blocks per second); every pre-registered criterion met. All eight runs ended with the reference node's
+    hash at block 3,113,400 (criterion E4).
   - Evidence: [data/perf/hddvm-dot8-kit13/](evidence/monerodato.9/data/perf/hddvm-dot8-kit13/)
 - **The published tag** (coordinator)
   - after the push, `monerodato-v0` and the tag point at `e7bae3ecf` (checked with `git ls-remote`)
@@ -105,7 +107,8 @@ the prefetch before pruning, which runs only while the option is on. Without the
   - `monerod` and both wallets build and report `v0.19.0.0-beta.3.1-monerodato.8-release`; they link only libc and libm
   - Evidence: this file
 - **Scan of that build's binaries for lab names, addresses and paths** (coordinator)
-  - pending
+  - no lab name, network address or path: the only path is the container's build directory. The only hits for the
+    scan's list of names are two words of the stock English seed-word list (`src/mnemonics/english.h`), in the wallets.
   - Evidence: this file
 - **A full sync on an Atom N450 (1 core, 1 GB, hard disk) from block 3,102,000 until it caught up with the chain, at 3,133,895** (coordinator)
   - caught up at 11-18 02:22 UTC, 55 h 10 min after the start; no stall. The hash at the tip against the reference node is pending.
