@@ -114,7 +114,8 @@ the prefetch before pruning, which runs only while the option is on. Without the
   - Evidence: this file
 - **A full sync on an Atom N450 (1 core, 1 GB, hard disk) from block 3,102,000 until it caught up with the chain, at 3,133,895** (coordinator)
   - caught up at 11-18 02:22 UTC, 55 h 10 min after the start; no stall. The hash at the tip against the reference node is pending.
-  - Evidence: pending (the sync data and script)
+  - Evidence: [data/sync/atom-n450/](evidence/monerodato.9/data/sync/atom-n450/), with the rules and the command in
+    [data/sync/README.md](evidence/monerodato.9/data/sync/README.md)
 
 ## monerodato.7, the first release
 

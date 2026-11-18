@@ -35,6 +35,8 @@ All scoring scripts use the Python standard library only. Run them from `evidenc
   to the command that prints it.
 - **Timing-kit tables:** the README in each `data/perf/<box>_dot9*/` directory gives its table and the files it is
   computed from.
+- **Whole syncs on low-spec machines** (the README's "On real low-spec machines" rows for the Atom and the G6950):
+  [monerodato.9/data/sync/README.md](monerodato.9/data/sync/README.md) gives the rules and the command.
 
 The timing data are gzipped CSVs with a header row. `height` is always the true block height: monerod's log line
 `Height: N` is for block N-1.

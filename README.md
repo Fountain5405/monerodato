@@ -309,25 +309,26 @@ those out, and the percentages are on that figure. Memory is the node's peak Rss
 from the same monitor for every run.
 
 - **Q6600:** Core 2 Quad Q6600, 4 cores, 3.8 GB, SSD. Blocks up to 3,106,400.
-- **G6950:** Pentium G6950, 2 cores, 3.7 GB, HDD. Blocks: pending. The two syncs ended at different tips, so these times will be recomputed over the range both covered.
+- **G6950:** Pentium G6950, 2 cores, 3.7 GB, HDD. Blocks 3,102,000 to 3,130,083.
 - **Atom:** Atom N450, 1 core, 1 GB, HDD. Blocks 3,102,000 to 3,129,281.
 
 | Machine | Build | Total | Stalls | No stalls | Change¹ | Peak anon | Peak swap |
 |---|---|---|---|---|---|---|---|
 | Q6600 | reference | 3 h 09 min | none | 3 h 09 min | | 1,879 MiB | 64 MiB |
 | | .7 | 2 h 59 min | none | 2 h 59 min | −5.7% | 1,110 MiB | 0 MiB |
-| G6950 | reference | 8 h 14 min | 1 h 21 min | 6 h 53 min | | 1,456 MiB | 620 MiB |
-| | .7 | 6 h 23 min | none | 6 h 23 min | −7.3% | 942 MiB | 312 MiB |
+| G6950 | reference | 8 h 13 min | 1 h 21 min³ | 6 h 52 min | | 1,456 MiB | 620 MiB |
+| | .7 | 6 h 22 min | none | 6 h 22 min | −7.2% | 942 MiB | 312 MiB |
 | Atom | reference | 71 h 52 min | 2 h 09 min² | 69 h 42 min | | 664 MiB | 1,234 MiB |
 | | .7 | 56 h 18 min | none | 56 h 18 min | −19.2% | 619 MiB | 485 MiB |
 | | .8 | 54 h 41 min | none | 54 h 41 min | −21.5% | 622 MiB | 548 MiB |
 
-¹ Against the reference build, without stalls. Gross, the Atom's .7 is −21.7% and its .8 −23.9%.
-² The 100 MB message limit at block 3,105,400, until the node was restarted.
+¹ Against the reference build, without stalls. Gross, the G6950's .7 is −22.5%, the Atom's .7 −21.7% and its .8 −23.9%.
+² The 100 MB message limit at block 3,105,400, until the node was restarted.  
+³ A peer without the needed blocks (1 h 10 min), then the 100 MB message limit (11 min), each until the node was restarted.
 
 - **The Atom's three syncs** ran one after the other from the same database, each to its own catch-up with the
   chain; the table compares them over the range all three covered. Between .7 and .8 the difference (2.9%) is one run
-  each, within what this machine varies by. The data and the script will be added to the evidence (pending).
+  each, within what this machine varies by. The data, the rules and the script are in [evidence/monerodato.9/data/sync/](evidence/monerodato.9/data/sync/).
 - **Ten- to twenty-five-minute pauses at the heavy blocks** (3,103,105–3,103,409 and 3,105,424–3,105,439) occur in
   all three Atom runs, with the node busy on the CPU or the disk; they are counted as sync time, not as stalls.
 
