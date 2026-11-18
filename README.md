@@ -264,20 +264,23 @@ Fast machines, each block type, wall time / CPU time:
 | 3900X, 11 cores | | | −22.9% / +0.2% |
 | 3900X, 4 cores | | | −15.3% / −3.5% |
 
-Slow machines, a sync from block 3,102,000 to 3,103,451:
+Slow machines, a sync from block 3,102,000 to 3,103,451 (the Atom: 3,103,300 to 3,103,350):
 
 | Machine | Wall | CPU | Runs |
 |---|---|---|---|
 | Q6600, SSD | −14.1% | −1.9% | 4 |
 | G6950, HDD | −14.4% | −5.8% | 6 |
-| Atom N450, HDD | pending | pending | 4 |
+| Atom N450, HDD | −1.9% | −2.5% | 4 |
 
 - **The machines:** a 6-core Ryzen 5 5600G; a 16-core Ryzen 9 5900XT; a 12-core Ryzen 9 3900X pinned to 11 or
-  4 cores; a 4-core Core 2 Quad Q6600; a 2-core Pentium G6950; a 1-core Atom N450 (being measured).
+  4 cores; a 4-core Core 2 Quad Q6600; a 2-core Pentium G6950; a 1-core Atom N450.
 
 - On the 5900XT, CPU time was +0.4% to +4.4% across its four cells.
 - The slow-box runs start from a database popped to block 3,102,000 and sync to block 3,103,451 from the network,
   in the order .8, .9, .9, .8 (the G6950 two runs more), each from a fresh copy of the same database.
+- **The Atom** synced 51 blocks, from a database popped to block 3,103,299, at about 2 h 10 min a run. Its two .8
+  runs differ by 2.6% in wall time, so its −1.9% is within run-to-run variation; its CPU times agree within 0.3%.
+  [Data](evidence/monerodato.9/data/perf/n450_dot9/README.md).
 
 **Where the time saving comes from.** Each change on its own, added to the reference build, on the 5600G as under
 [Memory](#memory). The cells name the base where it is not the reference build alone.

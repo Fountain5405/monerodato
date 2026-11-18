@@ -1,0 +1,33 @@
+2026-11-18T12:15:07Z driver start; order B N N B; master 13665726464 bytes; stop at log Height 3103351
+2026-11-18T12:19:25Z arm B: 184041c30e61ab46 Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.8-release)
+2026-11-18T12:19:26Z arm N: c44c62f156ef33c6 Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.9-22c1f9ee7)
+2026-11-18T12:19:26Z run 1 arm B: copy start
+2026-11-18T12:34:11Z run 1 arm B: monerod started 2026-11-18 12:33:35 UTC pid 1587247 exe 184041c30e61 "height":3103300"version":"0.19.0.0-beta.3.1-monerodato.8-release
+2026-11-18T14:43:31Z run 1 arm B: passed Height 3103351; node cpu ticks 891160; RssAnon 333316 kB; VmSwap 37072 kB
+2026-11-18T14:43:36Z run 1 arm B: top block 3103351 hash e3aee703714ecdd7c6bc82a8e2de3fe71c0bef7d38be20400eccaba1d18cde5d the reference node e3aee703714ecdd7c6bc82a8e2de3fe71c0bef7d38be20400eccaba1d18cde5d match=yes
+2026-11-18T14:43:37Z run 1 arm B: verify/max-packet lines 0; grace 60 s before the stop
+2026-11-18T14:47:44Z run 1 arm B: monerod stopped; sidecar stops in 90 s
+2026-11-18T14:49:15Z run 1 arm B: stopped
+2026-11-18T14:49:16Z run 2 arm N: copy start
+2026-11-18T15:03:02Z run 2 arm N: monerod started 2026-11-18 15:02:35 UTC pid 1597617 exe c44c62f156ef "height":3103300"version":"0.19.0.0-beta.3.1-monerodato.9-22c1f9ee7
+2026-11-18T17:13:22Z run 2 arm N: passed Height 3103352; node cpu ticks 870137; RssAnon 412036 kB; VmSwap 37848 kB
+2026-11-18T17:16:38Z run 2 arm N: top block none hash  the reference node  match=NO (get_height gave no answer in 3 tries)
+2026-11-18T17:16:40Z run 2 arm N: verify/max-packet lines 0; grace 60 s before the stop
+2026-11-18T17:18:26Z run 2 arm N: monerod stopped; sidecar stops in 90 s
+2026-11-18T17:19:56Z run 2 arm N: stopped
+2026-11-18T17:19:57Z run 3 arm N: copy start
+2026-11-18T17:33:48Z run 3 arm N: monerod started 2026-11-18 17:33:19 UTC pid 1608124 exe c44c62f156ef "height":3103300"version":"0.19.0.0-beta.3.1-monerodato.9-22c1f9ee7
+2026-11-18T19:41:08Z run 3 arm N: passed Height 3103351; node cpu ticks 868004; RssAnon 363796 kB; VmSwap 37772 kB
+2026-11-18T19:41:08Z run 3 arm N: top block 3103351 hash e3aee703714ecdd7c6bc82a8e2de3fe71c0bef7d38be20400eccaba1d18cde5d the reference node e3aee703714ecdd7c6bc82a8e2de3fe71c0bef7d38be20400eccaba1d18cde5d match=yes
+2026-11-18T19:41:11Z run 3 arm N: verify/max-packet lines 0; grace 60 s before the stop
+2026-11-18T19:45:16Z run 3 arm N: monerod stopped; sidecar stops in 90 s
+2026-11-18T19:46:47Z run 3 arm N: stopped
+2026-11-18T19:46:48Z run 4 arm B: copy start
+2026-11-18T20:00:50Z run 4 arm B: monerod started 2026-11-18 20:00:22 UTC pid 1619532 exe 184041c30e61 "height":3103300"version":"0.19.0.0-beta.3.1-monerodato.8-release
+2026-11-18T22:13:41Z run 4 arm B: passed Height 3103351; node cpu ticks 890854; RssAnon 353388 kB; VmSwap 37140 kB
+2026-11-18T22:13:49Z run 4 arm B: top block 3103351 hash e3aee703714ecdd7c6bc82a8e2de3fe71c0bef7d38be20400eccaba1d18cde5d the reference node e3aee703714ecdd7c6bc82a8e2de3fe71c0bef7d38be20400eccaba1d18cde5d match=yes
+2026-11-18T22:13:52Z run 4 arm B: verify/max-packet lines 0; grace 60 s before the stop
+2026-11-18T22:18:03Z run 4 arm B: monerod stopped; sidecar stops in 90 s
+2026-11-18T22:19:34Z run 4 arm B: stopped
+2026-11-18T22:19:54Z tip DB back, .8 release binary, "height":3134216"version":"0.19.0.0-beta.3.1-monerodato.8-release
+2026-11-18T22:19:54Z DOT9A_ALL_DONE
