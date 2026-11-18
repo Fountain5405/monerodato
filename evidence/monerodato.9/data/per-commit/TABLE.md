@@ -28,13 +28,22 @@ Each cell gives what moves when the commit (or the smallest set that applies) is
 | monero-oxide 0008 `6c31ede43` | Memory (wallet) | not applicable: wallet code (see "Wallet") | not applicable | not applicable | — |
 | monero-oxide 0009 `2912fdd99` | Memory (wallet) | not applicable: wallet code (see "Wallet") | not applicable | not applicable | — |
 | **summary: monero-oxide 0001-0003 together** | Memory + CPU | wall −26.6%, CPU −33.1%, peak −53.3%, idle −48.5% | CPU +14.8%, peak −7.8%, idle −7.8%; wall no measurable change | wall +3.2%, CPU +8.4% | — |
-| .8 `aead98ebd`, `a3b780722`, `bd5c6b340`, `da1dcb451` (with their tests `87f401be7`, `b3a2bf8c0`) | Disk | not measured on these windows (see "Start-up and disk") | not measured on these windows | not measured on these windows | — |
-| .9 `321f251ab` | CPU | not measured | not measured | wall −4.2%, CPU +0.5% | — |
-| .9 `cf163c91c` | CPU | not measured | not measured | wall −11.1%, CPU +0.7%. Base: stock + `321f251ab` | `321f251ab` |
-| .9 `5c9ffb675` | CPU | not measured | not measured | wall −3.8%; CPU no measurable change | — |
-| .9 `6bb32ea00` | CPU | not measured | not measured | wall −1.9%, CPU −2.9%. Base: stock + monero-oxide 0001-0003 | oxide 0003 |
+| monero 0012 `aead98ebd`, 0014 `a3b780722`, 0016 `bd5c6b340`, 0017 `da1dcb451` (.8; with their tests 0013 `87f401be7`, 0015 `b3a2bf8c0`) | Disk | not measured on these windows (see "Start-up and disk") | not measured on these windows | not measured on these windows | — |
+| monero 0018 `321f251ab` (.9) | CPU | not measured | not measured | wall −4.2%, CPU +0.5% | — |
+| monero 0019 `cf163c91c` (.9) | CPU | not measured | not measured | wall −11.1%, CPU +0.7%. Base: stock + `321f251ab` | monero 0018 |
+| monero 0020 `5c9ffb675` (.9) | CPU | not measured | not measured | wall −3.8%; CPU no measurable change | — |
+| monero-oxide 0010 `6bb32ea00` (.9) | CPU | not measured | not measured | wall −1.9%, CPU −2.9%. Base: stock + monero-oxide 0001-0003 | oxide 0003 |
 
 "Peak" is peak anonymous memory (RssAnon) during the window. "Idle" is anonymous memory after 45 s idle at the window's end.
+
+## The whole .9 build against stock (not per commit)
+Measured on its own, not multiplied from the rows above: monerodato.9 (`22c1f9ee7`) against stock beta.3.1 on the Ryzen 5 5600G (6 cores / 12 threads, SSD), native builds, default threads, 2026-11-18. Medians of 3 runs a side (2 for one-input big blocks). Every pair's ranges are disjoint, and every run ended with the reference hash.
+
+| build | heavy, 128-input | small-tx, 2-input | one-input big blocks |
+|---|---|---|---|
+| monerodato.9, whole | wall −51.2% (248 → 121 s), CPU −73.6% (2,417 → 637 s), peak −63.5% (3,385 → 1,235 MB), idle −80.3% (2,934 → 578 MB) | wall −23.3% (86 → 66 s), CPU −41.5% (383 → 224 s), peak −17.0% (566 → 470 MB), idle −30.8% (565 → 391 MB) | wall −37.6% (317.5 → 198.2 s), CPU −31.1% (2,030 → 1,400 s); memory not measured |
+
+Stock's small-tx wall time spread 71-97 s over its three runs, against .9's 60-67 s: it is the noisiest figure here.
 
 ## Start-up and disk (not per block type)
 

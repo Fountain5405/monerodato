@@ -249,3 +249,66 @@ Their sha256s and `--version` lines are appended here before the runs start.
 
 **Reading (fixed before the runs):** H1 met, so the table's warm-up row gets **0.475 of stock's launch-to-top on the HDD VM (−52.5%)** as "alone on stock, HDD". W is faster than A and H3 is met, so no investigation is triggered. The H4 miss is reported as above.
 - Costs: RPC answers 4.4 s later; 640 MB more read from the disk; 675 MB more page cache resident at the end. This is reclaimable cache, not anonymous memory, and peak RssAnon is unchanged.
+
+## Addendum: the whole .9 build against stock (pre-registered 2026-11-18 17:45 UTC, before any run)
+**Why.** The lab coordinator (11-18 17:32) is rewriting the public README's Memory and CPU sections for .9. The owner's rule is that every figure sits beside a comparable, measured baseline, not a chain of ratios. The README has no whole-build row for .9 against stock beta.3.1; the only whole-build rows are monerodato.1 against the reference build on the 3900X. This is that row, in this experiment's form and on its box.
+
+**Arms** (5600G, native, `recipe/pc_build.sh`: Ninja, Release, ARCH=native, BUILD_TESTS=OFF, the daemon only, a fresh build dir):
+- **A:** stock beta.3.1 d80596ad1, the same binary as this experiment's A (sha256 df11ce9307ccb126…, built 11-17). It is re-run today, not reused from 11-17's runs.
+- **N9:** the .9 release head 22c1f9ee7 (branch pc-N9 in the 5600G's fork tree, the .9 branch's head). Built 11-18 17:34-17:36, sha256 6cf6e499e7ae9bb1…, version `-monerodato.9-22c1f9ee7`.
+- N9 holds all of .9: the cap, trim, multiexp set, oxide set with the transcript skip, dalek and multiexp crates, the index warm-up, .8's commits (`--db-cache-drop` stays off by default and is not passed), the sums, the BP+ sub-batches and the key-image domains.
+
+**The runs** (the per-commit chain with the arms and run names changed, and a wait for builds on the source box to finish, so that nothing else runs there during the runs; the same stock source node on the 3900X box, the same drivers):
+1. **Replay** 3,103,320-3,103,500 from `stressnet_h3103300c`: order A N9, then N9 A. That is 2 runs an arm, wall from the node's time-stats lines, CPU from 1 s samples (`replay_score.py --base A`).
+2. **Fastbox heavy** 3,105,401-3,105,444, `--block-sync-size 5`, from `stressnet_wedge_h3105401`: 3 rounds, with fb_window alternating the order.
+3. **Fastbox small-tx** 3,106,401-3,106,800 from `stressnet_h3106400c`: 3 rounds, alternating.
+
+Each run starts from a fresh copy of the database. Default threads, governor performance, idle check before each run. Figures: wall, node CPU, peak RssAnon and anon after 45 s idle (fastbox), each with the hash check.
+
+**Predictions** (N9/A, ratio of medians):
+
+| # | window | wall | CPU | peak RssAnon | post-idle anon |
+|---|---|---|---|---|---|
+| 15 | replay | 0.55-0.70 | 0.62-0.76 | - | - |
+| 16 | heavy | 0.40-0.58 | 0.21-0.32 | 0.27-0.42 | 0.13-0.27 |
+| 17 | small-tx | 0.65-1.00 | 0.52-0.66 | 0.74-0.90 | 0.57-0.77 |
+
+18. Every run reaches its window's end with the source's hash, and the replay runs have 0 ERROR lines.
+
+- **The basis for these bands.** It is a cross-day comparison, not a measurement: the earlier .9 runs on this box (11-16, same recipe and drivers) divided by this experiment's A runs (11-17).
+  - Replay: 197.4/320 s wall, 1,400/2,025 s CPU.
+  - Heavy: 120/252 s wall, 628/2,399 s CPU, 1,202/3,563 MB peak, 589/3,108 MB post-idle.
+  - Small-tx: 65/74 s wall, 228/386 s CPU, 475/579 MB peak, 386/579 MB post-idle.
+  - Each band is roughly ±12% around the ratio. Small-tx wall is wider because A's runs spread 64-93 s.
+- **The reading, fixed now:**
+  - The six N9/A ratios with their ranges go to the lab coordinator as the README's whole-build rows, as measured, whatever they are. A pair inside its overlap reads "no measurable change on the 5600G".
+  - A missed band is reported with its number. It does not change what is published.
+  - A hash mismatch or failed run means that run is redone once. If it fails again, the row reads "failed" and I look at it before anything goes out.
+- **Not this run:** .9 against .8 memory. That comes from the earlier .9 fastbox runs on this box (11-16; N there is 6bb32ea00, whose code is the same as 22c1f9ee7's, since `6bb32ea00..22c1f9ee7` changes only MONERODATO.md and src/version.cpp.in).
+  - heavy: peak 1,224 → 1,202 MB (−1.8%, overlap), post-idle 590 → 589 MB (overlap);
+  - small-tx: peak 473 → 475 MB (+0.4%, overlap), post-idle 394 → 386 MB (−2.0%, overlap).
+
+### The whole .9 build against stock: results (5600G, 2026-11-18 17:54-20:09 UTC; scored at each phase's end)
+**The run:** it started 17:52, after the source box's builds finished at 17:51. Nothing else of the lab's ran on the source box or the 5600G until it ended.
+- Every run ended with the source's hash: 4 replay runs (HASH_OK at 3,103,500, 0 ERROR lines) and 12 fastbox runs (hash_match yes).
+- Data: `wholebuild-5600g/` (per replay run, `node_timestats.log`, `samples.csv` and `run.log`; per fastbox window, `results.csv` and `summary.txt`, with paths written `<work>`).
+- Scored with `scripts/replay_score.py --base A` and `scripts/fastbox_pairs.py`; the commands are in [README.md](README.md).
+
+| # | window | wall | CPU | peak RssAnon | anon after 45 s idle | result |
+|---|---|---|---|---|---|---|
+| 15 | replay, medians of 2 | **0.624** (198.2 against 317.5 s; no overlap) | **0.689** (1,400 against 2,030 s) | - | - | met |
+| 16 | heavy, medians of 3 | **0.488** (121 against 248 s; no overlap) | **0.264** (637 against 2,417 s; no overlap) | **0.365** (1,235 against 3,385 MB; no overlap) | **0.197** (578 against 2,934 MB; no overlap) | met, all four |
+| 17 | small-tx, medians of 3 | **0.767** (66 against 86 s; no overlap) | **0.585** (224 against 383 s; no overlap) | **0.830** (470 against 566 MB; no overlap) | **0.692** (391 against 565 MB; no overlap) | met, all four |
+
+18. Correct: **met**, 16 of 16 runs.
+
+- **What it shows:** on the 5600G, the .9 build against stock beta.3.1 is
+  - **heavy blocks:** −51.2% wall, −73.6% CPU, −63.5% peak anonymous memory, −80.3% after idle;
+  - **small-tx blocks:** −23.3% wall, −41.5% CPU, −17.0% peak, −30.8% after idle;
+  - **one-input big blocks:** −37.6% wall, −31.1% CPU.
+  - Each pair's ranges are disjoint. Stock's small-tx wall spread 71-97 s this time, against .9's 60-67 s.
+- **Against the per-commit rows:** the whole-build figures are measured, not products of the step rows.
+- **The bands** came from a cross-day ratio (the 11-16 .9 runs over the 11-17 A runs).
+  - CPU landed within 1% of that ratio in all three windows.
+  - Heavy peak landed 8% above it, and small-tx wall 13% below it. Small-tx wall is the noisy figure.
+- **Limits:** one box (6 cores / 12 threads, SSD), 2-3 runs an arm. Correctness rests on the hash at each window's end.

@@ -85,4 +85,6 @@ The commit table's per-block-type figures come from [`data/per-commit/`](data/pe
 - one-input big blocks;
 - start-up from a dropped page cache. The index warm-up was also run on the HDD VM, by the lab coordinator, with static release builds of stock and of stock plus its three commits.
 
+The whole .9 build was also measured against stock on the same box and windows (TABLE.md, "The whole .9 build against stock"). Those figures are measured, not multiplied from the per-commit rows.
+
 The wallet commits' existing figures are there too, with their bases. That directory's README maps every table cell to its data and a command. Its PLAN_AND_RESULTS.md holds the predictions set before the runs and every miss.

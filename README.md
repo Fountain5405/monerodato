@@ -203,7 +203,8 @@ stock `v0.19.0.0-beta.3.1`. The block types are those of [the commit list](#the-
 - **3900X:** a 12-core Ryzen 9 3900X with 16 GB, 3 alternating rounds.
 - **VM:** 4 vCPUs, 6 GB, no swap; a replay of the chain from block 3,105,400 to the tip.
 - **5600G:** a 6-core Ryzen 5 5600G with an SSD, default threads, 3 runs a side, measured on the whole .9 build (not
-  multiplied from the per-change rows). After 45 s idle: heavy 2,934 → 578 MB (−80.3%), small-tx 565 → 391 MB (−30.8%).
+  multiplied from the per-change rows; data and commands in
+  [TABLE.md](evidence/monerodato.9/data/per-commit/TABLE.md#the-whole-9-build-against-stock-not-per-commit)). After 45 s idle: heavy 2,934 → 578 MB (−80.3%), small-tx 565 → 391 MB (−30.8%).
 
 **Where the saving comes from.** Each change measured on its own, added to the reference build, on one machine (a
 6-core Ryzen 5 5600G, 3 rounds a side). The cells name the base where it is not the reference build alone. Every

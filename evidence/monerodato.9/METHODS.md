@@ -143,6 +143,7 @@ Every measurement here followed the same rules.
   - the fastbox heavy and small-tx windows above, 3 rounds alternating;
   - for the index warm-up, launch to RPC and launch to the end of the small-tx window, from a dropped page cache (A W W A W A A W).
   - the index warm-up again on the HDD VM, with the HDD kits' harness (v5), static release builds of stock and of stock plus the three commits, and the same order. Launch to top, launch to RPC, reads after RPC and the warm-up's log line were measured. Five predictions were fixed before those runs. One missed: reads after RPC, whose bar did not fit a background warm-up.
+- **The whole .9 build** (11-18): stock against .9 built with the same recipe, on the replay and both fastbox windows (2 and 3 rounds), with four predictions fixed before the runs. All four were met, and all 16 runs ended with the reference hash.
 - **Metric and noise:** each table cell is the ratio of medians against the arm's base. It reads "no measurable change" where the runs overlap.
   - The small-tx window's wall time is noisy (stock's runs 64-93 s), so its CPU is the reliable figure there (spread 2% or less).
 - **Predictions:** fixed in writing before the runs: 14 for the block windows and 4 for the warm-up. They are listed with their results in `data/per-commit/PLAN_AND_RESULTS.md`.

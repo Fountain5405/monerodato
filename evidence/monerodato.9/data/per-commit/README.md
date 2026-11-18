@@ -16,6 +16,7 @@ This directory backs the per-commit table, [TABLE.md](TABLE.md): what each commi
 | `warmup-5600g/` | 8 runs of stock against the index warm-up from a dropped page cache: `results.csv`, `summary.txt` (with each warm-up's log lines), `error_level_counts.txt` | Ryzen 5 5600G |
 | `warmup-hddvm/` | 8 runs of the same comparison on the HDD VM, run by the lab coordinator: the kit's `results.txt` and `log.txt`, per run `<run>.summary.txt`, `.height.csv`, `.residency.csv`, `.proc.csv`, `.iostat.txt`, `.vmstat.txt`, and `warmup_lines.txt` (each run's warm-up lines from its node log). Paths are replaced by `<vm user>` and the peer address by `<peer>` | HDD VM: 4 vCPUs, 4 GB RAM, 5,400 rpm disk |
 | `dalek-5600g/heavy/`, `dalek-5600g/small/` | an earlier run of stock against stock plus dalek-ff-group 0001 + 0002: `results.csv`, `summary.txt`, per-run memory samples | Ryzen 5 5600G |
+| `wholebuild-5600g/replay/<run>/`, `wholebuild-5600g/heavy/`, `wholebuild-5600g/small/` | the whole .9 build against stock (2026-11-18): 4 replay runs, `n9r<round>_<arm>`, with the same files as `replay-5600g`; 6 runs per fastbox window, `results.csv` and `summary.txt` | Ryzen 5 5600G |
 | `wallet-3900x/` | `ab_dot3_dot2.csv` and `ab_dot3_dot3.csv` (wallet A/B for multiexp 0001: .2 against .2 plus the commit); `mem_f2.csv` (wallet peak memory, monero-oxide 0007-0009 as steps) | Ryzen 9 3900X |
 | `wallet-q6600/` | `q6600_dot3_wallet.csv`: the wallet A/B for multiexp 0001, arms `dot2` and `dot3` | Core 2 Quad Q6600 |
 
@@ -31,6 +32,7 @@ This directory backs the per-commit table, [TABLE.md](TABLE.md): what each commi
 - `F3`: `F2` + monero-oxide 0003.
 - `X`: `F3` + `6bb32ea00`.
 - `W`: monero 0007 + 0009 + 0010.
+- `N9` (in `wholebuild-5600g/` only): the whole monerodato.9 build (`22c1f9ee7`), not stock plus some commits.
 
 ## Table cell → command
 | table rows | command | prints |
@@ -40,6 +42,8 @@ This directory backs the per-commit table, [TABLE.md](TABLE.md): what each commi
 | one-input column: `6bb32ea00` | the same with `--base F3` | `X/F3: wall 0.981 (-1.9% …); CPU 0.971 (-2.9% …)` |
 | heavy column: monero 0001, 0002, the 0005 group, monero-oxide 0001 + 0002, 0003, and the summary | `python3 scripts/fastbox_pairs.py data/per-commit/fastbox-5600g/heavy Cp/A CpTW/Cp M4/CpTW F2/A F3/F2 F3/A` | `Cp/A: … cpu_s 0.491 (-50.9%, no overlap)`, `CpTW/Cp: … peak_anon_MB 0.555 (-44.5%, no overlap)`, `M4/CpTW: wall_s 0.932 …`, `F2/A: wall_s 0.766 …`, `F3/F2: … cpu_s 0.874 …`, `F3/A: wall_s 0.734 …` |
 | small-tx column: the same rows | the same on `data/per-commit/fastbox-5600g/small` | `CpTW/Cp: … peak_anon_MB 0.902 …`, `M4/CpTW: … cpu_s 0.619 (-38.1%, no overlap)`, `F2/A: … cpu_s 1.262 …`, `F3/A: … cpu_s 1.148 …` |
+| the whole .9 build: one-input big blocks | `python3 scripts/replay_score.py data/per-commit/wholebuild-5600g/replay n9r1_A n9r1_N9 n9r2_N9 n9r2_A --base A` | `N9/A: wall 0.624 (-37.6%; … no overlap); CPU 0.689 (-31.1%; …)` |
+| the whole .9 build: heavy and small-tx | `python3 scripts/fastbox_pairs.py data/per-commit/wholebuild-5600g/heavy N9/A`, and the same on `…/small` | heavy `N9/A: wall_s 0.488 (-51.2%, no overlap); cpu_s 0.264 (-73.6%, no overlap); peak_anon_MB 0.365 (-63.5%, no overlap); post_idle_anon_MB 0.197 (-80.3%, no overlap)`; small `N9/A: wall_s 0.767 (-23.3%, no overlap); cpu_s 0.585 (-41.5%, no overlap); peak_anon_MB 0.830 (-17.0%, no overlap); post_idle_anon_MB 0.692 (-30.8%, no overlap)` |
 | dalek-ff-group 0001 + 0002 | `python3 scripts/fastbox_pairs.py data/per-commit/dalek-5600g/heavy s64/base`, and the same on `…/small` | heavy `s64/base: wall_s 0.935 (-6.5% …); cpu_s 0.927 (-7.3% …); peak_anon_MB 1.036 (+3.6%, overlap)`; small `wall_s 0.847 (-15.3% …); cpu_s 0.806 (-19.4% …)` |
 | start-up: the index warm-up on the 5600G | `python3 scripts/warmup_score.py data/per-commit/warmup-5600g` | `W/A rpc_s: 0.798 (-20.2%, overlap)`, `W/A end_s: 0.810 (-19.0%, no overlap)`, `W/A cpu_s: 0.997 …` |
 | start-up: the index warm-up on the HDD VM | `python3 scripts/warmup_hdd_score.py data/per-commit/warmup-hddvm` | `launch_to_top_s … W/A 0.475 (-52.5%, no overlap)`, `launch_to_rpc_s … W-A +4.40 s`, `read_kB_per_block (window 1) A 348 … W 2`, and H1-H5 (`H4 NOT met`, see PLAN_AND_RESULTS.md) |
