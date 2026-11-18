@@ -198,11 +198,12 @@ stock `v0.19.0.0-beta.3.1`. The block types are those of [the commit list](#the-
 | .1 | 3900X, 24 threads | 5,313 → 1,451 MB (−72.7%) | −17.0% |
 | .1 | 3900X, 12 threads | 3,573 → 1,237 MB (−65.4%) | −12.9% |
 | .0 | VM, 4 vCPUs | 2,167,448 → 931,456 kB (−57%) | |
-| .9 | 5600G | pending | pending |
+| .9 | 5600G, 12 threads | 3,385 → 1,235 MB (−63.5%) | 566 → 470 MB (−17.0%) |
 
 - **3900X:** a 12-core Ryzen 9 3900X with 16 GB, 3 alternating rounds.
 - **VM:** 4 vCPUs, 6 GB, no swap; a replay of the chain from block 3,105,400 to the tip.
-- **.9:** pending; .9 against stock on the 5600G, in the three block types, is being measured.
+- **5600G:** a 6-core Ryzen 5 5600G with an SSD, default threads, 3 runs a side, measured on the whole .9 build (not
+  multiplied from the per-change rows). After 45 s idle: heavy 2,934 → 578 MB (−80.3%), small-tx 565 → 391 MB (−30.8%).
 
 **Where the saving comes from.** Each change measured on its own, added to the reference build, on one machine (a
 6-core Ryzen 5 5600G, 3 rounds a side). The cells name the base where it is not the reference build alone. Every
@@ -240,9 +241,11 @@ node syncing a stretch of the stressnet chain of one block type.
 |---|---|---|---|
 | .1 | 3900X, 24 threads | wall −55.6%, CPU −82.4% | wall −7.4%, CPU −51.9% |
 | .1 | 3900X, 12 threads | wall −50.8%, CPU −64.2% | wall +4.0%, CPU −31.1% |
-| .9 | 5600G | pending | pending |
+| .9 | 5600G, 12 threads | wall −51.2%, CPU −73.6% | wall −23.3%, CPU −41.5% |
 
-3 alternating rounds on the 3900X. The .9 row is pending, as under Memory.
+3 alternating rounds on the 3900X; on the 5600G, 3 runs a side of the whole .9 build. One-input big blocks on the
+5600G (2 runs a side): wall −37.6%, CPU −31.1%. The reference build's small-tx wall time spread 71–97 s across its
+runs, so that is the noisiest figure here.
 
 monerodato.2 to .8 left the node's verification code as it was in .1.
 
