@@ -59,7 +59,9 @@ ride the tag as seven more commits; that is the owner's decision at tag time.
   - Evidence: pending (the optimizer's build report)
 - **The gate tests as adopted into the fork: seven commits on `22c1f9ee7`** (optimizer)
   - 22 unit tests pass in 67 s; `core_tests --filter='gen_bad_*'`: 22 run, 0 failures, in 95 s. The test logic is the adversary's, unchanged; names, comments and messages rewritten
-  - Evidence: pending (the adversary's review of the adopted series)
+  - The adversary reviewed the adopted series: approved, with no behaviour change from the tests it wrote; the
+    messages' corrections, and the counts, commands and times in the MONERODATO.md paragraph, checked.
+  - Evidence: pending (the adversary's evidence package)
 - **Every performance run ended on the reference chain** (optimizer, coordinator)
   - the per-commit study: all 56 runs on the 5600G and 8 on a 5,400 rpm test VM ended with the reference node's hash. The fast-box runs on a 16-core Ryzen 9 5900XT: 24 of 24 hashes equal. The slow boxes (Core 2 Quad Q6600, Pentium G6950): every hash read equalled the reference node's; on a busy node some of the driver's own checks got no answer, and a separate recorder polling every 30 s covered those runs
   - Evidence: [evidence README](evidence/monerodato.9/README.md), [methods](evidence/monerodato.9/METHODS.md), each run's README under [data/perf/](evidence/monerodato.9/data/perf/)
