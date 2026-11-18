@@ -1,0 +1,11 @@
+2026-11-16T05:07:24Z start d9x1_P; binary da335a9cc6454fc5 Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.7-3a8b3f68f); end 3103500
+2026-11-16T05:07:24Z load 0.87 3.18 3.62; free GB   33G
+2026-11-16T05:07:26Z governor schedutil -> performance
+2026-11-16T05:07:28Z source node up, height 3123270
+2026-11-16T05:07:28Z test node pid 1092557; affinity 0-10,12-22
+2026-11-16T05:11:33Z end: end at height 3103504 after 245 s from launch
+2026-11-16T05:11:33Z block 3103500: node 020744aa54024f2d0c03c68515d98a2060bf01f33e207291c17d733dd5f91c60 source 020744aa54024f2d0c03c68515d98a2060bf01f33e207291c17d733dd5f91c60 HASH_OK
+2026-11-16T05:11:36Z monerod processes left: 0
+2026-11-16T05:11:37Z node log: ERROR 0, time-stats lines 204
+2026-11-16T05:11:37Z governor back to schedutil
+2026-11-16T05:11:37Z BPP_RUN_DONE end

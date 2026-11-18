@@ -1,0 +1,25 @@
+2026-11-16T11:30:19Z driver start; master 13787566080 bytes
+2026-11-16T11:30:20Z tip DB moved to /var/lib/monero/testnet/lmdb.dato7-tip-20261116
+2026-11-16T11:30:20Z run 1 arm B: copy start
+2026-11-16T11:34:45Z run 1 arm B: monerod started 2026-11-16 11:34:43 UTC pid 2370716 exe 184041c30e61 "height":3102000"version":"0.19.0.0-beta.3.1-monerodato.8-release
+2026-11-16T12:33:48Z run 1 arm B: top block 3103454 hash 54222cec8f3dc9a9d290915dc083f8277dc7dc329bf79007fc55047b83f48b72 the reference node 54222cec8f3dc9a9d290915dc083f8277dc7dc329bf79007fc55047b83f48b72 match=yes
+2026-11-16T12:33:49Z run 1 arm B: passed Height 3103455; verify/max-packet lines 0; node cpu ticks 964532; RssAnon 951700 kB
+2026-11-16T12:33:52Z run 1 arm B: stopped
+2026-11-16T12:33:52Z run 2 arm N: copy start
+2026-11-16T12:38:11Z run 2 arm N: monerod started 2026-11-16 12:38:09 UTC pid 2379099 exe c44c62f156ef "height":3102000"version":"0.19.0.0-beta.3.1-monerodato.9-22c1f9ee7
+2026-11-16T13:28:23Z run 2 arm N: top block 3103451 hash 462daace41fea6207bf520bc1c27ff8350aded45bfbbf334986bb3d013d7dd4f the reference node 462daace41fea6207bf520bc1c27ff8350aded45bfbbf334986bb3d013d7dd4f match=yes
+2026-11-16T13:28:24Z run 2 arm N: passed Height 3103452; verify/max-packet lines 0; node cpu ticks 941059; RssAnon 867576 kB
+2026-11-16T13:28:28Z run 2 arm N: stopped
+2026-11-16T13:28:28Z run 3 arm N: copy start
+2026-11-16T13:32:57Z run 3 arm N: monerod started 2026-11-16 13:32:54 UTC pid 2387006 exe c44c62f156ef "height":3102000"version":"0.19.0.0-beta.3.1-monerodato.9-22c1f9ee7
+2026-11-16T14:23:43Z run 3 arm N: top block 3103454 hash 54222cec8f3dc9a9d290915dc083f8277dc7dc329bf79007fc55047b83f48b72 the reference node 54222cec8f3dc9a9d290915dc083f8277dc7dc329bf79007fc55047b83f48b72 match=yes
+2026-11-16T14:23:43Z run 3 arm N: passed Height 3103455; verify/max-packet lines 0; node cpu ticks 946936; RssAnon 939936 kB
+2026-11-16T14:23:46Z run 3 arm N: stopped
+2026-11-16T14:23:46Z run 4 arm B: copy start
+2026-11-16T14:28:15Z run 4 arm B: monerod started 2026-11-16 14:28:12 UTC pid 2394988 exe 184041c30e61 "height":3102000"version":"0.19.0.0-beta.3.1-monerodato.8-release
+2026-11-16T15:26:50Z run 4 arm B: top block 3103451 hash 462daace41fea6207bf520bc1c27ff8350aded45bfbbf334986bb3d013d7dd4f the reference node 462daace41fea6207bf520bc1c27ff8350aded45bfbbf334986bb3d013d7dd4f match=yes
+2026-11-16T15:26:50Z run 4 arm B: passed Height 3103452; verify/max-packet lines 0; node cpu ticks 960671; RssAnon 924708 kB
+2026-11-16T15:26:54Z run 4 arm B: stopped
+wallet-rpc up after 11s
+2026-11-16T15:27:14Z tip DB back, release binary, "height":3132902"version":"0.19.0.0-beta.3.1-monerodato.7-release
+2026-11-16T15:27:14Z DOT9_ALL_DONE

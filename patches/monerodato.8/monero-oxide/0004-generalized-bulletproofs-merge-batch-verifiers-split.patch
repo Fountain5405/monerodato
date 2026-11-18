@@ -1,0 +1,289 @@
+From 0484d1a5a1e592aab147a3c2225a02fe48285aa1 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 19:59:57 +0000
+Subject: [PATCH 4/9] generalized-bulletproofs: merge batch verifiers; split
+ the multiexp over threads
+
+A node verifies a block's FCMP++ proofs as one batch per pool thread, and
+each batch ends in its own multiexp per curve. Every one of those multiexps
+carries the full generator vectors (g_bold, h_bold, h_sum), so a node with
+12 pool threads computes the generator terms its batches share 12 times
+per block. These two functions let the caller run one multiexp per curve
+instead; monerod uses them in a later commit, which carries the
+measurements.
+
+- BatchVerifier::merge adds one batch verifier into another meant for the
+  same Generators: scalars on the same generator add, and the additional
+  terms concatenate. The merged multiexp is the sum of the two. Each proof
+  enters its batch verifier with its own random weight (verifier_weight in
+  arithmetic_circuit_proof.rs), so verifying the merged batch verifier
+  checks every proof either one held, except with negligible probability,
+  as for any batch verification.
+- Generators::verify_split (std only) computes the same terms as verify,
+  cut into up to `parts` disjoint chunks of at least 1,024 terms, each on a
+  scoped thread, and adds the partial sums before the identity check.
+  Merging alone leaves one large multiexp on one thread and costs wall time
+  (up to +35% measured); the split gets it back and more.
+- verify is unchanged.
+
+Bounds: merge first extends the shorter scalar vectors with zeros, then
+adds element-wise. verify_split pairs scalars with generators exactly as
+verify does (zip), so in both, scalars beyond the generators' lengths are
+dropped.
+
+Constant time: not applicable. Batch verification works on public data,
+and verify_split is variable time, like verify.
+
+Tests, in crypto/fcmps:
+- merged_batch_verifiers: real proofs of 1, 2 and 1 inputs, at split 1, 2
+  and 4. Every single batch verifies, the merged batches verify, and a
+  corrupted state fails alone and inside a merge (3 corruptions over both
+  curves).
+- merged_batches_reject_malleated_proofs: every single-byte malleation of
+  real proofs (as test_malleated_proofs) that still passes the per-proof
+  checks is merged between two valid batches, and the merged batch verifier
+  rejects it, serially and split. The unmodified proof merged the same way
+  verifies.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crypto/fcmps/src/tests.rs                  | 147 +++++++++++++++++++++
+ crypto/generalized-bulletproofs/src/lib.rs |  57 ++++++++
+ 2 files changed, 204 insertions(+)
+
+diff --git a/crypto/fcmps/src/tests.rs b/crypto/fcmps/src/tests.rs
+index f4d87bfa1..5107c9831 100644
+--- a/crypto/fcmps/src/tests.rs
++++ b/crypto/fcmps/src/tests.rs
+@@ -596,6 +596,153 @@ fn test_multiple_inputs() {
+   assert!(params.curve_2_generators.verify(verifier_2));
+ }
+ 
++#[test]
++fn merged_batch_verifiers() {
++  use ciphersuite::group::ff::Field;
++  let (G, T, U, V, params) = random_params(2);
++  let mut parts = vec![];
++  for inputs in [1, 2, 1] {
++    let (proof, root, input_vec) = random_proof(&params, (G, T, U, V), inputs, TARGET_LAYERS);
++    let mut verifier_1 = generalized_bulletproofs::Generators::batch_verifier();
++    let mut verifier_2 = generalized_bulletproofs::Generators::batch_verifier();
++    proof
++      .verify(
++        &mut rand_core::OsRng,
++        &mut verifier_1,
++        &mut verifier_2,
++        &params,
++        root,
++        TARGET_LAYERS,
++        &input_vec,
++      )
++      .unwrap();
++    parts.push((verifier_1, verifier_2));
++  }
++  let merged = |parts: &[(_, _)]| {
++    let mut m: (generalized_bulletproofs::BatchVerifier<_>, generalized_bulletproofs::BatchVerifier<_>) =
++      parts[0].clone();
++    for p in &parts[1 ..] {
++      m.0.merge(p.0.clone());
++      m.1.merge(p.1.clone());
++    }
++    m
++  };
++  let check = |m: (_, _), split: usize| {
++    if split > 1 {
++      params.curve_1_generators.verify_split(m.0, split) && params.curve_2_generators.verify_split(m.1, split)
++    } else {
++      params.curve_1_generators.verify(m.0) && params.curve_2_generators.verify(m.1)
++    }
++  };
++  for split in [1, 2, 4] {
++    for p in &parts {
++      assert!(check(p.clone(), split), "a single batch must verify (split {split})");
++    }
++    assert!(check(merged(&parts), split), "the merged batches must verify (split {split})");
++    for (curve, i) in [(1, 0), (2, 1), (1, 2)] {
++      let mut bad = parts.clone();
++      if curve == 1 {
++        bad[i].0.g += helioselene::Field25519::ONE;
++      } else {
++        bad[i].1.additional[0].0 += helioselene::HelioseleneField::ONE;
++      }
++      assert!(!check(bad[i].clone(), split), "the corrupted batch alone must fail (split {split})");
++      assert!(!check(merged(&bad), split), "a merge holding a corrupted batch must fail (split {split})");
++    }
++  }
++}
++
++#[test]
++fn merged_batches_reject_malleated_proofs() {
++  // Every single-byte malleation of real proofs (as test_malleated_proofs) that still passes the per-proof checks is put,
++  // as its own batch, between two batches of valid proofs; the merged batch verifier must then fail, serially and split.
++  // The unmodified proof merged the same way must verify.
++  let (G, T, U, V, params) = random_params(2);
++  let mut others = vec![];
++  for inputs in [1, 2] {
++    let (proof, root, input_vec) = random_proof(&params, (G, T, U, V), inputs, TARGET_LAYERS);
++    let mut verifier_1 = generalized_bulletproofs::Generators::batch_verifier();
++    let mut verifier_2 = generalized_bulletproofs::Generators::batch_verifier();
++    proof
++      .verify(&mut OsRng, &mut verifier_1, &mut verifier_2, &params, root, TARGET_LAYERS, &input_vec)
++      .unwrap();
++    others.push((verifier_1, verifier_2));
++  }
++  let merged_check = |v1: generalized_bulletproofs::BatchVerifier<Selene>,
++                      v2: generalized_bulletproofs::BatchVerifier<Helios>,
++                      split: usize| {
++    let mut m1 = others[0].0.clone();
++    let mut m2 = others[0].1.clone();
++    m1.merge(v1);
++    m2.merge(v2);
++    m1.merge(others[1].0.clone());
++    m2.merge(others[1].1.clone());
++    if split > 1 {
++      params.curve_1_generators.verify_split(m1, split) && params.curve_2_generators.verify_split(m2, split)
++    } else {
++      params.curve_1_generators.verify(m1) && params.curve_2_generators.verify(m2)
++    }
++  };
++  let (mut merged_rejected, mut per_proof_rejected, mut unreadable) = (0usize, 0usize, 0usize);
++  for paths in [1, 2] {
++    for layers in [1, 2] {
++      let (paths, root) = random_paths(&params, layers, paths);
++      let mut output_blinds = vec![];
++      for _ in 0 .. paths.len() {
++        output_blinds.push(random_output_blinds(G, T, U, V));
++      }
++      let mut inputs = vec![];
++      for (path, output_blinds) in paths.iter().zip(&output_blinds) {
++        inputs.push(output_blinds.blind(&path.output).unwrap());
++      }
++      let branches = Branches::new(paths.clone()).unwrap();
++      let mut buf = vec![];
++      {
++        let proof =
++          Fcmp::prove(&mut OsRng, &params, blind_branches(&params, branches, output_blinds)).unwrap();
++        proof.write(&mut buf).unwrap();
++      }
++      {
++        let proof = Fcmp::read(&mut buf.as_slice(), paths.len(), layers).unwrap();
++        let mut verifier_1 = generalized_bulletproofs::Generators::batch_verifier();
++        let mut verifier_2 = generalized_bulletproofs::Generators::batch_verifier();
++        proof.verify(&mut OsRng, &mut verifier_1, &mut verifier_2, &params, root, layers, &inputs).unwrap();
++        for split in [1, 4] {
++          assert!(merged_check(verifier_1.clone(), verifier_2.clone(), split), "valid proofs merged must verify");
++        }
++      }
++      for i in 0 .. buf.len() {
++        let mut buf = buf.clone();
++        let existing_byte = buf[i];
++        while buf[i] == existing_byte {
++          buf[i] = u8::try_from(OsRng.next_u64() & u64::from(u8::MAX)).unwrap();
++        }
++        let Ok(proof) = Fcmp::read(&mut buf.as_slice(), paths.len(), layers) else {
++          unreadable += 1;
++          continue;
++        };
++        let mut verifier_1 = generalized_bulletproofs::Generators::batch_verifier();
++        let mut verifier_2 = generalized_bulletproofs::Generators::batch_verifier();
++        if proof.verify(&mut OsRng, &mut verifier_1, &mut verifier_2, &params, root, layers, &inputs).is_err() {
++          per_proof_rejected += 1;
++          continue;
++        }
++        for split in [1, 4] {
++          assert!(
++            !merged_check(verifier_1.clone(), verifier_2.clone(), split),
++            "merged batches accepted a malleated proof (byte {i}, split {split})"
++          );
++        }
++        merged_rejected += 1;
++      }
++    }
++  }
++  println!(
++    "merged-batch malleation: {merged_rejected} malleated proofs passed the per-proof checks and were rejected after merging (serial and split); {per_proof_rejected} rejected by the per-proof checks; {unreadable} unreadable"
++  );
++  assert!(merged_rejected > 0);
++}
++
+ #[test]
+ fn test_malleated_proofs() {
+   let (G, T, U, V, params) = random_params(2);
+diff --git a/crypto/generalized-bulletproofs/src/lib.rs b/crypto/generalized-bulletproofs/src/lib.rs
+index 40a27728d..c8574ef72 100644
+--- a/crypto/generalized-bulletproofs/src/lib.rs
++++ b/crypto/generalized-bulletproofs/src/lib.rs
+@@ -87,6 +87,31 @@ pub struct BatchVerifier<C: Ciphersuite> {
+   pub additional: Vec<(C::F, C::G)>,
+ }
+ 
++impl<C: Ciphersuite> BatchVerifier<C> {
++  /// Add `other` into `self`.
++  ///
++  /// Both must be batch verifiers for the same `Generators`. Scalars on the same generator add and the
++  /// additional terms concatenate, so the merged multiexp is the sum of the two. Each proof was added
++  /// with its own random weight, so verifying the merged batch verifier checks every proof either one
++  /// held, except with negligible probability, as for any batch verification.
++  pub fn merge(&mut self, other: Self) {
++    fn add<F: ciphersuite::group::ff::Field>(a: &mut Vec<F>, b: Vec<F>) {
++      if a.len() < b.len() {
++        a.resize(b.len(), F::ZERO);
++      }
++      for (x, y) in a.iter_mut().zip(b) {
++        *x += y;
++      }
++    }
++    self.g += other.g;
++    self.h += other.h;
++    add(&mut self.g_bold, other.g_bold);
++    add(&mut self.h_bold, other.h_bold);
++    add(&mut self.h_sum, other.h_sum);
++    self.additional.extend(other.additional);
++  }
++}
++
+ impl<C: Ciphersuite> fmt::Debug for Generators<C> {
+   fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+     let g = self.g.to_bytes();
+@@ -212,6 +237,38 @@ impl<C: Ciphersuite> Generators<C> {
+     .into()
+   }
+ 
++  /// Verify as `verify` does, with the multiexp's terms split into up to `parts` disjoint chunks of at
++  /// least 1,024 terms, each run on its own scoped thread. The partial sums are added before the
++  /// identity check, so the terms and the result are those of `verify`.
++  ///
++  /// This function executes in variable time.
++  #[cfg(feature = "std")]
++  #[must_use]
++  pub fn verify_split(&self, verifier: BatchVerifier<C>, parts: usize) -> bool {
++    let terms = [(verifier.g, self.g), (verifier.h, self.h)]
++      .into_iter()
++      .chain(verifier.g_bold.into_iter().zip(self.g_bold.iter().copied()))
++      .chain(verifier.h_bold.into_iter().zip(self.h_bold.iter().copied()))
++      .chain(verifier.h_sum.into_iter().zip(self.h_sum.iter().copied()))
++      .chain(verifier.additional)
++      .collect::<Vec<_>>();
++    let parts = parts.min(terms.len() / 1024).max(1);
++    if parts == 1 {
++      return multiexp_vartime(&terms).is_identity().into();
++    }
++    let chunk = terms.len().div_ceil(parts);
++    let sum = std::thread::scope(|scope| {
++      let handles = terms
++        .chunks(chunk)
++        .map(|part| scope.spawn(move || multiexp_vartime(part)))
++        .collect::<Vec<_>>();
++      handles
++        .into_iter()
++        .fold(C::G::identity(), |acc, handle| acc + handle.join().expect("multiexp thread panicked"))
++    });
++    sum.is_identity().into()
++  }
++
+   /// The `g` generator.
+   pub fn g(&self) -> C::G {
+     self.g
+-- 
+2.43.0
+

@@ -1,0 +1,5 @@
+trace start 2026-11-12T17:16:17Z; label r1-W; bt <vm user>/kit10/hddkit10/bioread_vm.bt (c5ad086bfbfddd4b); sampler <vm user>/kit10/hddkit10/sampler_vm.py (514175ab29732bc8)
+data dir /var/lib/hdd/run on /dev/vda1; disk vda (253:0, tracepoint dev 265289728); partstart 2099200
+bpftrace pid 1553829; running 20 s; bio.txt 59 lines so far
+test node pid 1556220, mono0 335693138888172, partstart 2099200
+TRACE label=r1-W pid=1556220 bio_lines=853826 node_reads=59530 samples=265 fiemap_extents=65 partstart=2099200 wlog=W:1439623,F:1365486,D:880005,C:2161 rc=0 dir=<vm user>/hddruns/stage1c-20261112T171616Z/trace-r1-W

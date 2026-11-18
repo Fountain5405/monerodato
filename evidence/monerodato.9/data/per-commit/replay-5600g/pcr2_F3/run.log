@@ -1,0 +1,10 @@
+2026-11-17T13:41:08Z start pcr2_F3; binary 773470209c6f49df Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-a4adb9a87); end 3103500
+2026-11-17T13:41:48Z load 1.43 3.44 4.10 (waited 40 s); users 2; free GB   43G; top CPU users: root 1.7;root 0.5;root 0.2;
+2026-11-17T13:41:50Z governor powersave -> performance
+2026-11-17T13:41:50Z test node pid 1955324; affinity 0-11
+2026-11-17T13:47:52Z end: end at height 3103502 after 362 s from launch
+2026-11-17T13:47:52Z block 3103500: node 020744aa54024f2d0c03c68515d98a2060bf01f33e207291c17d733dd5f91c60 expected 020744aa54024f2d0c03c68515d98a2060bf01f33e207291c17d733dd5f91c60 HASH_OK
+2026-11-17T13:47:54Z monerod processes left: 0
+2026-11-17T13:47:54Z node log: ERROR 0, time-stats lines 203
+2026-11-17T13:47:54Z governor back to powersave
+2026-11-17T13:47:54Z BPP_RUN_DONE end

@@ -1,0 +1,204 @@
+From da1dcb4512c5ed590b5f1bbd8c248d63a2b1d7e3 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 05:49:02 +0000
+Subject: [PATCH 17/17] blockchain_db: ask the OS for the pages pruning will
+ read, ahead of the pruning
+
+Each block, a pruned node's update_pruning() deletes the prunable data of
+the transactions that leave the pruning tip (CRYPTONOTE_PRUNING_TIP_BLOCKS
+behind) in the stripes it does not keep. For each one it reads the
+transaction's pruned data to check its version (is_v1_tx), and LMDB reads
+the first page of the prunable data's overflow run to free the run. Those
+are two reads per transaction, made one at a time, and on a spinning disk
+each one not in the page cache is a seek. With LMDB's page cache drop
+(previous commit) these pages are rarely still cached, because the cache
+drop removed them after they were written.
+
+prefetch_pruned_data() asks the OS for those pages ahead of the deletes,
+with mdb_prefetch_overflow() (the earlier liblmdb commit), in one batch per
+call. It covers the records this call prunes, and those the next 100 blocks
+will prune, with at most 4,096 records asked for ahead. It walks
+txs_prunable_tip from where the last call stopped, so each record is asked
+for once, and it starts again after blocks are popped. The stripe check is
+the pruning's own, at the height where each record will be pruned. It
+reads only the leaves of the three tables, never a transaction's data, and
+it changes nothing.
+
+It runs only while the page cache drop is on (--db-cache-drop, previous
+commit). Without the drop these pages are normally still cached, and the
+prefetch was measured only with it.
+
+- 100 blocks is about 17 s at the pace of the sync below. The OS has the
+  pages long before the pruning needs them, and holds them for a short
+  time. The 4,096 cap bounds a call when the next blocks are very large.
+- Without mdb_prefetch_overflow() (Windows, MDB_VL32 builds), the first call
+  gets ENOSYS and the prefetch stays off.
+
+Measured on a test VM (4 vCPUs, 4 GB RAM, Linux 6.8) on a 5,400 rpm disk, in
+a sync of 7,000 heavy stressnet blocks onto a pruned database. Against the
+cache drop alone (the previous commit):
+- without a memory cap, the sync ran at 0.99x the speed of the same binary
+  with both off, over 4 runs per arm. The cache drop alone ran at 0.89x,
+  slowing in the last 2,000 blocks, where pruning reached the blocks the
+  sync had written and read each first page synchronously. What is left is
+  about 4% in the last 1,000 blocks, from the prefetch's own reads;
+- under a 1,536 MB cap, 3.73x against the cache drop alone's 3.37x, with
+  6.17-6.37 blocks/s in the last 2,000 blocks (alone: 4.24-4.90).
+Checked on a 12-core Ryzen 9 3900X (16 GB RAM, SATA SSD) in the same sync,
+with and without the cap. Over 1,000 blocks, all 28,066 first pages that
+pruning freed were in the page cache when it freed them (none without the
+prefetch). The time inside update_pruning() was 0.23x, the reads and the
+CPU time were the same within 1.2%, and the 1,000 blocks of 10 MB at the
+start of the sync were pruned 1.25x faster.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/blockchain_db/lmdb/db_lmdb.cpp | 76 ++++++++++++++++++++++++++++++
+ src/blockchain_db/lmdb/db_lmdb.h   | 16 +++++++
+ 2 files changed, 92 insertions(+)
+
+diff --git a/src/blockchain_db/lmdb/db_lmdb.cpp b/src/blockchain_db/lmdb/db_lmdb.cpp
+index 2f1dad249..36f7b43e7 100644
+--- a/src/blockchain_db/lmdb/db_lmdb.cpp
++++ b/src/blockchain_db/lmdb/db_lmdb.cpp
+@@ -76,6 +76,11 @@ namespace
+ // writeback interval (30 s by default) plus a margin
+ constexpr unsigned int CACHEDROP_DELAY_SECONDS = 40;
+ 
++// Pruning's prefetch (BlockchainLMDB::prefetch_pruned_data): how many blocks ahead of the pruning it asks
++// for the pages the pruning will read, and at most how many records it keeps asked for ahead
++constexpr uint64_t PRUNE_PREFETCH_BLOCKS = 100;
++constexpr size_t PRUNE_PREFETCH_MAX_RECORDS = 4096;
++
+ template <typename T>
+ inline void throw0(const T &e)
+ {
+@@ -3495,6 +3500,74 @@ static bool is_v1_tx(MDB_cursor *c_txs_pruned, MDB_val *tx_id)
+ 
+ enum { prune_mode_prune, prune_mode_update, prune_mode_check };
+ 
++// Pruning deletes each pruned transaction's prunable data, a large value that LMDB stores in overflow
++// pages, and reads its pruned data to check its version (is_v1_tx). Each delete and each check reads the
++// first page of the value's overflow run, one at a time. On a spinning disk, when the database is larger
++// than RAM, each of those reads is a seek. This asks the OS for those pages ahead of the pruning, in one
++// batch per call: for the records that this call prunes, and for those the next PRUNE_PREFETCH_BLOCKS
++// blocks will prune, at most PRUNE_PREFETCH_MAX_RECORDS of those ahead. It walks txs_prunable_tip from where
++// the last call stopped. A record asked for ahead is asked for once; its pages may leave the page cache
++// again before the pruning reaches it, and are then read as without the prefetch.
++void BlockchainLMDB::prefetch_pruned_data(MDB_txn *txn, uint64_t blockchain_height, uint32_t pruning_seed)
++{
++  prune_prefetch_state &s = m_prune_prefetch;
++  if (s.unavailable)
++    return;
++  if (blockchain_height < s.height) // blocks were popped: start again
++  {
++    s.next_tx_id = 0;
++    s.ahead.clear();
++    s.ahead_n = 0;
++  }
++  s.height = blockchain_height;
++  // records that mature now are pruned by this call: no longer ahead
++  while (!s.ahead.empty() && s.ahead.front().first + CRYPTONOTE_PRUNING_TIP_BLOCKS < blockchain_height)
++  {
++    s.ahead_n -= s.ahead.front().second;
++    s.ahead.pop_front();
++  }
++
++  MDB_cursor *c_tip;
++  if (mdb_cursor_open(txn, m_txs_prunable_tip, &c_tip))
++    return;
++  uint64_t key = s.next_tx_id;
++  MDB_val k = {sizeof(key), (void *)&key}, v;
++  int ret = mdb_cursor_get(c_tip, &k, &v, MDB_SET_RANGE);
++  while (ret == 0 && k.mv_size == sizeof(uint64_t) && v.mv_size == sizeof(uint64_t))
++  {
++    uint64_t tx_id, block_height;
++    memcpy(&tx_id, k.mv_data, sizeof(tx_id));
++    memcpy(&block_height, v.mv_data, sizeof(block_height));
++    const bool now = block_height + CRYPTONOTE_PRUNING_TIP_BLOCKS < blockchain_height;
++    if (!now && (block_height + CRYPTONOTE_PRUNING_TIP_BLOCKS >= blockchain_height + PRUNE_PREFETCH_BLOCKS ||
++        s.ahead_n >= PRUNE_PREFETCH_MAX_RECORDS))
++      break;
++    // the stripe as the pruning will see it, at the height where this record matures
++    const uint64_t at = now ? blockchain_height : block_height + CRYPTONOTE_PRUNING_TIP_BLOCKS + 1;
++    if (!tools::has_unpruned_block(block_height, at, pruning_seed))
++    {
++      MDB_val kp = {sizeof(tx_id), (void *)&tx_id};
++      const int result = mdb_prefetch_overflow(txn, m_txs_prunable, &kp);
++      if (result == ENOSYS)
++      {
++        s.unavailable = true;
++        break;
++      }
++      mdb_prefetch_overflow(txn, m_txs_pruned, &kp);
++      if (result == 0 && !now)
++      {
++        if (s.ahead.empty() || s.ahead.back().first != block_height)
++          s.ahead.emplace_back(block_height, 0);
++        ++s.ahead.back().second;
++        ++s.ahead_n;
++      }
++    }
++    s.next_tx_id = tx_id + 1;
++    ret = mdb_cursor_get(c_tip, &k, &v, MDB_NEXT_NODUP);
++  }
++  mdb_cursor_close(c_tip);
++}
++
+ bool BlockchainLMDB::prune_worker(int mode, uint32_t pruning_seed)
+ {
+   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+@@ -3603,6 +3676,9 @@ bool BlockchainLMDB::prune_worker(int mode, uint32_t pruning_seed)
+     throw0(DB_ERROR(lmdb_error("Failed to open a cursor for txs_prunable_tip: ", result).c_str()));
+   const uint64_t blockchain_height = height();
+ 
++  if (m_cache_drop && mode == prune_mode_update && prune_tip_table && !resume_pruning)
++    prefetch_pruned_data(txn, blockchain_height, pruning_seed);
++
+   if (prune_tip_table || resume_pruning)
+   {
+     MDB_cursor_op op = MDB_FIRST;
+diff --git a/src/blockchain_db/lmdb/db_lmdb.h b/src/blockchain_db/lmdb/db_lmdb.h
+index 33986ce7a..b56c90a7b 100644
+--- a/src/blockchain_db/lmdb/db_lmdb.h
++++ b/src/blockchain_db/lmdb/db_lmdb.h
+@@ -27,6 +27,7 @@
+ #pragma once
+ 
+ #include <atomic>
++#include <deque>
+ 
+ #include "blockchain_db/blockchain_db.h"
+ #include "cryptonote_basic/blobdatatype.h" // for type blobdata
+@@ -404,6 +405,9 @@ private:
+   void stop_warm_indexes();
+   static int warm_indexes_stop(void *ctx);
+ 
++  // Asks the OS for the pages pruning will read, ahead of it (called by prune_worker when the page cache drop is on)
++  void prefetch_pruned_data(MDB_txn *txn, uint64_t blockchain_height, uint32_t pruning_seed);
++
+   bool need_resize(uint64_t threshold_size=0) const;
+   void check_and_resize_for_batch(uint64_t batch_num_blocks, uint64_t batch_bytes);
+   uint64_t get_estimated_batch_size(uint64_t batch_num_blocks, uint64_t batch_bytes) const;
+@@ -595,6 +599,18 @@ private:
+   boost::mutex m_warm_lock; // guards m_warm_thread
+   std::atomic<bool> m_warm_stop{false}; // asks the warm-up to stop
+ 
++  // Pruning's prefetch: where its next walk of txs_prunable_tip starts, and the records it asked for that
++  // the pruning has not reached yet, as (block height, number of records)
++  struct prune_prefetch_state
++  {
++    uint64_t next_tx_id = 0;
++    uint64_t height = 0;
++    std::deque<std::pair<uint64_t, size_t>> ahead;
++    size_t ahead_n = 0;
++    bool unavailable = false; // mdb_prefetch_overflow returned ENOSYS
++  };
++  prune_prefetch_state m_prune_prefetch;
++
+ #if defined(__arm__)
+   // force a value so it can compile with 32-bit ARM
+   constexpr static uint64_t DEFAULT_MAPSIZE = 1LL << 31;
+-- 
+2.43.0
+

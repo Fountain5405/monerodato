@@ -1,0 +1,17 @@
+lines and look-ahead: H0 36 lines la 100, F0 38 lines la 0, H1 35 lines la 100, F1 37 lines la 0
+level none, window 6 = heights 3112396-3113396 (250 calls each):
+  P1/P5 resident at delete: H 28066 of 28066 (100.0%), F 0 of 28066 (0.0%)
+  P2 time inside update_pruning: H 1.56 s (pre-pass 0.93), F 6.87 s: H/F 0.227
+  P3 reads windows 0-6: H 714530, F 713737: H/F 1.0011
+  P4 reads/block windows 3-5: H [7.7, 17.8, 32.5], F [7.0, 17.9, 31.6], H-F ['+0.7', '-0.1', '+0.9']
+  P6 CPU s/block windows 0-6: H 0.4548, F 0.4561: -0.27%
+  window 2 (exploratory): blk/s H 4.05 F 3.23 (1.25x); wall H 241 s F 307 s
+  wall windows 0-6: H 1410 s, F 1487 s
+level 1536M, window 6 = heights 3112396-3113396 (250 calls each):
+  P1/P5 resident at delete: H 28066 of 28066 (100.0%), F 0 of 28066 (0.0%)
+  P2 time inside update_pruning: H 1.59 s (pre-pass 1.01), F 6.32 s: H/F 0.251
+  P3 reads windows 0-6: H 801700, F 792259: H/F 1.0119
+  P4 reads/block windows 3-5: H [27.9, 36.1, 50.5], F [27.1, 36.3, 48.5], H-F ['+0.8', '-0.2', '+2.0']
+  P6 CPU s/block windows 0-6: H 0.4573, F 0.4561: +0.25%
+  window 2 (exploratory): blk/s H 4.13 F 3.23 (1.28x); wall H 235 s F 302 s
+  wall windows 0-6: H 1443 s, F 1496 s

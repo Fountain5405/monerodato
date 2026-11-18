@@ -1,0 +1,31 @@
+kit v6; label r1-V; binary <vm user>/kit10/hddkit10/monerod-3fwl (7d3b12e0d81cf0c4); extra args: 
+start 2026-11-12T17:45:03Z; target top 3113400; timeout 9000 s; MEM_MAX none
+Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.6-3942b8be4)
+data dir /var/lib/hdd/run on /dev/vda1 (disk vda); snapshot /var/lib/hdd/s3106400c/testnet/lmdb/data.mdb (11848228864 bytes)
+NAME    ROTA SCHED        RA  SIZE MODEL
+sr0        1 mq-deadline 128  366K QEMU DVD-ROM
+vda        1 none        128  120G 
+├─vda1     1 none        128  119G 
+├─vda14    1 none        128    4M 
+├─vda15    1 none        128  106M 
+└─vda16    1 none        128  913M 
+nproc 4; MemTotal 4009156 kB; MemAvailable 3531156 kB; SwapTotal 0 kB; kernel 6.8.0-147-generic
+systemd-oomd inactive; lru_gen 0x0007
+restore: 11848228864 bytes in 263.7 s (45 MB/s, sequential write); size matches the snapshot
+page cache dropped
+monerod pid 1599496 answering RPC at 2026-11-12T17:49:44Z, 14.6 s after launch; rpc_epoch=1794505784; cmdline <vm user>/kit10/hddkit10/monerod-3fwl --testnet --data-dir /var/lib/hdd/run --add-exclusive-node <peer>:28080 --non-interactive --no-igd --no-zmq --hide-my-port --out-peers 1 --in-p
+Terminated
+monerod warm-up: Index warm-up: read the spent key, transaction and block hash indexes, 202598 pages (829 MB), in 29.5 s
+end 2026-11-12T18:13:01Z
+RESULT label=r1-V top=3113480 blocks=7080 wall_s=1382 warmup_s=18 steady_blocks_per_s=5.188 cpu_s=3457.6 cpu_per_wall=2.50 disk_read_MB=1012 disk_write_MB=5727 warm_s=0 warm_read_MB=0 resident_MB_start=0 resident_MB_end=1080 outcome=ok mem_max=none cg_peak_MB=na cg_anon_max_MB=na cg_file_max_MB=na cg_oom=na cg_oom_kill=na cg_high=na cg_max=na cg_refault_file=na rss_anon_max_MB=450 post_check=na launch_to_rpc_s=14.6 launch_to_top_s=1396.8 read_MB_launch=1070 monerod_warmup_s=29.5 monerod_warmup_MB=829 monerod_warmup_end_s=35.7 monerod_warmup_stopped=0 hash_at_3113400=5a956cc4b1d19d21423fa11292a1c5f2496111e1a7d39562f4d2287284036361
+IOSTAT label=r1-V disk=vda iostat_samples=1382 r_s=37 w_s=542 r_await_ms=17.3 w_await_ms=36.1 rareq_kB=3.4 aqu=26.99 util_pct=61
+WINDOW label=r1-V k=1 from=3106401 to=3107400 secs=203 blocks_per_s=4.921 read_kB_per_block=220 write_kB_per_block=953
+WINDOW label=r1-V k=2 from=3107400 to=3108400 secs=192 blocks_per_s=5.208 read_kB_per_block=0 write_kB_per_block=906
+WINDOW label=r1-V k=3 from=3108400 to=3109400 secs=186 blocks_per_s=5.376 read_kB_per_block=0 write_kB_per_block=867
+WINDOW label=r1-V k=4 from=3109400 to=3110400 secs=171 blocks_per_s=5.848 read_kB_per_block=0 write_kB_per_block=780
+WINDOW label=r1-V k=5 from=3110400 to=3111400 secs=162 blocks_per_s=6.173 read_kB_per_block=0 write_kB_per_block=726
+WINDOW label=r1-V k=6 from=3111400 to=3112400 secs=204 blocks_per_s=4.902 read_kB_per_block=59 write_kB_per_block=712
+WINDOW label=r1-V k=7 from=3112400 to=3113400 secs=246 blocks_per_s=4.065 read_kB_per_block=123 write_kB_per_block=776
+vmstat means over the run (us sy id wa): 60.8 1.8 28.0 9.6
+files: height.csv iostat.txt monerod.log pidstat.txt proc.csv residency.csv stdout.txt summary.txt vmstat.txt
+HDD_RUN_DONE <vm user>/hddruns/20261112T174503Z-r1-V

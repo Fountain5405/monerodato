@@ -1,0 +1,43 @@
+From 6c31ede4320763293672f1edcfa501ce42ec5720 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:06:35 +0000
+Subject: [PATCH 8/9] generalized-bulletproofs: shrink each vector commitment's
+ weight vector to the length it uses
+
+For each vector commitment, prove() builds cg_weights with ScalarVector::new(n),
+a vector of the full row count, then truncates it to the highest index any
+constraint uses. Truncation keeps the capacity. In an FCMP++ proof most
+commitments use a few hundred of n rows, so each one held about 1 MB it never
+used. At 128 inputs there are about 270 of them, about 283 MB in all.
+
+shrink_to_fit() now releases the rest.
+- Measured (128-input wallet build on a 12-core Ryzen 9 3900X (16 GB RAM, SATA SSD), 3 rounds, with the previous
+  commit): peak memory 1,262.9 MB becomes 1,001.9 MB. That is 286 MB less
+  than monerodato.3's 1,287.8 MB.
+- At 32 inputs the peak drops by 18.6 MB; at 8 inputs it is unchanged.
+- The weights are public (they come from the constraints and the challenge
+  z), so nothing secret is involved. The lengths are public too.
+
+The proofs are unchanged (prove_output_unchanged).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs b/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
+index 3bc7c5f16..bda44089d 100644
+--- a/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
++++ b/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
+@@ -579,6 +579,8 @@ where
+           }
+         }
+         cg.0.truncate(cg_hi + 1);
++        // `new(n)` allocated the full length; keep only what is used
++        cg.0.shrink_to_fit();
+         cg
+       };
+ 
+-- 
+2.43.0
+

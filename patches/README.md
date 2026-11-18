@@ -10,7 +10,41 @@ read or apply the changes without the fork. The commits come from the
 [`monerodato-v0`](https://github.com/Fountain5405/monerodato/tree/monerodato-v0) branch.
 [MONERODATO.md](https://github.com/Fountain5405/monerodato/blob/monerodato-v0/MONERODATO.md) explains the reasons
 and the measurements for each change, and every commit message carries them too.
-The main [README](../README.md#the-13-commits) lists each commit with a link to it on GitHub.
+The main [README](../README.md#the-commits) lists each commit with a link to it on GitHub.
+
+## monerodato.8
+
+Made from the tag `v0.19.0.0-beta.3.1-monerodato.8` (commit `e7bae3ecf`) with
+[the same recipe](https://github.com/Fountain5405/monerodato/blob/v0.19.0.0-beta.3.1-monerodato.8/MONERODATO.md).
+Each series runs from its base, so this directory holds .7's patches too, with the same content.
+
+| Series | Apply to | Patches | Files changed |
+|---|---|---|---|
+| [`monero/`](monerodato.8/monero) | [seraphis-migration/monero](https://github.com/seraphis-migration/monero) `v0.19.0.0-beta.3.1` (`d80596ad1811`, branch `fcmp++-beta-stressnet-v3`) | 17 | 19 files, +2,854 / -13 |
+| [`dalek-ff-group/`](monerodato.8/dalek-ff-group) | the `dalek-ff-group` 0.5.0 crate as published on crates.io | 2 | 2 files, +432 / -64 |
+| [`multiexp/`](monerodato.8/multiexp) | the `multiexp` 0.5.2 crate as published on crates.io | 1 | 4 files, +117 / -3 |
+| [`monero-oxide/`](monerodato.8/monero-oxide) | [monero-oxide/monero-oxide](https://github.com/monero-oxide/monero-oxide) at `31c26d9` | 9 | 12 files, +1,498 / -125 |
+
+**What .8 adds:** six monero patches, 12 to 17. Patches 1 to 11 and the three crate series are .7's.
+- 12. `mdb_env_set_cachedrop()` in liblmdb: drops freed and written-once pages from the page cache;
+- 13. a test of `mdb_env_set_cachedrop`;
+- 14. `mdb_prefetch_overflow()` in liblmdb: asks the OS for the first page of a value's overflow run;
+- 15. a test of `mdb_prefetch_overflow`;
+- 16. `--db-cache-drop` in blockchain_db: drops freed pages and written-once transaction data from the page cache;
+- 17. asks the OS for the pages pruning will read, ahead of the pruning.
+
+**Left out:** the three import commits and the 21 `[fork-only]` commits (the same kinds as for .7).
+
+**Checked**, as for .7:
+- Each series applies with `git am --no-3way` to the base in the table (the crates: their untouched imports in the
+  fork, commits `ebb473d4e`, `d871e435c` and `254cc0520`).
+- The files it produces are then identical to the fork's at monerodato.8, with the same three exceptions as .7
+  (of 37 files touched), each differing only by the lines that hook in left-out tests.
+- The .7 directory was regenerated with the same commands as a check. Every patch body came out byte for byte the
+  same; only the numbering in the Subject line is written differently (`1/11` there, `01/11` here).
+
+**Checksums:** see [`monerodato.8/SHA256SUMS`](monerodato.8/SHA256SUMS). To apply, use the commands under .7 below
+with `monerodato.8` in the paths.
 
 ## monerodato.7
 

@@ -1,0 +1,346 @@
+From 01f8dac1564a7f2a0dd8025a03badd642ab3ba45 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 13:00:08 +0000
+Subject: [PATCH 1/9] fcmps: extract verifier_layout and
+ build_verifier_circuits
+
+No behaviour change. The layout of the verifier circuits (the tapes,
+branches, input openings and blind claims the construction consumes) is
+computed by verifier_layout, and the construction itself by
+build_verifier_circuits, so the next commit can build the circuits more than
+once. Code moves only; the transcript operations and their order are
+unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crypto/fcmps/src/lib.rs | 235 +++++++++++++++++++++++++++-------------
+ 1 file changed, 162 insertions(+), 73 deletions(-)
+
+diff --git a/crypto/fcmps/src/lib.rs b/crypto/fcmps/src/lib.rs
+index a73cdc90a..b2db1cbfa 100644
+--- a/crypto/fcmps/src/lib.rs
++++ b/crypto/fcmps/src/lib.rs
+@@ -26,7 +26,7 @@ use ciphersuite::{
+ use ec_divisors::DivisorCurve;
+ use generalized_bulletproofs::{
+   BatchVerifier, PedersenVectorCommitment,
+-  transcript::{Transcript as ProverTranscript, VerifierTranscript},
++  transcript::{Transcript as ProverTranscript, VerifierTranscript, Commitments},
+   arithmetic_circuit_proof::{AcStatementError, AcProveError, AcVerifyError},
+ };
+ 
+@@ -150,6 +150,26 @@ where
+   pub(crate) c_blind_claim: PointWithDlog<C::OcParameters>,
+ }
+ 
++/// The layout of the circuits the verifier builds, as determined by the curve of the tree root,
++/// the amount of layers, and the amount of inputs. The construction of the circuits consumes it.
++struct VerifierCircuitLayout<C: FcmpCurves>
++where
++  <C::OC as Ciphersuite>::G: DivisorCurve<FieldElement = <C::C1 as Ciphersuite>::F>,
++  <C::C1 as Ciphersuite>::G: DivisorCurve<FieldElement = <C::C2 as Ciphersuite>::F>,
++  <C::C2 as Ciphersuite>::G: DivisorCurve<FieldElement = <C::C1 as Ciphersuite>::F>,
++{
++  c1_padded_pow_2: usize,
++  c2_padded_pow_2: usize,
++  c1_commitments: usize,
++  c2_commitments: usize,
++  root: Vec<Variable>,
++  c1_branches: Vec<Vec<Variable>>,
++  c2_branches: Vec<Vec<Variable>>,
++  input_openings: Vec<TranscriptedInput<C>>,
++  commitment_blind_claims_1: Vec<PointWithDlog<C::C2Parameters>>,
++  commitment_blind_claims_2: Vec<PointWithDlog<C::C1Parameters>>,
++}
++
+ /// An error encountered while working with FCMPs.
+ #[derive(Debug)]
+ pub enum FcmpError {
+@@ -744,54 +764,34 @@ where
+     Ok(res)
+   }
+ 
+-  /// Verify an FCMP.
+-  ///
+-  /// This MAY panic if called with invalid arguments, such as a tree root which doesn't correspond
+-  /// to the layer count.
++  /// The layout of the circuits the verifier builds.
+   ///
+-  /// The caller must pass the correct amount of layers for this tree root. If the prover specified
+-  /// the amount of layers, the specified amount of layers must be checked to be equal to the
+-  /// actual amount of layers.
+-  ///
+-  /// This only queues the FCMP for batch verification. The BatchVerifiers MUST also be verified.
+-  ///
+-  /// If this function returns an error, the batch verifiers are corrupted and MUST be discarded.
+-  // This may be collision resistant regardless of layer count thanks to the expected usage of a
+-  // distinct curve for the leaves, yet the layer count is cheap to check and avoids the question.
+-  #[allow(clippy::too_many_arguments)]
+-  pub fn verify<R: RngCore + CryptoRng>(
+-    &self,
+-    rng: &mut R,
+-    verifier_1: &mut BatchVerifier<C::C1>,
+-    verifier_2: &mut BatchVerifier<C::C2>,
+-    params: &FcmpParams<C>,
++  /// This is deterministic to the curve of the tree root, the amount of layers, and the amount of
++  /// inputs.
++  fn verifier_layout(
+     tree: TreeRoot<C::C1, C::C2>,
+     layers: usize,
+-    inputs: &[Input<<C::C1 as Ciphersuite>::F>],
+-  ) -> Result<(), FcmpError> {
+-    if (layers == 0) || inputs.is_empty() {
+-      Err(FcmpError::EmptyProof)?;
+-    }
+-
+-    let (c1_padded_pow_2, c2_padded_pow_2) = Self::ipa_rows(inputs.len(), layers);
++    inputs: usize,
++  ) -> VerifierCircuitLayout<C> {
++    let (c1_padded_pow_2, c2_padded_pow_2) = Self::ipa_rows(inputs, layers);
+ 
+     let mut c1_tape = VectorCommitmentTape::<<C::C1 as Ciphersuite>::F> {
+       commitment_len: c1_padded_pow_2,
+       current_j_offset: 0,
+-      commitments: Vec::with_capacity(inputs.len() * layers),
+-      branch_lengths: Vec::with_capacity(inputs.len() * layers / 2),
++      commitments: Vec::with_capacity(inputs * layers),
++      branch_lengths: Vec::with_capacity(inputs * layers / 2),
+     };
+     let mut c1_branches = Vec::with_capacity((layers / 2) + (layers % 2));
+     let mut c2_tape = VectorCommitmentTape::<<C::C2 as Ciphersuite>::F> {
+       commitment_len: c2_padded_pow_2,
+       current_j_offset: 0,
+-      commitments: Vec::with_capacity(inputs.len() * layers),
+-      branch_lengths: Vec::with_capacity(inputs.len() * layers / 2),
++      commitments: Vec::with_capacity(inputs * layers),
++      branch_lengths: Vec::with_capacity(inputs * layers / 2),
+     };
+     let mut c2_branches = Vec::with_capacity(layers / 2);
+ 
+     // Append the leaves and the non-root branches to the tape
+-    for _ in inputs {
++    for _ in 0 .. inputs {
+       for i in 0 .. (layers - 1) {
+         if (i % 2) == 0 {
+           c1_branches.push(
+@@ -815,8 +815,8 @@ where
+       c1_tape.append_claimed_point::<C::OcParameters>(None, None, None, None)
+     };
+ 
+-    let mut input_openings = Vec::with_capacity(inputs.len());
+-    for _ in inputs {
++    let mut input_openings = Vec::with_capacity(inputs);
++    for _ in 0 .. inputs {
+       // Since this is presumed over Ed25519, which has a 253-bit discrete logarithm, we have two
+       // items avilable in padding. We use this padding for all the other points we must commit to
+       // For o_blind, we use the padding for O
+@@ -863,42 +863,150 @@ where
+     } else {
+       // We unblind a C2 branch for every branch except the ones representing the leaves
+       // We also unblind a C2 branch in the root branch, if the root branch is C1
+-      (c1_branches.len() - inputs.len()) +
+-        (inputs.len() * usize::from(u8::from(matches!(tree, TreeRoot::C1(_)))))
++      (c1_branches.len() - inputs) +
++        (inputs * usize::from(u8::from(matches!(tree, TreeRoot::C1(_)))))
+     }) {
+       commitment_blind_claims_1
+         .push(c1_tape.append_claimed_point::<C::C2Parameters>(None, None, None, None).0);
+     }
+-    let commitment_blind_claims_1 = commitment_blind_claims_1.into_iter();
+ 
+     // The second circuit's tape opens the blinds from the first curve
+     let mut commitment_blind_claims_2 = vec![];
+     for _ in 0 .. (c2_branches.len() +
+-      (inputs.len() * usize::from(u8::from(matches!(tree, TreeRoot::C2(_))))))
++      (inputs * usize::from(u8::from(matches!(tree, TreeRoot::C2(_))))))
+     {
+       commitment_blind_claims_2
+         .push(c2_tape.append_claimed_point::<C::C1Parameters>(None, None, None, None).0);
+     }
++
++    VerifierCircuitLayout {
++      c1_padded_pow_2,
++      c2_padded_pow_2,
++      c1_commitments: c1_tape.commitments.len(),
++      c2_commitments: c2_tape.commitments.len(),
++      root,
++      c1_branches,
++      c2_branches,
++      input_openings,
++      commitment_blind_claims_1,
++      commitment_blind_claims_2,
++    }
++  }
++
++  /// Build the verifier's circuits.
++  ///
++  /// This is deterministic to its arguments. The transcript is solely used to sample challenges
++  /// (`Self::input` only accepts a `Transcript`, which can't read from the proof).
++  #[allow(clippy::too_many_arguments)]
++  fn build_verifier_circuits(
++    params: &FcmpParams<C>,
++    layers: usize,
++    inputs: &[Input<<C::C1 as Ciphersuite>::F>],
++    layout: VerifierCircuitLayout<C>,
++    proof_1_vcs: &Commitments<C::C1>,
++    proof_2_vcs: &Commitments<C::C2>,
++    transcript: &mut VerifierTranscript<'_>,
++    c1_circuit: &mut Circuit<C::C1>,
++    c2_circuit: &mut Circuit<C::C2>,
++  ) -> Result<(), FcmpError> {
++    let VerifierCircuitLayout {
++      c1_padded_pow_2: _,
++      c2_padded_pow_2: _,
++      c1_commitments: _,
++      c2_commitments: _,
++      root,
++      c1_branches,
++      c2_branches,
++      input_openings,
++      commitment_blind_claims_1,
++      commitment_blind_claims_2,
++    } = layout;
++    let commitment_blind_claims_1 = commitment_blind_claims_1.into_iter();
+     let commitment_blind_claims_2 = commitment_blind_claims_2.into_iter();
+ 
++    let mut c1_dlog_challenge = None;
++    let mut c2_dlog_challenge = None;
++
++    let mut c1_branches = c1_branches.into_iter();
++    let mut c2_branches = c2_branches.into_iter();
++    let mut c1_commitments =
++      proof_1_vcs.C().iter().copied().zip(core::iter::repeat(None)).zip(commitment_blind_claims_2);
++    let mut c2_commitments =
++      proof_2_vcs.C().iter().copied().zip(core::iter::repeat(None)).zip(commitment_blind_claims_1);
++
++    // Perform the layers
++    for (input, opening) in inputs.iter().zip(input_openings) {
++      Self::input(
++        params,
++        layers,
++        transcript,
++        c1_circuit,
++        &mut c1_dlog_challenge,
++        c2_circuit,
++        &mut c2_dlog_challenge,
++        root.clone(),
++        &mut c1_branches,
++        &mut c2_branches,
++        &mut c1_commitments,
++        &mut c2_commitments,
++        input,
++        opening,
++      )?;
++    }
++
++    Ok(())
++  }
++
++  /// Verify an FCMP.
++  ///
++  /// This MAY panic if called with invalid arguments, such as a tree root which doesn't correspond
++  /// to the layer count.
++  ///
++  /// The caller must pass the correct amount of layers for this tree root. If the prover specified
++  /// the amount of layers, the specified amount of layers must be checked to be equal to the
++  /// actual amount of layers.
++  ///
++  /// This only queues the FCMP for batch verification. The BatchVerifiers MUST also be verified.
++  ///
++  /// If this function returns an error, the batch verifiers are corrupted and MUST be discarded.
++  // This may be collision resistant regardless of layer count thanks to the expected usage of a
++  // distinct curve for the leaves, yet the layer count is cheap to check and avoids the question.
++  #[allow(clippy::too_many_arguments)]
++  pub fn verify<R: RngCore + CryptoRng>(
++    &self,
++    rng: &mut R,
++    verifier_1: &mut BatchVerifier<C::C1>,
++    verifier_2: &mut BatchVerifier<C::C2>,
++    params: &FcmpParams<C>,
++    tree: TreeRoot<C::C1, C::C2>,
++    layers: usize,
++    inputs: &[Input<<C::C1 as Ciphersuite>::F>],
++  ) -> Result<(), FcmpError> {
++    if (layers == 0) || inputs.is_empty() {
++      Err(FcmpError::EmptyProof)?;
++    }
++
++    let layout = Self::verifier_layout(tree, layers, inputs.len());
++    let (c1_padded_pow_2, c2_padded_pow_2) = (layout.c1_padded_pow_2, layout.c2_padded_pow_2);
++
+     let mut transcript = VerifierTranscript::new(
+       Self::transcript(tree, inputs, &self.root_blind_pok[.. 32]),
+       &self.proof,
+     );
+-    let proof_1_vcs = transcript.read_commitments::<C::C1>(c1_tape.commitments.len(), 0)?;
+-    let proof_2_vcs = transcript.read_commitments::<C::C2>(c2_tape.commitments.len(), 0)?;
++    let proof_1_vcs = transcript.read_commitments::<C::C1>(layout.c1_commitments, 0)?;
++    let proof_2_vcs = transcript.read_commitments::<C::C2>(layout.c2_commitments, 0)?;
+ 
+     // Verify the root blind PoK
+     {
+       let claimed_root = if (layers % 2) == 1 {
+         #[allow(clippy::wildcard_enum_match_arm)]
+-        TreeRoot::<C::C1, C::C2>::C1(match root[0] {
++        TreeRoot::<C::C1, C::C2>::C1(match layout.root[0] {
+           Variable::CG { commitment: i, index: _ } => params.curve_1_hash_init + proof_1_vcs.C()[i],
+           _ => panic!("branch wasn't present in a vector commitment"),
+         })
+       } else {
+         #[allow(clippy::wildcard_enum_match_arm)]
+-        TreeRoot::<C::C1, C::C2>::C2(match root[0] {
++        TreeRoot::<C::C1, C::C2>::C2(match layout.root[0] {
+           Variable::CG { commitment: i, index: _ } => params.curve_2_hash_init + proof_2_vcs.C()[i],
+           _ => panic!("branch wasn't present in a vector commitment"),
+         })
+@@ -937,36 +1045,17 @@ where
+     // Create the circuits
+     let mut c1_circuit = Circuit::<C::C1>::verify();
+     let mut c2_circuit = Circuit::<C::C2>::verify();
+-
+-    let mut c1_dlog_challenge = None;
+-    let mut c2_dlog_challenge = None;
+-
+-    let mut c1_branches = c1_branches.into_iter();
+-    let mut c2_branches = c2_branches.into_iter();
+-    let mut c1_commitments =
+-      proof_1_vcs.C().iter().copied().zip(core::iter::repeat(None)).zip(commitment_blind_claims_2);
+-    let mut c2_commitments =
+-      proof_2_vcs.C().iter().copied().zip(core::iter::repeat(None)).zip(commitment_blind_claims_1);
+-
+-    // Perform the layers
+-    for (input, opening) in inputs.iter().zip(input_openings) {
+-      Self::input(
+-        params,
+-        layers,
+-        &mut transcript,
+-        &mut c1_circuit,
+-        &mut c1_dlog_challenge,
+-        &mut c2_circuit,
+-        &mut c2_dlog_challenge,
+-        root.clone(),
+-        &mut c1_branches,
+-        &mut c2_branches,
+-        &mut c1_commitments,
+-        &mut c2_commitments,
+-        input,
+-        opening,
+-      )?;
+-    }
++    Self::build_verifier_circuits(
++      params,
++      layers,
++      inputs,
++      layout,
++      &proof_1_vcs,
++      &proof_2_vcs,
++      &mut transcript,
++      &mut c1_circuit,
++      &mut c2_circuit,
++    )?;
+ 
+     // Escape to the raw weights to form a GBP with
+     debug_assert!(c1_circuit.muls() <= c1_padded_pow_2);
+-- 
+2.43.0
+

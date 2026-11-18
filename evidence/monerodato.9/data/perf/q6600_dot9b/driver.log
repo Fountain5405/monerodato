@@ -1,0 +1,25 @@
+2026-11-16T16:58:02Z driver start; master 13787566080 bytes
+2026-11-16T16:58:03Z tip DB moved to /var/lib/monero/testnet/lmdb.dato7-tip-20261116b
+2026-11-16T16:58:03Z run 1 arm P: copy start
+2026-11-16T17:02:24Z run 1 arm P: monerod started 2026-11-16 17:02:21 UTC pid 2410057 exe da335a9cc645 "height":3102000"version":"0.19.0.0-beta.3.1-monerodato.7-3a8b3f68f
+2026-11-16T17:54:46Z run 1 arm P: top block 3103454 hash 54222cec8f3dc9a9d290915dc083f8277dc7dc329bf79007fc55047b83f48b72 the reference node 54222cec8f3dc9a9d290915dc083f8277dc7dc329bf79007fc55047b83f48b72 match=yes
+2026-11-16T17:54:47Z run 1 arm P: passed Height 3103455; verify/max-packet lines 0; node cpu ticks 986571; RssAnon 590612 kB
+2026-11-16T17:54:50Z run 1 arm P: stopped
+2026-11-16T17:54:50Z run 2 arm N: copy start
+2026-11-16T17:59:27Z run 2 arm N: monerod started 2026-11-16 17:59:24 UTC pid 2418052 exe c44c62f156ef "height":3102000"version":"0.19.0.0-beta.3.1-monerodato.9-22c1f9ee7
+2026-11-16T18:46:38Z run 2 arm N: top block 3103455 hash ce0f7d93236bc604395cef95e888bcb49ebad8907470f6385d9a1163bd078ac1 the reference node ce0f7d93236bc604395cef95e888bcb49ebad8907470f6385d9a1163bd078ac1 match=yes
+2026-11-16T18:46:38Z run 2 arm N: passed Height 3103456; verify/max-packet lines 0; node cpu ticks 907080; RssAnon 940376 kB
+2026-11-16T18:46:41Z run 2 arm N: stopped
+2026-11-16T18:46:41Z run 3 arm N: copy start
+2026-11-16T18:50:50Z run 3 arm N: monerod started 2026-11-16 18:50:48 UTC pid 2426247 exe c44c62f156ef "height":3102000"version":"0.19.0.0-beta.3.1-monerodato.9-22c1f9ee7
+2026-11-16T19:41:09Z run 3 arm N: top block -1 hash  the reference node  match=NO
+2026-11-16T19:41:09Z run 3 arm N: passed Height 3103455; verify/max-packet lines 0; node cpu ticks 945339; RssAnon 967180 kB
+2026-11-16T19:41:11Z run 3 arm N: stopped
+2026-11-16T19:41:12Z run 4 arm P: copy start
+2026-11-16T19:45:35Z run 4 arm P: monerod started 2026-11-16 19:45:32 UTC pid 2434083 exe da335a9cc645 "height":3102000"version":"0.19.0.0-beta.3.1-monerodato.7-3a8b3f68f
+2026-11-16T20:34:24Z run 4 arm P: top block 3103454 hash 54222cec8f3dc9a9d290915dc083f8277dc7dc329bf79007fc55047b83f48b72 the reference node 54222cec8f3dc9a9d290915dc083f8277dc7dc329bf79007fc55047b83f48b72 match=yes
+2026-11-16T20:34:24Z run 4 arm P: passed Height 3103455; verify/max-packet lines 0; node cpu ticks 945994; RssAnon 967460 kB
+2026-11-16T20:34:27Z run 4 arm P: stopped
+wallet-rpc up after 10s
+2026-11-16T20:34:46Z tip DB back, release binary, "height":3133073"version":"0.19.0.0-beta.3.1-monerodato.7-release
+2026-11-16T20:34:46Z DOT9B_ALL_DONE

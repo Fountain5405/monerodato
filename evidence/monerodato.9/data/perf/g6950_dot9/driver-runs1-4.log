@@ -1,0 +1,24 @@
+2026-11-16T16:57:34Z driver start; master 13787566080 bytes
+2026-11-16T16:57:36Z tip DB moved to /var/lib/monero/testnet/lmdb.dato7-tip-20261116g
+2026-11-16T16:57:37Z run 1 arm B: copy start
+2026-11-16T17:10:57Z run 1 arm B: monerod started 2026-11-16 17:10:23 UTC pid 2372706 exe 36659137ca12 "height":3102000"version":"0.19.0.0-beta.3.1-monerodato.8-release
+2026-11-16T18:35:21Z run 1 arm B: top block -1 hash  the reference node  match=NO
+2026-11-16T18:35:22Z run 1 arm B: passed Height 3103455; verify/max-packet lines 0; node cpu ticks 668216; RssAnon 561300 kB
+2026-11-16T18:35:36Z run 1 arm B: stopped
+2026-11-16T18:35:37Z run 2 arm N: copy start
+2026-11-16T18:48:37Z run 2 arm N: monerod started 2026-11-16 18:48:04 UTC pid 2380350 exe 0b044acbeffb "height":3102000"version":"0.19.0.0-beta.3.1-monerodato.9-22c1f9ee7
+2026-11-16T20:04:29Z run 2 arm N: top block 3103454 hash 54222cec8f3dc9a9d290915dc083f8277dc7dc329bf79007fc55047b83f48b72 the reference node 54222cec8f3dc9a9d290915dc083f8277dc7dc329bf79007fc55047b83f48b72 match=yes
+2026-11-16T20:04:29Z run 2 arm N: passed Height 3103455; verify/max-packet lines 0; node cpu ticks 640827; RssAnon 581040 kB
+2026-11-16T20:04:35Z run 2 arm N: stopped
+2026-11-16T20:04:37Z run 3 arm N: copy start
+2026-11-16T20:17:56Z run 3 arm N: monerod started 2026-11-16 20:17:21 UTC pid 2388775 exe 0b044acbeffb "height":3102000"version":"0.19.0.0-beta.3.1-monerodato.9-22c1f9ee7
+2026-11-16T21:37:51Z run 3 arm N: top block -1 hash  the reference node  match=NO
+2026-11-16T21:37:52Z run 3 arm N: passed Height 3103455; verify/max-packet lines 0; node cpu ticks 673261; RssAnon 602184 kB
+2026-11-16T21:37:59Z run 3 arm N: stopped
+2026-11-16T21:38:00Z run 4 arm B: copy start
+2026-11-16T21:52:02Z run 4 arm B: monerod started 2026-11-16 21:51:30 UTC pid 2397780 exe 36659137ca12 "height":3102000"version":"0.19.0.0-beta.3.1-monerodato.8-release
+2026-11-16T23:32:02Z run 4 arm B: top block -1 hash  the reference node  match=NO
+2026-11-16T23:32:03Z run 4 arm B: passed Height 3103455; verify/max-packet lines 0; node cpu ticks 699729; RssAnon 587400 kB
+2026-11-16T23:32:10Z run 4 arm B: stopped
+2026-11-16T23:32:21Z tip DB back, release binary, "height":3132984"version":"0.19.0.0-beta.3.1-monerodato.7-release
+2026-11-16T23:32:21Z DOT9_ALL_DONE

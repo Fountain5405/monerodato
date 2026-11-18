@@ -1,0 +1,19 @@
+2026-11-13T13:38:21Z extra monerod args: --max-concurrency 4
+2026-11-13T13:38:21Z start s0zH_3h_1536 level 1536M; binary cdd580f3f4c9824d Monero 'Fluorine Fermi' (v0.19.0.0-beta.3.1-monerodato.6-10ec27687)
+2026-11-13T13:38:21Z load 1.34 1.59 1.93; free GB   35G
+2026-11-13T13:38:22Z start map: db block_heights walked 44979 stat 1 (differ)
+2026-11-13T13:38:26Z after drop: data.mdb resident 0 of 2981802
+2026-11-13T13:38:27Z source node up, height 3123270
+2026-11-13T13:38:32Z tracer pid 649211
+2026-11-13T13:38:32Z test node pid 649241, mono0 958241951401913, cgroup /sys/fs/cgroup/system.slice/g016s0-s0zH_3h_1536.scope (1610612736)
+2026-11-13T13:38:32Z node wrap: taskset -c 0-3; affinity 0-3
+2026-11-13T14:03:19Z end: top at height 3113580 after 1487 s from launch
+2026-11-13T14:03:19Z memory: peak 1611853824 events low 0 high 0 max 3785 oom 0 oom_kill 0 oom_group_kill 0 
+2026-11-13T14:03:24Z tracer lines 1805854; errors: 
+2026-11-13T14:03:25Z monerod processes left: 0
+2026-11-13T14:03:25Z task_delayacct back to 1
+2026-11-13T14:03:26Z resident at the end: resident 204162 of 3163304
+2026-11-13T14:06:43Z end map rc 0: db block_heights walked 44979 stat 1 (differ)
+2026-11-13T14:06:44Z end type map rc 0
+2026-11-13T14:06:44Z node log: Synced lines 1796, ERROR 0, warm-up: Index warm-up: reading the spent key, transaction and block hash indexes in the background 
+2026-11-13T14:06:44Z G016S0_RUN_DONE top

@@ -1,0 +1,69 @@
+From 2912fdd9900b952c362a200f2d9c1b384e1c4984 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:06:35 +0000
+Subject: [PATCH 9/9] generalized-bulletproofs: move the vector commitments'
+ values into l instead of copying them
+
+prove() copied each vector commitment's values into its l coefficient:
+l[j] = ScalarVector::from(c.g_values.clone()). In FCMP++ the values are padded
+with zeros to the row count n, so at 128 inputs about 270 copies of about 1 MB
+each were live at once, alongside the originals.
+
+Nothing reads g_values after this point; only each commitment's mask is used
+later. So the values are now moved out with core::mem::take, and the witness
+keeps an empty vector.
+- Hygiene: the moved values are wiped with l after evaluation (the first of
+  these commits). Before, the witness's copy was wiped on drop and the clone
+  in l never was.
+- Constant time: a move adds no branch, and the lengths are public.
+
+Measured (128-input wallet build with monerodato.3's wallet-rpc on a 12-core Ryzen 9 3900X (16 GB RAM, SATA SSD),
+3 rotated rounds, median VmHWM):
+
+| inputs | monerodato.3 | with the three commits |
+|---|---|---|
+| 8 | 169.1 MB | 169.1 MB |
+| 32 | 270.3 MB | 250.5 MB (-7.3%) |
+| 128 | 1,287.8 MB | 815.5 MB (-36.7%) |
+
+- This step: 1,001.9 MB becomes 815.5 MB at 128 inputs.
+- Wall time per build is unchanged within the spread: 51.5 s against 52.1 s
+  at 128 inputs. Indicative only.
+- Proof differential (the proof differential harness): 258 cases, 1-128 inputs, 1-8 layers,
+  fixed seeds. 258/258 proofs byte-identical to monerodato.3's, and each
+  build verified the other's.
+- The crate tests pass.
+
+The proofs are unchanged (prove_output_unchanged).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../generalized-bulletproofs/src/arithmetic_circuit_proof.rs | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs b/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
+index bda44089d..35ddf72f1 100644
+--- a/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
++++ b/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
+@@ -569,7 +569,7 @@ where
+       coefficients of `r` decreasing from `ni` (skipping `jlr`).
+     */
+ 
+-    for (i, c) in witness.c.iter().enumerate() {
++    for (i, c) in witness.c.iter_mut().enumerate() {
+       let cg_weights = {
+         let mut cg = ScalarVector::new(n);
+         let mut cg_hi = 0;
+@@ -587,7 +587,8 @@ where
+       let i = 1 + i;
+       let j = ni - i;
+ 
+-      l[j] = ScalarVector::from(c.g_values.clone());
++      // Move the values instead of copying them: only `mask` is read after this, and `l` is wiped once evaluated
++      l[j] = ScalarVector::from(core::mem::take(&mut c.g_values));
+       r[i] = cg_weights;
+       // This does not set `r[j]` as our prover does not populate the right-hand of the VCs
+     }
+-- 
+2.43.0
+
