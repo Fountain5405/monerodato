@@ -12,6 +12,40 @@ read or apply the changes without the fork. The commits come from the
 and the measurements for each change, and every commit message carries them too.
 The main [README](../README.md#the-commits) lists each commit with a link to it on GitHub.
 
+## monerodato.9
+
+Made from the tag `v0.19.0.0-beta.3.1-monerodato.9` (commit `12414472c`) with
+[the same recipe](https://github.com/Fountain5405/monerodato/blob/v0.19.0.0-beta.3.1-monerodato.9/MONERODATO.md).
+Each series runs from its base, so this directory holds .7's and .8's patches too, with the same content.
+
+| Series | Apply to | Patches | Files changed |
+|---|---|---|---|
+| [`monero/`](monerodato.9/monero) | [seraphis-migration/monero](https://github.com/seraphis-migration/monero) `v0.19.0.0-beta.3.1` (`d80596ad1811`, branch `fcmp++-beta-stressnet-v3`) | 27 | 35 files, +5,332 / -40 |
+| [`dalek-ff-group/`](monerodato.9/dalek-ff-group) | the `dalek-ff-group` 0.5.0 crate as published on crates.io | 2 | 2 files, +432 / -64 |
+| [`multiexp/`](monerodato.9/multiexp) | the `multiexp` 0.5.2 crate as published on crates.io | 1 | 4 files, +117 / -3 |
+| [`monero-oxide/`](monerodato.9/monero-oxide) | [monero-oxide/monero-oxide](https://github.com/monero-oxide/monero-oxide) at `31c26d9` | 10 | 12 files, +1,544 / -132 |
+
+**What .9 adds:**
+- monero 18 to 20: a block's RingCT sum checks, its BP+ range proofs (as sub-batches) and its key-image checks, each
+  spread over the compute pool, each with its own unit tests;
+- monero 21 to 27: the tests of the batch-verification gates (a core_tests event that delivers a block with its
+  transactions, and the cases built on it);
+- monero-oxide 10: the FCMP++ transcript read without decoding the points it does not use.
+
+**Left out:** the three import commits and the 25 `[fork-only]` commits (the same kinds as before, plus .9's docs and
+version string).
+
+**Checked**, as for .7 and .8:
+- Each series applies with `git am --no-3way` to the base in the table (the crates: their untouched imports in the
+  fork, commits `ebb473d4e`, `d871e435c` and `254cc0520`).
+- The files it produces are then identical to the fork's at monerodato.9, with three exceptions (of 53 files
+  touched), each differing only by the lines that hook in left-out tests.
+- Patches 1 to 17 and the crate series have the same bodies as in .8's directory; only the numbering in the
+  Subject line can differ.
+
+**Checksums:** see [`monerodato.9/SHA256SUMS`](monerodato.9/SHA256SUMS). To apply, use the commands under .7 below
+with `monerodato.9` in the paths.
+
 ## monerodato.8
 
 Made from the tag `v0.19.0.0-beta.3.1-monerodato.8` (commit `e7bae3ecf`) with

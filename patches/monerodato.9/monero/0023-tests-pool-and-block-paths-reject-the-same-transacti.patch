@@ -1,0 +1,520 @@
+From c06d0011f825e4753aeeea6283d5dfc2204a292d Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 18:15:20 +0000
+Subject: [PATCH 23/27] tests: pool and block paths reject the same
+ transactions
+
+tx_batch_gates runs the same transactions through the pool path (one
+at a time) and the block path (ver_non_input_consensus over a
+pool_supplement), in batches of 1 to 33, below and above the sizes
+where the block path batches its key-image domain checks (8) and splits
+its sum checks (16). A key image outside the prime-order subgroup, a
+bad BP+ proof and a broken balance are rejected by both, with the same
+flags. A sweep puts one defective transaction at listed positions, and
+several in different sub-batches; each sinks the whole block.
+
+It also checks that make_input_verification_id binds the transaction,
+the tree root and the layer count, and pins the output-type rules of
+check_output_types at hf16 and at hf17 (HF_VERSION_CARROT), so that a
+change to the hf17 rule shows up before that fork activates.
+
+Written by the second reviewer; adopted here.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ tests/unit_tests/CMakeLists.txt     |   1 +
+ tests/unit_tests/tx_batch_gates.cpp | 470 ++++++++++++++++++++++++++++
+ 2 files changed, 471 insertions(+)
+ create mode 100644 tests/unit_tests/tx_batch_gates.cpp
+
+diff --git a/tests/unit_tests/CMakeLists.txt b/tests/unit_tests/CMakeLists.txt
+index 1ce405ecb..98befc0f5 100644
+--- a/tests/unit_tests/CMakeLists.txt
++++ b/tests/unit_tests/CMakeLists.txt
+@@ -105,6 +105,7 @@ set(unit_tests_sources
+   test_protocol_pack.cpp
+   threadpool.cpp
+   tree_cache.cpp
++  tx_batch_gates.cpp
+   tx_construction_helpers.cpp
+   tx_proof.cpp
+   tx_verification_utils.cpp
+diff --git a/tests/unit_tests/tx_batch_gates.cpp b/tests/unit_tests/tx_batch_gates.cpp
+new file mode 100644
+index 000000000..c3838954a
+--- /dev/null
++++ b/tests/unit_tests/tx_batch_gates.cpp
+@@ -0,0 +1,470 @@
++// Same license as the rest of this repository (see LICENSE).
++//
++// Transaction-level gates: the pool path and the block path must reach the same verdict on
++// the same transaction. Whatever the pool path rejects (a key image outside the prime-order
++// subgroup, a broken balance, a bad BP+ proof), the block path (ver_non_input_consensus
++// over a pool_supplement) must reject too, with matching flags, below and above the batch
++// sizes at which the block path starts to split its key-image and sum checks.
++
++#include "gtest/gtest.h"
++
++#include <cstdint>
++#include <map>
++#include <set>
++#include <tuple>
++#include <vector>
++
++#include "cryptonote_basic/cryptonote_basic.h"
++#include "cryptonote_basic/cryptonote_format_utils.h"
++#include "cryptonote_core/cryptonote_core.h"
++#include "cryptonote_core/tx_verification_utils.h"
++#include "ringct/rctTypes.h"
++#include "ringct/rctSigs.h"
++#include "ringct/rctOps.h"
++#include "device/device.hpp"
++
++using namespace rct;
++
++static rct::rctSig make_bpp_sig(uint64_t a, uint64_t b, uint64_t fee)
++{
++    ctkeyV sc, pc;
++    ctkey sctmp, pctmp;
++    std::vector<xmr_amount> inamounts{a + b + fee}, outamounts{a, b};
++    keyV destinations, amount_keys;
++    key Sk, Pk;
++    std::tie(sctmp, pctmp) = ctskpkGen(a + b + fee);
++    sc.push_back(sctmp);
++    pc.push_back(pctmp);
++    for (int n = 0; n < 2; ++n) {
++        amount_keys.push_back(skGen());
++        skpkGen(Sk, Pk);
++        destinations.push_back(Pk);
++    }
++    const rct::RCTConfig rct_config { RangeProofPaddedBulletproof, 4 };
++    return genRctSimple(rct::zero(), sc, pc, destinations, inamounts, outamounts, amount_keys, fee, 3, rct_config, hw::get_device("default"));
++}
++
++// A minimal valid transaction wrapping a generated BP+ sig. k_image replaced on demand.
++static cryptonote::transaction make_tx(uint64_t seed, const rct::key *ki_override)
++{
++    const uint64_t fee = 7 + seed;
++    rct::rctSig rv = make_bpp_sig(1000 + seed, 2000 + 3 * seed, fee);
++    cryptonote::transaction tx{};
++    tx.version = 2;
++    tx.unlock_time = 0;
++    tx.vin.resize(rv.p.pseudoOuts.size());
++    rct::key ki;
++    if (ki_override)
++        ki = *ki_override;
++    else
++        ki = rct::ki2rct(cryptonote::txin_to_key{}.k_image);  // replaced below
++    for (size_t i = 0; i < rv.p.pseudoOuts.size(); ++i)
++    {
++        cryptonote::txin_to_key in{};
++        in.amount = 0;
++        in.key_offsets = {1};              // minimal; not dereferenced at this level
++        if (ki_override)
++        {
++            rct::key k = *ki_override;
++            memcpy(&in.k_image, &k, 32);
++        }
++        else
++        {
++            // a valid key image: a group element (in the domain)
++            rct::key p = rct::scalarmultBase(rct::skGen());
++            memcpy(&in.k_image, &p, 32);
++        }
++        tx.vin[i] = in;
++    }
++    tx.vout.resize(rv.outPk.size());
++    for (size_t i = 0; i < rv.outPk.size(); ++i)
++    {
++        cryptonote::txout_to_tagged_key out{};
++        rct::key destination;
++        // destination points from the sig are in outSk; regenerate a deterministic one
++        destination = rct::pk2rct(rct::rct2pk(rct::scalarmultBase(rct::d2h(seed * 31 + i))));
++        memcpy(&out.key, &destination, 32);
++        out.view_tag.data = (char)(seed + i);
++        tx.vout[i].amount = 0;
++        tx.vout[i].target = out;
++    }
++    tx.rct_signatures = std::move(rv);
++    return tx;
++}
++
++static rct::key bad_domain_ki()
++{
++    // (0, -1), the order-2 torsion point: a decodable point outside the prime-order
++    // subgroup (as in tx_verification_utils.keyimages_domain_batch)
++    rct::key t = rct::identity();
++    t.bytes[0] = 0xec;
++    for (int b = 1; b < 31; ++b)
++        t.bytes[b] = 0xff;
++    t.bytes[31] = 0x7f;
++    rct::key valid = rct::scalarmultBase(rct::skGen());
++    return rct::addKeys(valid, t);
++}
++
++TEST(tx_batch_gates, valid_batch_baseline_all_sizes)
++{
++    for (size_t n : {1u, 7u, 8u, 9u, 16u, 17u})
++    {
++        cryptonote::pool_supplement ps;
++        for (size_t i = 0; i < n; ++i)
++        {
++            auto tx = make_tx(i, nullptr);
++            auto blob = cryptonote::t_serializable_object_to_blob(tx);
++            crypto::hash id = cryptonote::get_transaction_hash(tx);
++            ASSERT_TRUE(ps.add_tx(id, std::move(tx), std::move(blob)));
++        }
++        cryptonote::tx_verification_context tvc{};
++        ASSERT_TRUE(cryptonote::ver_non_input_consensus(ps, {}, tvc, 16)) << "valid batch rejected n=" << n;
++        ASSERT_FALSE(tvc.m_verifivation_failed);
++    }
++}
++
++TEST(tx_batch_gates, bad_ki_domain_rejected_both_forms_all_thresholds)
++{
++    const rct::key bad = bad_domain_ki();
++    // pool form (single): check_tx_semantic must reject it
++    {
++        auto tx = make_tx(1, &bad);
++        cryptonote::tx_verification_context tvc{};
++        ASSERT_FALSE(cryptonote::core::check_tx_semantic(tx, tvc, 16));
++        ASSERT_TRUE(tvc.m_verifivation_failed);
++        ASSERT_TRUE(tvc.m_invalid_input);
++    }
++    // block form: one bad-domain KI among N valid, at and around the thresholds
++    for (size_t n : {1u, 2u, 7u, 8u, 9u, 15u, 16u, 17u, 33u})
++    {
++        for (size_t pos = 0; pos < n; pos += (n > 4 ? n / 4 : 1))
++        {
++            cryptonote::pool_supplement ps;
++            for (size_t i = 0; i < n; ++i)
++            {
++                auto tx = make_tx(40 + i, (i == pos) ? &bad : nullptr);
++                auto blob = cryptonote::t_serializable_object_to_blob(tx);
++                crypto::hash id = cryptonote::get_transaction_hash(tx);
++                ASSERT_TRUE(ps.add_tx(id, std::move(tx), std::move(blob)));
++            }
++            cryptonote::tx_verification_context tvc{};
++            ASSERT_FALSE(cryptonote::ver_non_input_consensus(ps, {}, tvc, 16))
++                << "block form accepted bad KI at n=" << n << " pos=" << pos;
++            ASSERT_TRUE(tvc.m_verifivation_failed);
++            ASSERT_TRUE(tvc.m_invalid_input) << "flags mismatch at n=" << n << " pos=" << pos;
++        }
++    }
++}
++
++TEST(tx_batch_gates, bad_bp_proof_in_tx_rejected_both_forms)
++{
++    auto mk = [](size_t seed, bool break_proof) {
++        auto tx = make_tx(seed, nullptr);
++        if (break_proof)
++            tx.rct_signatures.p.bulletproofs_plus[0].r1 = skGen();
++        return tx;
++    };
++    // pool form
++    {
++        auto tx = mk(1, true);
++        cryptonote::tx_verification_context tvc{};
++        // check_tx_semantic does not do proofs; the pool's semantics entry does:
++        ASSERT_FALSE(rct::verRctSemanticsSimple(tx.rct_signatures));
++    }
++    // block form: one bad proof among N
++    for (size_t n : {8u, 16u, 17u})
++    {
++        for (size_t pos = 0; pos < n; pos += n / 4)
++        {
++            cryptonote::pool_supplement ps;
++            for (size_t i = 0; i < n; ++i)
++            {
++                auto tx = mk(70 + i, i == pos);
++                auto blob = cryptonote::t_serializable_object_to_blob(tx);
++                crypto::hash id = cryptonote::get_transaction_hash(tx);
++                ASSERT_TRUE(ps.add_tx(id, std::move(tx), std::move(blob)));
++            }
++            cryptonote::tx_verification_context tvc{};
++            ASSERT_FALSE(cryptonote::ver_non_input_consensus(ps, {}, tvc, 16))
++                << "block form accepted bad BP+ at n=" << n << " pos=" << pos;
++            ASSERT_TRUE(tvc.m_verifivation_failed);
++        }
++    }
++}
++
++TEST(tx_batch_gates, broken_balance_in_tx_rejected_both_forms)
++{
++    auto mk = [](size_t seed, bool break_sum) {
++        auto tx = make_tx(seed, nullptr);
++        if (break_sum)
++            tx.rct_signatures.txnFee += 1;
++        return tx;
++    };
++    {
++        auto tx = mk(1, true);
++        ASSERT_FALSE(rct::verRctSemanticsSimple(tx.rct_signatures));
++    }
++    for (size_t n : {16u, 17u})
++    {
++        cryptonote::pool_supplement ps;
++        for (size_t i = 0; i < n; ++i)
++        {
++            auto tx = mk(90 + i, i == n / 2);
++            auto blob = cryptonote::t_serializable_object_to_blob(tx);
++            crypto::hash id = cryptonote::get_transaction_hash(tx);
++            ASSERT_TRUE(ps.add_tx(id, std::move(tx), std::move(blob)));
++        }
++        cryptonote::tx_verification_context tvc{};
++        ASSERT_FALSE(cryptonote::ver_non_input_consensus(ps, {}, tvc, 16))
++            << "block form accepted broken balance at n=" << n;
++        ASSERT_TRUE(tvc.m_verifivation_failed);
++    }
++}
++
++// The input-verification-ID cache: the FCMP ID must bind everything proof
++// verification depends on. Property test via the exported two-arg form.
++TEST(tx_batch_gates, input_verification_id_binds_all_inputs)
++{
++    auto tx = make_tx(5, nullptr);
++    const rct::key ra = rct::scalarmultBase(rct::d2h(1));
++    const rct::key rb = rct::scalarmultBase(rct::d2h(2));
++    crypto::ec_point root_a{}, root_b{};
++    memcpy(root_a.data, ra.bytes, 32);
++    memcpy(root_b.data, rb.bytes, 32);
++    const crypto::hash txh = cryptonote::get_transaction_hash(tx);
++    uint8_t layers = 12;
++
++    const crypto::hash id1 = cryptonote::make_input_verification_id(txh, root_a, layers);
++    const crypto::hash id2 = cryptonote::make_input_verification_id(txh, root_a, layers);
++    ASSERT_EQ(id1, id2);                        // deterministic
++
++    ASSERT_NE(id1, cryptonote::make_input_verification_id(txh, root_b, layers)); // root binds
++
++    auto tx2 = tx;
++    tx2.rct_signatures.txnFee += 1;
++    tx2.invalidate_hashes();   // per the header's stale-hash contract
++    const crypto::hash txh2 = cryptonote::get_transaction_hash(tx2);
++    ASSERT_NE(id1, cryptonote::make_input_verification_id(txh2, root_a, layers)); // tx binds
++
++    ASSERT_NE(id1, cryptonote::make_input_verification_id(txh, root_a, layers + 1)); // layers bind
++}
++
++// Supplement-level sweep at the batched key-image and sum-split thresholds: a supplement
++// of n valid txs verifies; swapping in exactly one defective
++// tx at any listed position must sink the whole block-form verdict, and defects spread
++// across different 16-tx sub-batches must sink it too.
++TEST(tx_batch_gates, bpp_supplement_position_sweep)
++{
++    enum defect_t { bad_bp, torsion_ki, broken_sum };
++
++    // Defect application on a copy; the valid originals keep their cached hash, so the
++    // tampered copy must invalidate hashes before re-serializing/re-hashing.
++    auto defective_copy = [](const cryptonote::transaction &src, defect_t kind) {
++        cryptonote::transaction tx = src;
++        switch (kind)
++        {
++          case bad_bp:
++            tx.rct_signatures.p.bulletproofs_plus[0].r1 = skGen();
++            break;
++          case torsion_ki:
++          {
++            const rct::key bad = bad_domain_ki();
++            for (auto &in : tx.vin)
++                memcpy(&boost::get<cryptonote::txin_to_key>(in).k_image, &bad, 32);
++            break;
++          }
++          case broken_sum:
++            tx.rct_signatures.txnFee += 1;
++            break;
++        }
++        tx.invalidate_hashes();   // per the header's stale-hash contract
++        return tx;
++    };
++
++    // Build the whole supplement around the given {position -> defect} map.
++    auto build_supplement = [&](
++        size_t n,
++        const std::vector<cryptonote::transaction> &valid,
++        const std::map<size_t, defect_t> &defects)
++    {
++        cryptonote::pool_supplement ps;
++        for (size_t i = 0; i < n; ++i)
++        {
++            const auto d = defects.find(i);
++            cryptonote::transaction tx = (d != defects.end()) ? defective_copy(valid[i], d->second) : valid[i];
++            auto blob = cryptonote::t_serializable_object_to_blob(tx);
++            crypto::hash id = cryptonote::get_transaction_hash(tx);
++            EXPECT_TRUE(ps.add_tx(id, std::move(tx), std::move(blob)));
++        }
++        return ps;
++    };
++
++    for (size_t n : {17u, 33u})
++    {
++        // Build the n valid txs once per size; only defective copies are rebuilt per case.
++        std::vector<cryptonote::transaction> valid;
++        valid.reserve(n);
++        for (size_t i = 0; i < n; ++i)
++            valid.push_back(make_tx(200 + n + i, nullptr));
++
++        // VALID control: n valid txs must verify TRUE.
++        {
++            cryptonote::pool_supplement ps = build_supplement(n, valid, {});
++            cryptonote::tx_verification_context tvc{};
++            ASSERT_TRUE(cryptonote::ver_non_input_consensus(ps, {}, tvc, 16))
++                << "valid control rejected n=" << n;
++            ASSERT_FALSE(tvc.m_verifivation_failed);
++        }
++
++        // Exactly the p-th tx defective -> FALSE, for every listed position.
++        const std::set<size_t> positions{0u, 8u, 15u, 16u, n / 2, n - 1};
++        for (int k = bad_bp; k <= broken_sum; ++k)
++        {
++            const defect_t kind = static_cast<defect_t>(k);
++            for (const size_t p : positions)
++            {
++                cryptonote::pool_supplement ps = build_supplement(n, valid, {{p, kind}});
++                cryptonote::tx_verification_context tvc{};
++                ASSERT_FALSE(cryptonote::ver_non_input_consensus(ps, {}, tvc, 16))
++                    << "block form accepted defect kind=" << k << " at n=" << n << " pos=" << p;
++                ASSERT_TRUE(tvc.m_verifivation_failed)
++                    << "flags mismatch kind=" << k << " n=" << n << " pos=" << p;
++            }
++        }
++
++        // Multiple defects spanning different 16-tx sub-batches -> FALSE.
++        const std::map<size_t, defect_t> multi =
++            (n == 17) ? std::map<size_t, defect_t>{{3, bad_bp}, {11, torsion_ki}}
++                      : std::map<size_t, defect_t>{{3, bad_bp}, {11, torsion_ki},
++                                                   {19, broken_sum}, {27, bad_bp}};
++        {
++            cryptonote::pool_supplement ps = build_supplement(n, valid, multi);
++            cryptonote::tx_verification_context tvc{};
++            ASSERT_FALSE(cryptonote::ver_non_input_consensus(ps, {}, tvc, 16))
++                << "block form accepted multi-defect supplement n=" << n;
++            ASSERT_TRUE(tvc.m_verifivation_failed) << "flags mismatch multi-defect n=" << n;
++        }
++    }
++}
++
++// Output-type rules, via their single enforcement point cryptonote::check_output_types
++// (cryptonote_format_utils.cpp), a pure function.
++//
++// At hf16 there is no coinbase/non-coinbase difference: every transaction, miner or not,
++// must use txout_to_tagged_key and nothing else. The coinbase/non-coinbase split comes at
++// hf17 (HF_VERSION_CARROT); the hf17 rows pin the rule as it stands, so that any change to
++// it before that fork activates shows up here.
++TEST(tx_batch_gates, output_type_rules)
++{
++    static_assert(HF_VERSION_CARROT == 17, "matrix assumes the carrot fork is v17");
++
++    crypto::public_key pk;
++    {
++        const rct::key P = rct::scalarmultBase(rct::skGen());
++        memcpy(&pk, &P, 32);
++    }
++
++    auto tagged_out = [&]() {
++        cryptonote::txout_to_tagged_key out{};
++        out.key = pk;
++        out.view_tag.data = 'k';
++        return cryptonote::txout_target_v(std::move(out));
++    };
++    auto key_out = [&]() {
++        cryptonote::txout_to_key out{};
++        out.key = pk;
++        return cryptonote::txout_target_v(std::move(out));
++    };
++    auto carrot_out = [&]() {
++        cryptonote::txout_to_carrot_v1 out{};
++        out.key = pk;   // view_tag / encrypted_janus_anchor left zeroed: type check only
++        return cryptonote::txout_target_v(std::move(out));
++    };
++    auto script_out = [&]() {
++        return cryptonote::txout_target_v(cryptonote::txout_to_script{});
++    };
++
++    // Non-coinbase base: make_tx's BP+ sig carries rct type RCTTypeBulletproofPlus.
++    // Retarget ALL outputs (check_output_types also requires a single type per tx).
++    auto non_coinbase_with = [&](const cryptonote::txout_target_v &target) {
++        cryptonote::transaction tx = make_tx(300, nullptr);
++        for (auto &out : tx.vout)
++            out.target = target;
++        tx.invalidate_hashes();
++        return tx;
++    };
++
++    // Coinbase-shaped: is_coinbase() only looks at vin[0] being a txin_gen here, but
++    // that is exactly what check_output_types consults; the pure function needs no
++    // valid miner-tx body, so a minimal shell is honest input for this rule.
++    auto coinbase_with = [&](const cryptonote::txout_target_v &target) {
++        cryptonote::transaction tx{};
++        tx.version = 2;
++        tx.unlock_time = 0;
++        cryptonote::txin_gen in{};
++        in.height = 0;
++        tx.vin.push_back(in);
++        tx.vout.resize(1);
++        tx.vout[0].amount = 1;
++        tx.vout[0].target = target;
++        tx.invalidate_hashes();
++        return tx;
++    };
++
++    // --- hf16: no differentiation. tagged_key allowed for BOTH classes; every other
++    // type rejected for BOTH.
++    EXPECT_TRUE(cryptonote::check_output_types(non_coinbase_with(tagged_out()), 16))
++        << "hf16 tagged_key rejected on non-coinbase";
++    EXPECT_TRUE(cryptonote::check_output_types(coinbase_with(tagged_out()), 16))
++        << "hf16 tagged_key rejected on coinbase";
++    EXPECT_FALSE(cryptonote::check_output_types(non_coinbase_with(key_out()), 16))
++        << "hf16 to_key accepted on non-coinbase";
++    EXPECT_FALSE(cryptonote::check_output_types(coinbase_with(key_out()), 16))
++        << "hf16 to_key accepted on coinbase";
++    EXPECT_FALSE(cryptonote::check_output_types(non_coinbase_with(carrot_out()), 16))
++        << "hf16 carrot accepted on non-coinbase";
++    EXPECT_FALSE(cryptonote::check_output_types(coinbase_with(carrot_out()), 16))
++        << "hf16 carrot accepted on coinbase";
++    EXPECT_FALSE(cryptonote::check_output_types(non_coinbase_with(script_out()), 16))
++        << "hf16 script accepted on non-coinbase";
++    EXPECT_FALSE(cryptonote::check_output_types(coinbase_with(script_out()), 16))
++        << "hf16 script accepted on coinbase";
++
++    // --- hf17 (HF_VERSION_CARROT): the differentiated, not-yet-active rule.
++    // coinbase: carrot allowed, tagged_key NOT (the branch requires !is_coinbase).
++    EXPECT_TRUE(cryptonote::check_output_types(coinbase_with(carrot_out()), HF_VERSION_CARROT))
++        << "hf17 coinbase carrot rejected";
++    EXPECT_FALSE(cryptonote::check_output_types(coinbase_with(tagged_out()), HF_VERSION_CARROT))
++        << "hf17 coinbase tagged_key accepted";
++    // non-coinbase: tagged_key (legacy BP+) and carrot (FCMP++) both allowed...
++    EXPECT_TRUE(cryptonote::check_output_types(non_coinbase_with(tagged_out()), HF_VERSION_CARROT))
++        << "hf17 non-coinbase tagged_key+BP+ rejected";
++    {
++        cryptonote::transaction tx = non_coinbase_with(carrot_out());
++        tx.rct_signatures.type = rct::RCTTypeFcmpPlusPlus;
++        tx.invalidate_hashes();
++        EXPECT_TRUE(cryptonote::check_output_types(tx, HF_VERSION_CARROT))
++            << "hf17 non-coinbase carrot+FCMP++ rejected";
++        // ...but ONLY with the paired proof type (check_output_types pairing clause):
++        // carrot must ride FCMP++, tagged_key must ride BP+. Both mismatches sink.
++        tx.rct_signatures.type = rct::RCTTypeBulletproofPlus;
++        tx.invalidate_hashes();
++        EXPECT_FALSE(cryptonote::check_output_types(tx, HF_VERSION_CARROT))
++            << "hf17 accepted carrot riding BP+";
++
++        cryptonote::transaction tagged = non_coinbase_with(tagged_out());
++        tagged.rct_signatures.type = rct::RCTTypeFcmpPlusPlus;
++        tagged.invalidate_hashes();
++        EXPECT_FALSE(cryptonote::check_output_types(tagged, HF_VERSION_CARROT))
++            << "hf17 accepted tagged_key riding FCMP++";
++    }
++    // coinbase is exempt from the pairing clause: carrot coinbase with a BP+ rct type
++    // still passes.
++    {
++        cryptonote::transaction tx = coinbase_with(carrot_out());
++        tx.rct_signatures.type = rct::RCTTypeBulletproofPlus;
++        tx.invalidate_hashes();
++        EXPECT_TRUE(cryptonote::check_output_types(tx, HF_VERSION_CARROT))
++            << "hf17 coinbase pairing exemption not honored";
++    }
++}
+-- 
+2.43.0
+

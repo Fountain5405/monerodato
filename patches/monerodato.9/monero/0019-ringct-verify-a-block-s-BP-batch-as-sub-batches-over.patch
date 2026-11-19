@@ -1,0 +1,164 @@
+From cf163c91c7c15a18b2dfc2d96320ced05e2380ba Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 03:34:09 +0000
+Subject: [PATCH 19/27] ringct: verify a block's BP+ batch as sub-batches over
+ the compute pool
+
+Why: after the sum checks, verRctSemanticsSimple verifies all of a block's
+BP+ proofs as one batch on the calling thread. On a block of about 1,300
+proofs that takes about 0.7 s on a Ryzen 9 3900X core and about 2.5 s on a
+Core 2 Quad, with the pool idle.
+
+verBulletproofPlusSubBatches(proofs, n) splits the proofs round-robin into
+n batches and verifies them in parallel; it accepts iff every batch does.
+verRctSemanticsSimple uses one sub-batch per pool thread, at most one per
+physical core (the work is compute-bound and SMT siblings slow it, the rule
+batchVerifyFcmpPpProofs already follows), and at least 8 proofs per
+sub-batch. Below 16 proofs it is the single batch, as before.
+
+Safety:
+- Accept/reject is unchanged. A batch accepts only if every proof in it
+  verifies, and bulletproof_plus_VERIFY draws a fresh random weight per
+  proof inside each batch, so each proof is weighted independently whatever
+  batch it is in. Only the generator sums are shared per sub-batch instead
+  of per block.
+- An exception in a sub-batch fails it.
+- Verification only; public data.
+
+Tests: ringct.bpp_sub_batches_accept_valid (64 proofs as 0, 1, 2, 3, 8, 64
+and 100 sub-batches; a single proof), and
+ringct.bpp_sub_batches_reject_one_bad_proof (a corrupted proof at 0, 5, 8,
+37 and 63 of 64, for 1, 2, 3, 8 and 64 sub-batches, and through
+verRctSemanticsSimple).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/ringct/rctSigs.cpp      | 44 ++++++++++++++++++++++++++++++++++++-
+ src/ringct/rctSigs.h        |  3 +++
+ tests/unit_tests/ringct.cpp | 34 ++++++++++++++++++++++++++++
+ 3 files changed, 80 insertions(+), 1 deletion(-)
+
+diff --git a/src/ringct/rctSigs.cpp b/src/ringct/rctSigs.cpp
+index e4c157b5b..d4aa81c7f 100644
+--- a/src/ringct/rctSigs.cpp
++++ b/src/ringct/rctSigs.cpp
+@@ -1432,6 +1432,48 @@ done:
+       return std::all_of(chunk_ok.begin(), chunk_ok.end(), [](uint8_t ok) { return ok != 0; });
+     }
+ 
++    bool verBulletproofPlusSubBatches(const std::vector<const BulletproofPlus*> &proofs, size_t n_sub_batches)
++    {
++      n_sub_batches = std::min(n_sub_batches, proofs.size());
++      if (n_sub_batches < 2)
++        return verBulletproofPlus(proofs);
++
++      // A batch accepts only if every proof in it verifies, and each batch draws its own random weight per proof, so
++      // the sub-batches accept exactly the proofs the single batch would. Only the per-batch fixed cost is repeated.
++      std::vector<std::vector<const BulletproofPlus*>> sub_batches(n_sub_batches);
++      for (size_t i = 0; i < proofs.size(); ++i)
++        sub_batches[i % n_sub_batches].push_back(proofs[i]);
++
++      tools::threadpool &tpool = tools::threadpool::getInstanceForCompute();
++      std::vector<uint8_t> sub_batch_ok(n_sub_batches, 0);
++      tools::threadpool::waiter waiter(tpool);
++      for (size_t b = 0; b < n_sub_batches; ++b)
++      {
++        tpool.submit(&waiter, [&sub_batches, &sub_batch_ok, b] {
++          bool ok = false;
++          try { ok = verBulletproofPlus(sub_batches[b]); }
++          catch (...) { ok = false; }
++          sub_batch_ok[b] = ok ? 1 : 0;
++        });
++      }
++      if (!waiter.wait())
++        return false;
++      return std::all_of(sub_batch_ok.begin(), sub_batch_ok.end(), [](uint8_t ok) { return ok != 0; });
++    }
++
++    // How many sub-batches a batch of n_proofs BP+ proofs is verified in: one per pool thread, but at most one per
++    // physical core (the verification is compute-bound and SMT siblings slow it, as in batchVerifyFcmpPpProofs), and
++    // with at least BPP_SUB_BATCH_MIN_PROOFS proofs in each, so that the per-batch fixed cost stays small. If the
++    // physical core count is unknown, the pool size is used.
++    static constexpr size_t BPP_SUB_BATCH_MIN_PROOFS = 8;
++    static size_t bppSubBatchCount(size_t n_proofs, const tools::threadpool &tpool)
++    {
++      const size_t pool_threads = std::max<size_t>(1, tpool.get_max_concurrency());
++      const size_t physical_cores = boost::thread::physical_concurrency();
++      const size_t n_threads = physical_cores > 0 ? std::min(pool_threads, physical_cores) : pool_threads;
++      return std::min(n_threads, n_proofs / BPP_SUB_BATCH_MIN_PROOFS);
++    }
++
+     //ver RingCT simple
+     //assumes only post-rct style inputs (at least for max anonymity)
+     bool verRctSemanticsSimple(const std::vector<const rctSig*> & rvv) {
+@@ -1525,7 +1567,7 @@ done:
+             offset += rv.p.rangeSigs.size();
+           }
+         }
+-        if (!bpp_proofs.empty() && !verBulletproofPlus(bpp_proofs))
++        if (!bpp_proofs.empty() && !verBulletproofPlusSubBatches(bpp_proofs, bppSubBatchCount(bpp_proofs.size(), tpool)))
+         {
+           LOG_PRINT_L1("Aggregate range proof verified failed");
+           if (!waiter.wait())
+diff --git a/src/ringct/rctSigs.h b/src/ringct/rctSigs.h
+index 0518ab765..e59d35fbe 100644
+--- a/src/ringct/rctSigs.h
++++ b/src/ringct/rctSigs.h
+@@ -134,6 +134,9 @@ namespace rct {
+     static inline bool verRct(const rctSig & rv) { return verRct(rv, true) && verRct(rv, false); }
+     bool verRctSemanticsSimple(const rctSig & rv);
+     bool verRctSemanticsSimple(const std::vector<const rctSig*> & rv);
++    // Verify BP+ proofs as n_sub_batches batches over the compute pool: proof i goes to batch i % n_sub_batches. True iff
++    // every batch verifies, so the result is verBulletproofPlus(proofs)'s. Fewer than 2 batches: verBulletproofPlus(proofs).
++    bool verBulletproofPlusSubBatches(const std::vector<const BulletproofPlus*> &proofs, size_t n_sub_batches);
+     bool verRctNonSemanticsSimple(const rctSig & rv);
+     // Return freed FCMP++ verifier memory to the OS once no batch verification has run for idle_ms.
+     // Returns true if a trim was performed. No-op on non-glibc builds.
+diff --git a/tests/unit_tests/ringct.cpp b/tests/unit_tests/ringct.cpp
+index 27bdf67b2..96281e982 100644
+--- a/tests/unit_tests/ringct.cpp
++++ b/tests/unit_tests/ringct.cpp
+@@ -597,6 +597,40 @@ TEST(ringct, semantics_batch_rejects_one_bad_sum)
+     }
+ }
+ 
++static std::vector<const rct::BulletproofPlus*> bpp_proof_ptrs(const std::vector<rct::rctSig> &sigs)
++{
++    std::vector<const rct::BulletproofPlus*> p;
++    for (const auto &s : sigs)
++        for (const auto &proof : s.p.bulletproofs_plus)
++            p.push_back(&proof);
++    return p;
++}
++
++TEST(ringct, bpp_sub_batches_accept_valid)
++{
++    const auto proofs = bpp_proof_ptrs(bpp_batch_sigs());
++    ASSERT_EQ(proofs.size(), 64);
++    // 0 and 1 are one batch; 3 leaves unequal batches; 64 is one proof per batch; 100 is capped at 64
++    for (size_t n_sub : {0, 1, 2, 3, 8, 64, 100})
++        ASSERT_TRUE(rct::verBulletproofPlusSubBatches(proofs, n_sub)) << n_sub << " sub-batches";
++    ASSERT_TRUE(rct::verBulletproofPlusSubBatches({proofs[0]}, 4));
++}
++
++TEST(ringct, bpp_sub_batches_reject_one_bad_proof)
++{
++    for (size_t pos : {0, 5, 8, 37, 63})
++    {
++        auto sigs = bpp_batch_sigs();
++        sigs[pos].p.bulletproofs_plus[0].r1 = skGen();
++        const auto proofs = bpp_proof_ptrs(sigs);
++        // the bad proof lands in a different sub-batch, and at a different place in it, for each count
++        for (size_t n_sub : {1, 2, 3, 8, 64})
++            ASSERT_FALSE(rct::verBulletproofPlusSubBatches(proofs, n_sub)) << "bad BP+ at " << pos << ", " << n_sub << " sub-batches";
++        // and through the block path, with the pool's own count
++        ASSERT_FALSE(ver_semantics_batch(sigs)) << "bad BP+ at " << pos;
++    }
++}
++
+ static rct::rctSig make_sample_simple_rct_sig(int n_inputs, const uint64_t input_amounts[], int n_outputs, const uint64_t output_amounts[], uint64_t fee)
+ {
+     ctkeyV sc, pc;
+-- 
+2.43.0
+

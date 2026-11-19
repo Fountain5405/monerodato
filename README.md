@@ -21,32 +21,30 @@ see [Building](#building).**
 
 This branch (`main`) holds only this page, [VERIFICATION.md](VERIFICATION.md) and the evidence. **The code is on the
 [`monerodato-v0`](https://github.com/Fountain5405/monerodato/tree/monerodato-v0) branch.** The latest release is the
-tag [`v0.19.0.0-beta.3.1-monerodato.8`](https://github.com/Fountain5405/monerodato/tree/v0.19.0.0-beta.3.1-monerodato.8); the first was
-[`.7`](https://github.com/Fountain5405/monerodato/tree/v0.19.0.0-beta.3.1-monerodato.7), and .8 contains all of its changes.
-
-**monerodato.9 is in preparation and not yet published.** This page already lists its four commits and their
-measurements, marked "(.9)". Their links work once .9 is out; figures still being measured say "pending".
+tag [`v0.19.0.0-beta.3.1-monerodato.9`](https://github.com/Fountain5405/monerodato/tree/v0.19.0.0-beta.3.1-monerodato.9).
+The earlier releases are
+[`.7`](https://github.com/Fountain5405/monerodato/tree/v0.19.0.0-beta.3.1-monerodato.7) and
+[`.8`](https://github.com/Fountain5405/monerodato/tree/v0.19.0.0-beta.3.1-monerodato.8); each release contains all
+the changes of the ones before it.
 
 - **To review the changes, start with
   [MONERODATO.md](https://github.com/Fountain5405/monerodato/blob/monerodato-v0/MONERODATO.md).** It sorts them
   into four series, one for each upstream project they would go to:
-  - monero: 17 commits (20 with .9);
+  - monero: 27 commits (20 changes and 7 tests of the batch-verification gates);
   - dalek-ff-group: 2;
   - multiexp: 1;
-  - monero-oxide: 9 (10 with .9).
+  - monero-oxide: 10.
 
-  That is 29 commits in .8, adding about 4,900 lines and removing about 200; .9 brings it to 33, about 5,300 and 240.
-  [The list below](#the-commits) links each one and says which commits .8 and .9 added. The file explains each change and gives the commands that extract each
+  That is 40 commits, adding about 7,400 lines and removing about 240; [the list below](#the-commits) links each
+  one and says which commits .8 and .9 added. The file explains each change and gives the commands that extract each
   series as patches against its own upstream. Those patches are already made, and checked to apply cleanly, in
   [patches/](patches/), one directory per release.
 - **The base and the full commit list:** the fork sits on seraphis-migration/monero `v0.19.0.0-beta.3.1`
-  (`d80596ad1811`). [These 53 commits](https://github.com/Fountain5405/monerodato/compare/d80596ad1811...v0.19.0.0-beta.3.1-monerodato.8)
-  on top of it are the whole fork at .8. Besides the 29 changes:
+  (`d80596ad1811`). [These 68 commits](https://github.com/Fountain5405/monerodato/compare/d80596ad1811...v0.19.0.0-beta.3.1-monerodato.9)
+  on top of it are the whole fork. Besides the 40 commits above:
   - 3 commits import the three Rust crates untouched;
-  - 21 are marked `[fork-only]`: build plumbing, the testnet-only check, the startup notice, tests, docs and the
+  - 25 are marked `[fork-only]`: build plumbing, the testnet-only check, the startup notice, tests, docs and the
     version string.
-
-  .9 adds the four changes and two more `[fork-only]` commits (docs and the version string): 59 in all.
 - **Why the full diff is so large:** most of it is the generated `vendor/` directory and the untouched imports of
   the three Rust crates. The changes are the commits after each import.
 - **GitHub's branch counts mean nothing here:** it shows `monerodato-v0` as thousands of commits ahead of `main`
@@ -56,18 +54,17 @@ measurements, marked "(.9)". Their links work once .9 is out; figures still bein
 
 ## The commits
 
-**Through .9 there are 33 commits.** monerodato.8 added monero 0012-0017. monerodato.9 added monero 0018-0020 and
-monero-oxide 0010; each of those carries its own unit tests.
+**Through .9 there are 40 commits.** monerodato.8 added monero 0012-0017. monerodato.9 added monero 0018-0020 and
+monero-oxide 0010, each with its own unit tests, and monero 0021-0027, the tests of the batch-verification gates.
 - **Optimisations (24):**
   - six cut memory;
   - eleven cut CPU time (one of them, monero 0005, only prepares the next);
   - seven are for slow disks.
-- **The other nine:** a refactor, two bug fixes and six tests.
+- **The other sixteen:** a refactor, two bug fixes and thirteen tests.
 
 Each commit message gives the reasons and the measurements.
 
 - **Patch** and **Commit:** the patch file in [patches/](patches/), and the commit on GitHub with its full message.
-  Commits marked (.9) are not yet published, so they have no links yet.
 - **What it does:** a one-line summary; the commit message has the reasons and the measurements.
 - **Heavy, Small-tx, One-input:** what changes when the commit, or the smallest set of commits that works, is added
   to stock beta.3.1 (`d80596ad1`) on its own. Where it was measured on another base, a footnote under the table says so.
@@ -84,30 +81,37 @@ Each commit message gives the reasons and the measurements.
   - **Where the numbers come from:** [the full table](evidence/monerodato.9/data/per-commit/TABLE.md) has each figure's base,
     machine and number of runs, and the command that prints it from the raw data.
 
-**monero** (20 commits)
+**monero** (27 commits)
 
 | Patch | Commit | Kind | Heavy | Small-tx | One-input | What it does |
 |---|---|---|---|---|---|---|
-| [0001](patches/monerodato.8/monero/0001-rctSigs-cap-FCMP-batch-verification-at-physical-core.patch) | [`a8567e6ce`](https://github.com/Fountain5405/monerodato/commit/a8567e6ce) | Memory | CPU −50.9%<br>wall −6.7%<br>peak no change | no change | — | caps FCMP++ batch verification at the physical core count, for proofs of 8 or more inputs |
-| [0002](patches/monerodato.8/monero/0002-rctSigs-return-freed-FCMP-verifier-memory-to-the-OS.patch) | [`994918a78`](https://github.com/Fountain5405/monerodato/commit/994918a78) | Memory | peak −44.5%<br>idle −83.6%<br>CPU, wall no change ¹ | peak −9.8%<br>idle −30.1% ¹ | — | returns freed verifier memory to the OS (`malloc_trim`), after batch verification and once at idle |
-| [0003](patches/monerodato.8/monero/0003-cryptonote_core-keep-block-sync-requests-under-the-l.patch) | [`18f49c423`](https://github.com/Fountain5405/monerodato/commit/18f49c423) | Fix | — | — | — | keeps block sync requests under levin's 100 MB packet limit; without it, a node can re-request the same span forever |
-| [0004](patches/monerodato.8/monero/0004-rctSigs-wait-for-queued-FCMP-batch-tasks-before-an-e.patch) | [`412d6c9d3`](https://github.com/Fountain5405/monerodato/commit/412d6c9d3) | Fix | see 0002 | see 0002 | — | waits for queued batch tasks before an early exit; upstream has the same hazard |
-| [0005](patches/monerodato.8/monero/0005-fcmp_pp-verify-a-batch-in-two-steps-prepare-per-batc.patch) | [`d95106256`](https://github.com/Fountain5405/monerodato/commit/d95106256) | CPU (groundwork) | wall −6.8%<br>CPU −4.8%<br>peak +3.1% ² | CPU −38.1%<br>wall, peak no change ² | — | splits batch verification into two FFI steps, so that 0006 can merge the batches |
-| [0006](patches/monerodato.8/monero/0006-rctSigs-one-multiexp-per-curve-per-FCMP-batch-verifi.patch) | [`1d034e0c7`](https://github.com/Fountain5405/monerodato/commit/1d034e0c7) | CPU | see 0005 | see 0005 | — | one multiexp per curve per batch verification call |
-| [0007](patches/monerodato.8/monero/0007-liblmdb-add-mdb_env_warm_dbis-reading-database-trees.patch) | [`6bd706451`](https://github.com/Fountain5405/monerodato/commit/6bd706451) | Disk | start-up: ³<br>−52.5% HDD<br>−19.0% SSD | — | — | adds `mdb_env_warm_dbis()` to the bundled LMDB: it reads database trees into the page cache in file order, with a stop function and a bounded read-ahead |
-| [0008](patches/monerodato.8/monero/0008-tests-mdb_env_warm_dbis-on-an-environment-laid-out-a.patch) | [`b1d6fc6ef`](https://github.com/Fountain5405/monerodato/commit/b1d6fc6ef) | Test | — | — | — | tests it on an environment laid out as monerod's hash indexes |
-| [0009](patches/monerodato.8/monero/0009-blockchain_db-warm_indexes-reading-the-hash-indexes-.patch) | [`88b119bc3`](https://github.com/Fountain5405/monerodato/commit/88b119bc3) | Disk | see 0007 | — | — | `warm_indexes()`: reads the three hash indexes in a thread of its own, stopped before a close or a resize |
-| [0010](patches/monerodato.8/monero/0010-cryptonote_core-start-the-index-warm-up-at-the-end-o.patch) | [`e74c7b3be`](https://github.com/Fountain5405/monerodato/commit/e74c7b3be) | Disk | see 0007 | — | — | starts that warm-up at the end of `core::init` |
-| [0011](patches/monerodato.8/monero/0011-tests-the-background-warm-up-against-close-and-a-res.patch) | [`710a32b70`](https://github.com/Fountain5405/monerodato/commit/710a32b70) | Test | — | — | — | tests the background warm-up against `close()` and a resize |
-| [0012](patches/monerodato.8/monero/0012-liblmdb-add-mdb_env_set_cachedrop-dropping-freed-and.patch) | [`aead98ebd`](https://github.com/Fountain5405/monerodato/commit/aead98ebd) | Disk | see 0016 | — | — | adds `mdb_env_set_cachedrop()` to the bundled LMDB: drops freed and written-once pages from the page cache |
-| [0013](patches/monerodato.8/monero/0013-tests-mdb_env_set_cachedrop-on-a-generated-environme.patch) | [`87f401be7`](https://github.com/Fountain5405/monerodato/commit/87f401be7) | Test | — | — | — | tests it on a generated environment of large values |
-| [0014](patches/monerodato.8/monero/0014-liblmdb-add-mdb_prefetch_overflow-asking-the-OS-for-.patch) | [`a3b780722`](https://github.com/Fountain5405/monerodato/commit/a3b780722) | Disk | see 0016 | — | — | adds `mdb_prefetch_overflow()`: asks the OS for the first page of a value's overflow run |
-| [0015](patches/monerodato.8/monero/0015-tests-mdb_prefetch_overflow-on-a-generated-environme.patch) | [`b3a2bf8c0`](https://github.com/Fountain5405/monerodato/commit/b3a2bf8c0) | Test | — | — | — | tests it on a generated environment of large values |
-| [0016](patches/monerodato.8/monero/0016-blockchain_db-db-cache-drop-to-drop-freed-pages-and-.patch) | [`bd5c6b340`](https://github.com/Fountain5405/monerodato/commit/bd5c6b340) | Disk | pruned sync: ⁴<br>wall −72.9% capped<br>wall +1.4% uncapped | — | — | `--db-cache-drop`: drops freed pages and written-once transaction data from the page cache |
-| [0017](patches/monerodato.8/monero/0017-blockchain_db-ask-the-OS-for-the-pages-pruning-will-.patch) | [`da1dcb451`](https://github.com/Fountain5405/monerodato/commit/da1dcb451) | Disk | see 0016 | — | — | asks the OS for the pages pruning will read, ahead of the pruning |
-| 0018 | `321f251ab` (.9) | CPU | not measured | not measured | wall −4.2%<br>CPU +0.5% | checks a block's RingCT sum checks in chunks over the compute pool instead of on one thread |
-| 0019 | `cf163c91c` (.9) | CPU | not measured | not measured | wall −11.1%<br>CPU +0.7% ⁵ | verifies a block's BP+ range proofs as sub-batches over the compute pool, at most one per physical core, instead of one batch on one thread |
-| 0020 | `5c9ffb675` (.9) | CPU | not measured | not measured | wall −3.8%<br>CPU no change | for blocks of 8 or more transactions, checks the key images in chunks over the compute pool after the per-transaction loop, instead of one by one |
+| [0001](patches/monerodato.9/monero/0001-rctSigs-cap-FCMP-batch-verification-at-physical-core.patch) | [`a8567e6ce`](https://github.com/Fountain5405/monerodato/commit/a8567e6ce) | Memory | CPU −50.9%<br>wall −6.7%<br>peak no change | no change | — | caps FCMP++ batch verification at the physical core count, for proofs of 8 or more inputs |
+| [0002](patches/monerodato.9/monero/0002-rctSigs-return-freed-FCMP-verifier-memory-to-the-OS.patch) | [`994918a78`](https://github.com/Fountain5405/monerodato/commit/994918a78) | Memory | peak −44.5%<br>idle −83.6%<br>CPU, wall no change ¹ | peak −9.8%<br>idle −30.1% ¹ | — | returns freed verifier memory to the OS (`malloc_trim`), after batch verification and once at idle |
+| [0003](patches/monerodato.9/monero/0003-cryptonote_core-keep-block-sync-requests-under-the-l.patch) | [`18f49c423`](https://github.com/Fountain5405/monerodato/commit/18f49c423) | Fix | — | — | — | keeps block sync requests under levin's 100 MB packet limit; without it, a node can re-request the same span forever |
+| [0004](patches/monerodato.9/monero/0004-rctSigs-wait-for-queued-FCMP-batch-tasks-before-an-e.patch) | [`412d6c9d3`](https://github.com/Fountain5405/monerodato/commit/412d6c9d3) | Fix | see 0002 | see 0002 | — | waits for queued batch tasks before an early exit; upstream has the same hazard |
+| [0005](patches/monerodato.9/monero/0005-fcmp_pp-verify-a-batch-in-two-steps-prepare-per-batc.patch) | [`d95106256`](https://github.com/Fountain5405/monerodato/commit/d95106256) | CPU (groundwork) | wall −6.8%<br>CPU −4.8%<br>peak +3.1% ² | CPU −38.1%<br>wall, peak no change ² | — | splits batch verification into two FFI steps, so that 0006 can merge the batches |
+| [0006](patches/monerodato.9/monero/0006-rctSigs-one-multiexp-per-curve-per-FCMP-batch-verifi.patch) | [`1d034e0c7`](https://github.com/Fountain5405/monerodato/commit/1d034e0c7) | CPU | see 0005 | see 0005 | — | one multiexp per curve per batch verification call |
+| [0007](patches/monerodato.9/monero/0007-liblmdb-add-mdb_env_warm_dbis-reading-database-trees.patch) | [`6bd706451`](https://github.com/Fountain5405/monerodato/commit/6bd706451) | Disk | start-up: ³<br>−52.5% HDD<br>−19.0% SSD | — | — | adds `mdb_env_warm_dbis()` to the bundled LMDB: it reads database trees into the page cache in file order, with a stop function and a bounded read-ahead |
+| [0008](patches/monerodato.9/monero/0008-tests-mdb_env_warm_dbis-on-an-environment-laid-out-a.patch) | [`b1d6fc6ef`](https://github.com/Fountain5405/monerodato/commit/b1d6fc6ef) | Test | — | — | — | tests it on an environment laid out as monerod's hash indexes |
+| [0009](patches/monerodato.9/monero/0009-blockchain_db-warm_indexes-reading-the-hash-indexes-.patch) | [`88b119bc3`](https://github.com/Fountain5405/monerodato/commit/88b119bc3) | Disk | see 0007 | — | — | `warm_indexes()`: reads the three hash indexes in a thread of its own, stopped before a close or a resize |
+| [0010](patches/monerodato.9/monero/0010-cryptonote_core-start-the-index-warm-up-at-the-end-o.patch) | [`e74c7b3be`](https://github.com/Fountain5405/monerodato/commit/e74c7b3be) | Disk | see 0007 | — | — | starts that warm-up at the end of `core::init` |
+| [0011](patches/monerodato.9/monero/0011-tests-the-background-warm-up-against-close-and-a-res.patch) | [`710a32b70`](https://github.com/Fountain5405/monerodato/commit/710a32b70) | Test | — | — | — | tests the background warm-up against `close()` and a resize |
+| [0012](patches/monerodato.9/monero/0012-liblmdb-add-mdb_env_set_cachedrop-dropping-freed-and.patch) | [`aead98ebd`](https://github.com/Fountain5405/monerodato/commit/aead98ebd) | Disk | see 0016 | — | — | adds `mdb_env_set_cachedrop()` to the bundled LMDB: drops freed and written-once pages from the page cache |
+| [0013](patches/monerodato.9/monero/0013-tests-mdb_env_set_cachedrop-on-a-generated-environme.patch) | [`87f401be7`](https://github.com/Fountain5405/monerodato/commit/87f401be7) | Test | — | — | — | tests it on a generated environment of large values |
+| [0014](patches/monerodato.9/monero/0014-liblmdb-add-mdb_prefetch_overflow-asking-the-OS-for-.patch) | [`a3b780722`](https://github.com/Fountain5405/monerodato/commit/a3b780722) | Disk | see 0016 | — | — | adds `mdb_prefetch_overflow()`: asks the OS for the first page of a value's overflow run |
+| [0015](patches/monerodato.9/monero/0015-tests-mdb_prefetch_overflow-on-a-generated-environme.patch) | [`b3a2bf8c0`](https://github.com/Fountain5405/monerodato/commit/b3a2bf8c0) | Test | — | — | — | tests it on a generated environment of large values |
+| [0016](patches/monerodato.9/monero/0016-blockchain_db-db-cache-drop-to-drop-freed-pages-and-.patch) | [`bd5c6b340`](https://github.com/Fountain5405/monerodato/commit/bd5c6b340) | Disk | pruned sync: ⁴<br>wall −72.9% capped<br>wall +1.4% uncapped | — | — | `--db-cache-drop`: drops freed pages and written-once transaction data from the page cache |
+| [0017](patches/monerodato.9/monero/0017-blockchain_db-ask-the-OS-for-the-pages-pruning-will-.patch) | [`da1dcb451`](https://github.com/Fountain5405/monerodato/commit/da1dcb451) | Disk | see 0016 | — | — | asks the OS for the pages pruning will read, ahead of the pruning |
+| [0018](patches/monerodato.9/monero/0018-ringct-check-a-block-s-sum-checks-over-the-compute-p.patch) | [`321f251ab`](https://github.com/Fountain5405/monerodato/commit/321f251ab) | CPU | not measured | not measured | wall −4.2%<br>CPU +0.5% | checks a block's RingCT sum checks in chunks over the compute pool instead of on one thread |
+| [0019](patches/monerodato.9/monero/0019-ringct-verify-a-block-s-BP-batch-as-sub-batches-over.patch) | [`cf163c91c`](https://github.com/Fountain5405/monerodato/commit/cf163c91c) | CPU | not measured | not measured | wall −11.1%<br>CPU +0.7% ⁵ | verifies a block's BP+ range proofs as sub-batches over the compute pool, at most one per physical core, instead of one batch on one thread |
+| [0020](patches/monerodato.9/monero/0020-cryptonote_core-check-a-block-s-key-image-domains-ov.patch) | [`5c9ffb675`](https://github.com/Fountain5405/monerodato/commit/5c9ffb675) | CPU | not measured | not measured | wall −3.8%<br>CPU no change | for blocks of 8 or more transactions, checks the key images in chunks over the compute pool after the per-transaction loop, instead of one by one |
+| [0021](patches/monerodato.9/monero/0021-tests-core_tests-event-that-delivers-a-block-with-it.patch) | [`d0f898514`](https://github.com/Fountain5405/monerodato/commit/d0f898514) | Test | — | — | — | a core_tests event that delivers a block together with its transactions, as sync does |
+| [0022](patches/monerodato.9/monero/0022-tests-batched-range-proof-and-sum-checks-give-the-si.patch) | [`2271341c1`](https://github.com/Fountain5405/monerodato/commit/2271341c1) | Test | — | — | — | batched range-proof and sum checks give the same verdicts as checking one at a time |
+| [0023](patches/monerodato.9/monero/0023-tests-pool-and-block-paths-reject-the-same-transacti.patch) | [`c06d0011f`](https://github.com/Fountain5405/monerodato/commit/c06d0011f) | Test | — | — | — | the pool path and the block path reject the same bad transactions |
+| [0024](patches/monerodato.9/monero/0024-tests-a-block-with-an-invalid-transaction-the-pool-n.patch) | [`6c5e380dc`](https://github.com/Fountain5405/monerodato/commit/6c5e380dc) | Test | — | — | — | a block carrying an invalid transaction that the pool never accepted is refused |
+| [0025](patches/monerodato.9/monero/0025-tests-a-mined-block-with-a-dishonest-coinbase.patch) | [`ac29daad0`](https://github.com/Fountain5405/monerodato/commit/ac29daad0) | Test | — | — | — | a mined block with a dishonest coinbase is refused |
+| [0026](patches/monerodato.9/monero/0026-tests-a-block-whose-bad-transaction-arrives-with-it-.patch) | [`4be29418e`](https://github.com/Fountain5405/monerodato/commit/4be29418e) | Test | — | — | — | a block whose bad transaction arrives with it on sync is refused |
+| [0027](patches/monerodato.9/monero/0027-tests-three-bad-blocks-on-the-serialized-route-one-b.patch) | [`37d80f1c6`](https://github.com/Fountain5405/monerodato/commit/37d80f1c6) | Test | — | — | — | three bad blocks on the serialized route, one bit flipped in a transaction-hash entry, parse and are refused at verification |
 
 ¹ With 0004, on 0001.  
 ² With 0006 and monero-oxide 0004, on 0001 + 0002 + 0004.  
@@ -119,8 +123,8 @@ Each commit message gives the reasons and the measurements.
 
 | Patch | Commit | Kind | Heavy | Small-tx | One-input | What it does |
 |---|---|---|---|---|---|---|
-| [0001](patches/monerodato.8/dalek-ff-group/0001-dalek-ff-group-Field25519-as-four-saturated-64-bit-l.patch) | [`70ce03ece`](https://github.com/Fountain5405/monerodato/commit/70ce03ece) | CPU | wall −6.5%<br>CPU −7.3%<br>peak no change ¹ | wall −15.3%<br>CPU −19.4%<br>peak no change ¹ | — | Field25519 as four saturated 64-bit limbs |
-| [0002](patches/monerodato.8/dalek-ff-group/0002-dalek-ff-group-wide_reduce-and-random-through-the-2-.patch) | [`a85f57b41`](https://github.com/Fountain5405/monerodato/commit/a85f57b41) | CPU | see 0001 | see 0001 | — | `wide_reduce` and `random` through the same fold |
+| [0001](patches/monerodato.9/dalek-ff-group/0001-dalek-ff-group-Field25519-as-four-saturated-64-bit-l.patch) | [`70ce03ece`](https://github.com/Fountain5405/monerodato/commit/70ce03ece) | CPU | wall −6.5%<br>CPU −7.3%<br>peak no change ¹ | wall −15.3%<br>CPU −19.4%<br>peak no change ¹ | — | Field25519 as four saturated 64-bit limbs |
+| [0002](patches/monerodato.9/dalek-ff-group/0002-dalek-ff-group-wide_reduce-and-random-through-the-2-.patch) | [`a85f57b41`](https://github.com/Fountain5405/monerodato/commit/a85f57b41) | CPU | see 0001 | see 0001 | — | `wide_reduce` and `random` through the same fold |
 
 ¹ With 0002.
 
@@ -128,7 +132,7 @@ Each commit message gives the reasons and the measurements.
 
 | Patch | Commit | Kind | Heavy | Small-tx | One-input | What it does |
 |---|---|---|---|---|---|---|
-| [0001](patches/monerodato.8/multiexp/0001-multiexp-constant-time-multiexp-uses-Straus-with-a-4.patch) | [`b8df9a72a`](https://github.com/Fountain5405/monerodato/commit/b8df9a72a) | CPU (wallet) | wallet: ¹<br>−48% to −57% | — | — | the constant-time multiexp uses Straus with a 4-bit window at every length |
+| [0001](patches/monerodato.9/multiexp/0001-multiexp-constant-time-multiexp-uses-Straus-with-a-4.patch) | [`b8df9a72a`](https://github.com/Fountain5405/monerodato/commit/b8df9a72a) | CPU (wallet) | wallet: ¹<br>−48% to −57% | — | — | the constant-time multiexp uses Straus with a 4-bit window at every length |
 
 ¹ Wallet code, not a block type: time to build a transaction at 8 to 128 inputs, on .2. See [The wallet](#the-wallet).
 
@@ -136,16 +140,16 @@ Each commit message gives the reasons and the measurements.
 
 | Patch | Commit | Kind | Heavy | Small-tx | One-input | What it does |
 |---|---|---|---|---|---|---|
-| [0001](patches/monerodato.8/monero-oxide/0001-fcmps-extract-verifier_layout-and-build_verifier_cir.patch) | [`01f8dac15`](https://github.com/Fountain5405/monerodato/commit/01f8dac15) | Refactor | see 0002 | see 0002 | — | moves the verifier layout into its own functions, for 0002; no behaviour change |
-| [0002](patches/monerodato.8/monero-oxide/0002-fcmps-verify-with-the-constraints-folded-into-one-as.patch) | [`a7557102e`](https://github.com/Fountain5405/monerodato/commit/a7557102e) | Memory | peak −53.8%<br>idle −48.3%<br>wall −23.4%<br>CPU −23.4% ¹ | peak −8.5%<br>idle −8.5%<br>CPU +26.2%<br>wall no change ¹ | — | verifies FCMP++ proofs with the constraints folded as they are produced, instead of storing them |
-| [0003](patches/monerodato.8/monero-oxide/0003-fcmps-fold-both-circuits-in-one-rebuild-peeking-the-.patch) | [`fd2d30ce5`](https://github.com/Fountain5405/monerodato/commit/fd2d30ce5) | CPU | CPU −12.6%<br>wall −4.1%<br>peak no change ² | CPU −9.0%<br>wall −4.7%<br>peak no change ² | wall +3.2%<br>CPU +8.4% ³ | builds the circuits twice per proof instead of three times, cutting 0002's cost |
-| [0004](patches/monerodato.8/monero-oxide/0004-generalized-bulletproofs-merge-batch-verifiers-split.patch) | [`0484d1a5a`](https://github.com/Fountain5405/monerodato/commit/0484d1a5a) | CPU | see monero 0005 | see monero 0005 | — | merges batch verifiers and splits the multiexp over threads |
-| [0005](patches/monerodato.8/monero-oxide/0005-generalized-bulletproofs-test-verify_split-against-v.patch) | [`601562885`](https://github.com/Fountain5405/monerodato/commit/601562885) | Test | — | — | — | tests `verify_split` against `verify` at its chunk boundaries |
-| [0006](patches/monerodato.8/monero-oxide/0006-generalized-bulletproofs-test-that-the-prover-s-outp.patch) | [`1ba0eb513`](https://github.com/Fountain5405/monerodato/commit/1ba0eb513) | Test | — | — | — | tests that the prover's output is unchanged, byte for byte |
-| [0007](patches/monerodato.8/monero-oxide/0007-generalized-bulletproofs-free-the-l-and-r-coefficien.patch) | [`ed01fbd43`](https://github.com/Fountain5405/monerodato/commit/ed01fbd43) | Memory (wallet) | wallet: ⁴<br>peak −1.9% | — | — | frees the prover's coefficient vectors after evaluation, zeroized |
-| [0008](patches/monerodato.8/monero-oxide/0008-generalized-bulletproofs-shrink-each-vector-commitme.patch) | [`6c31ede43`](https://github.com/Fountain5405/monerodato/commit/6c31ede43) | Memory (wallet) | wallet: ⁴<br>peak −20.7% | — | — | shrinks each vector commitment's weight vector to the length it uses |
-| [0009](patches/monerodato.8/monero-oxide/0009-generalized-bulletproofs-move-the-vector-commitments.patch) | [`2912fdd99`](https://github.com/Fountain5405/monerodato/commit/2912fdd99) | Memory (wallet) | wallet: ⁴<br>peak −18.6% | — | — | moves the vector commitments' values instead of copying them |
-| 0010 | `6bb32ea00` (.9) | CPU | not measured | not measured | wall −1.9%<br>CPU −2.9% ⁵ | skips past the first proof's points without decoding them when reading the second proof's z; the first proof's verify decodes them anyway |
+| [0001](patches/monerodato.9/monero-oxide/0001-fcmps-extract-verifier_layout-and-build_verifier_cir.patch) | [`01f8dac15`](https://github.com/Fountain5405/monerodato/commit/01f8dac15) | Refactor | see 0002 | see 0002 | — | moves the verifier layout into its own functions, for 0002; no behaviour change |
+| [0002](patches/monerodato.9/monero-oxide/0002-fcmps-verify-with-the-constraints-folded-into-one-as.patch) | [`a7557102e`](https://github.com/Fountain5405/monerodato/commit/a7557102e) | Memory | peak −53.8%<br>idle −48.3%<br>wall −23.4%<br>CPU −23.4% ¹ | peak −8.5%<br>idle −8.5%<br>CPU +26.2%<br>wall no change ¹ | — | verifies FCMP++ proofs with the constraints folded as they are produced, instead of storing them |
+| [0003](patches/monerodato.9/monero-oxide/0003-fcmps-fold-both-circuits-in-one-rebuild-peeking-the-.patch) | [`fd2d30ce5`](https://github.com/Fountain5405/monerodato/commit/fd2d30ce5) | CPU | CPU −12.6%<br>wall −4.1%<br>peak no change ² | CPU −9.0%<br>wall −4.7%<br>peak no change ² | wall +3.2%<br>CPU +8.4% ³ | builds the circuits twice per proof instead of three times, cutting 0002's cost |
+| [0004](patches/monerodato.9/monero-oxide/0004-generalized-bulletproofs-merge-batch-verifiers-split.patch) | [`0484d1a5a`](https://github.com/Fountain5405/monerodato/commit/0484d1a5a) | CPU | see monero 0005 | see monero 0005 | — | merges batch verifiers and splits the multiexp over threads |
+| [0005](patches/monerodato.9/monero-oxide/0005-generalized-bulletproofs-test-verify_split-against-v.patch) | [`601562885`](https://github.com/Fountain5405/monerodato/commit/601562885) | Test | — | — | — | tests `verify_split` against `verify` at its chunk boundaries |
+| [0006](patches/monerodato.9/monero-oxide/0006-generalized-bulletproofs-test-that-the-prover-s-outp.patch) | [`1ba0eb513`](https://github.com/Fountain5405/monerodato/commit/1ba0eb513) | Test | — | — | — | tests that the prover's output is unchanged, byte for byte |
+| [0007](patches/monerodato.9/monero-oxide/0007-generalized-bulletproofs-free-the-l-and-r-coefficien.patch) | [`ed01fbd43`](https://github.com/Fountain5405/monerodato/commit/ed01fbd43) | Memory (wallet) | wallet: ⁴<br>peak −1.9% | — | — | frees the prover's coefficient vectors after evaluation, zeroized |
+| [0008](patches/monerodato.9/monero-oxide/0008-generalized-bulletproofs-shrink-each-vector-commitme.patch) | [`6c31ede43`](https://github.com/Fountain5405/monerodato/commit/6c31ede43) | Memory (wallet) | wallet: ⁴<br>peak −20.7% | — | — | shrinks each vector commitment's weight vector to the length it uses |
+| [0009](patches/monerodato.9/monero-oxide/0009-generalized-bulletproofs-move-the-vector-commitments.patch) | [`2912fdd99`](https://github.com/Fountain5405/monerodato/commit/2912fdd99) | Memory (wallet) | wallet: ⁴<br>peak −18.6% | — | — | moves the vector commitments' values instead of copying them |
+| [0010](patches/monerodato.9/monero-oxide/0010-generalized-bulletproofs-skip-a-proof-s-transcript-w.patch) | [`6bb32ea00`](https://github.com/Fountain5405/monerodato/commit/6bb32ea00) | CPU | not measured | not measured | wall −1.9%<br>CPU −2.9% ⁵ | skips past the first proof's points without decoding them when reading the second proof's z; the first proof's verify decodes them anyway |
 
 ¹ With 0001.  
 ² On 0001 + 0002.  
@@ -219,7 +223,7 @@ optimisation in .9 is listed; the ones that are only about time or disk show "no
 | .0 | Both circuits in one rebuild | [`fd2d30ce5`](https://github.com/Fountain5405/monerodato/commit/fd2d30ce5) | no measurable change | no measurable change |
 | .0 | Field arithmetic on four 64-bit limbs | [`70ce03ece`](https://github.com/Fountain5405/monerodato/commit/70ce03ece), [`a85f57b41`](https://github.com/Fountain5405/monerodato/commit/a85f57b41) | no measurable change | no measurable change |
 | .1 | One multiexp per curve per call | [`d95106256`](https://github.com/Fountain5405/monerodato/commit/d95106256), [`1d034e0c7`](https://github.com/Fountain5405/monerodato/commit/1d034e0c7), [`0484d1a5a`](https://github.com/Fountain5405/monerodato/commit/0484d1a5a) | peak +3.1% (base: reference + cap + trim) | no measurable change |
-| .9 | A block's sum, BP+ and key-image checks over the compute pool; proofs' points left undecoded where unused | `321f251ab` (.9), `cf163c91c` (.9), `5c9ffb675` (.9), `6bb32ea00` (.9) | the four together, against .8: no measurable change (peak 1,224 → 1,202 MB, runs overlapping) | the four together, against .8: no measurable change (peak 473 → 475 MB, runs overlapping) |
+| .9 | A block's sum, BP+ and key-image checks over the compute pool; proofs' points left undecoded where unused | [`321f251ab`](https://github.com/Fountain5405/monerodato/commit/321f251ab), [`cf163c91c`](https://github.com/Fountain5405/monerodato/commit/cf163c91c), [`5c9ffb675`](https://github.com/Fountain5405/monerodato/commit/5c9ffb675), [`6bb32ea00`](https://github.com/Fountain5405/monerodato/commit/6bb32ea00) | the four together, against .8: no measurable change (peak 1,224 → 1,202 MB, runs overlapping) | the four together, against .8: no measurable change (peak 473 → 475 MB, runs overlapping) |
 
 - **The cap needs the trim.** On its own the cap saves nothing measurable, because glibc keeps each thread's freed
   memory until it is trimmed.
@@ -293,10 +297,10 @@ Slow machines, a sync from block 3,102,000 to 3,103,451 (the Atom: 3,103,300 to 
 | .0 | **Both circuits in one rebuild:** each proof's circuits built twice instead of three times | [`fd2d30ce5`](https://github.com/Fountain5405/monerodato/commit/fd2d30ce5) | wall −4.1%, CPU −12.6% (base: reference + folded verification) | wall −4.7%, CPU −9.0% (same base) | not measured |
 | | *the folded verification and the one rebuild together* | | wall −26.6%, CPU −33.1% | CPU +14.8%; wall no measurable change | wall +3.2%, CPU +8.4% |
 | .1 | **One multiexp per curve per call:** a call's batches share one multiexp per curve, split over the threads | [`d95106256`](https://github.com/Fountain5405/monerodato/commit/d95106256), [`1d034e0c7`](https://github.com/Fountain5405/monerodato/commit/1d034e0c7), [`0484d1a5a`](https://github.com/Fountain5405/monerodato/commit/0484d1a5a) | wall −6.8%, CPU −4.8% (base: reference + cap + trim) | CPU −38.1%; wall no measurable change (same base) | not measured |
-| .9 | **A block's RingCT sum checks over the compute pool** | `321f251ab` (.9) | not measured | not measured | wall −4.2%, CPU +0.5% |
-| .9 | **A block's BP+ range proofs as sub-batches over the pool** | `cf163c91c` (.9) | not measured | not measured | wall −11.1%, CPU +0.7% (base: reference + the sum checks) |
-| .9 | **A block's key-image checks over the pool** | `5c9ffb675` (.9) | not measured | not measured | wall −3.8%; CPU no measurable change |
-| .9 | **A proof's transcript skipped without decoding its points** | `6bb32ea00` (.9) | not measured | not measured | wall −1.9%, CPU −2.9% (base: reference + the folded verification and the one rebuild) |
+| .9 | **A block's RingCT sum checks over the compute pool** | [`321f251ab`](https://github.com/Fountain5405/monerodato/commit/321f251ab) | not measured | not measured | wall −4.2%, CPU +0.5% |
+| .9 | **A block's BP+ range proofs as sub-batches over the pool** | [`cf163c91c`](https://github.com/Fountain5405/monerodato/commit/cf163c91c) | not measured | not measured | wall −11.1%, CPU +0.7% (base: reference + the sum checks) |
+| .9 | **A block's key-image checks over the pool** | [`5c9ffb675`](https://github.com/Fountain5405/monerodato/commit/5c9ffb675) | not measured | not measured | wall −3.8%; CPU no measurable change |
+| .9 | **A proof's transcript skipped without decoding its points** | [`6bb32ea00`](https://github.com/Fountain5405/monerodato/commit/6bb32ea00) | not measured | not measured | wall −1.9%, CPU −2.9% (base: reference + the folded verification and the one rebuild) |
 
 - **The memory trim** changed neither CPU nor wall time measurably.
 - **Small-tx wall time is noisy** on this machine (the reference build's runs took 64–93 s), so most small-tx wall

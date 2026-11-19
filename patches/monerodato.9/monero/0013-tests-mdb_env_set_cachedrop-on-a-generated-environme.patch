@@ -1,0 +1,471 @@
+From 87f401be704525d3ffb425c797323c3e6c66a90b Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:35:46 +0000
+Subject: [PATCH 13/27] tests: mdb_env_set_cachedrop on a generated environment
+ of large values
+
+A table of 200 values of 10,000 bytes, three 4 KB overflow pages each, as
+monerod stores transaction data. The tests read the page cache through
+mincore() on the environment's own map.
+
+- Its arguments: EINVAL for an environment not open, during a write
+  transaction, and with MDB_WRITEMAP; on and off twice.
+- Freed pages: half the values are deleted while a reader on the earlier
+  snapshot is open. Their pages stay cached, and the reader reads the
+  values intact, for as long as the reader lives. After it ends, the next
+  commit drops at least 90% of them, and none of the pages of the values
+  that are kept.
+- Written overflow pages: with a long delay, the runs a commit writes stay.
+  With no delay, the commit after the one that wrote them drops at least
+  90% of them. The values then read back intact from the file.
+- 300 commits of random puts, overwrites and deletes, with a reader that
+  lives across a few commits now and then. Every value reads back intact,
+  every 50 commits and after reopening the environment.
+
+The residency tests skip where the cache drop is not available (ENOSYS),
+where LMDB's page size is not the OS's, and where the file system does not
+let pages go (tmpfs). Checked against two broken versions of the cache
+drop: one that drops freed pages a reader can still see fails the freed
+pages test; one that is never on fails both residency tests.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ tests/unit_tests/CMakeLists.txt     |   1 +
+ tests/unit_tests/lmdb_cachedrop.cpp | 413 ++++++++++++++++++++++++++++
+ 2 files changed, 414 insertions(+)
+ create mode 100644 tests/unit_tests/lmdb_cachedrop.cpp
+
+diff --git a/tests/unit_tests/CMakeLists.txt b/tests/unit_tests/CMakeLists.txt
+index baa492255..800c7d3da 100644
+--- a/tests/unit_tests/CMakeLists.txt
++++ b/tests/unit_tests/CMakeLists.txt
+@@ -75,6 +75,7 @@ set(unit_tests_sources
+   logging.cpp
+   long_term_block_weight.cpp
+   lmdb.cpp
++  lmdb_cachedrop.cpp
+   lmdb_warm.cpp
+   main.cpp
+   memwipe.cpp
+diff --git a/tests/unit_tests/lmdb_cachedrop.cpp b/tests/unit_tests/lmdb_cachedrop.cpp
+new file mode 100644
+index 000000000..3cf67ac62
+--- /dev/null
++++ b/tests/unit_tests/lmdb_cachedrop.cpp
+@@ -0,0 +1,413 @@
++// Copyright (c) 2026, The Monero Project
++//
++// All rights reserved.
++//
++// Redistribution and use in source and binary forms, with or without modification, are
++// permitted provided that the following conditions are met:
++//
++// 1. Redistributions of source code must retain the above copyright notice, this list of
++//    conditions and the following disclaimer.
++//
++// 2. Redistributions in binary form must reproduce the above copyright notice, this list
++//    of conditions and the following disclaimer in the documentation and/or other
++//    materials provided with the distribution.
++//
++// 3. Neither the name of the copyright holder nor the names of its contributors may be
++//    used to endorse or promote products derived from this software without specific
++//    prior written permission.
++//
++// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
++// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++// MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
++// THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
++// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++// STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
++// THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++// Tests of mdb_env_set_cachedrop() (monerodato) on a small generated environment: a table of
++// large values, stored by LMDB in overflow pages, as monerod stores transaction data. The tests
++// read the page cache through mincore() on the environment's own map, so they skip where the
++// cache drop is not available (it needs Linux 6.5) or where LMDB's page size is not the OS's.
++
++#include <gtest/gtest.h>
++
++#include <cerrno>
++#include <cstdint>
++#include <cstring>
++#include <map>
++#include <random>
++#include <string>
++#include <vector>
++
++#include <boost/filesystem.hpp>
++
++#include <lmdb.h>
++
++#if defined(__linux__)
++#include <fcntl.h>
++#include <sys/mman.h>
++#include <unistd.h>
++#endif
++
++namespace
++{
++  constexpr std::size_t BLOBS = 200;
++  constexpr std::size_t BLOB_SIZE = 10000; // three 4 KB overflow pages each
++
++  struct temp_dir
++  {
++    boost::filesystem::path path;
++    temp_dir()
++      : path(boost::filesystem::temp_directory_path() / boost::filesystem::unique_path("monerodato-cachedrop-%%%%-%%%%-%%%%"))
++    {
++      boost::filesystem::create_directories(path);
++    }
++    ~temp_dir()
++    {
++      boost::system::error_code ec;
++      boost::filesystem::remove_all(path, ec);
++    }
++  };
++
++  struct env_guard
++  {
++    MDB_env *env = nullptr;
++    MDB_dbi blobs = 0, small = 0;
++    ~env_guard()
++    {
++      if (env)
++        mdb_env_close(env);
++    }
++  };
++
++  std::string blob(uint64_t key, uint64_t version)
++  {
++    std::string s(BLOB_SIZE, '\0');
++    std::mt19937_64 rng(key * 1000003 + version);
++    for (std::size_t i = 0; i < s.size(); i += 8)
++    {
++      const uint64_t r = rng();
++      memcpy(&s[i], &r, std::min<std::size_t>(8, s.size() - i));
++    }
++    return s;
++  }
++
++  // Open as monerod does (no read-ahead, no thread-local reader slots), with synced commits, so that a committed page is clean
++  void open_env(env_guard &g, const std::string &dir, unsigned int flags = 0)
++  {
++    ASSERT_EQ(0, mdb_env_create(&g.env));
++    ASSERT_EQ(0, mdb_env_set_maxdbs(g.env, 4));
++    ASSERT_EQ(0, mdb_env_set_mapsize(g.env, std::size_t(64) << 20));
++    ASSERT_EQ(0, mdb_env_open(g.env, dir.c_str(), MDB_NORDAHEAD | MDB_NOTLS | flags, 0644));
++    MDB_txn *txn;
++    ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, 0, &txn));
++    ASSERT_EQ(0, mdb_dbi_open(txn, "blobs", MDB_INTEGERKEY | MDB_CREATE, &g.blobs));
++    ASSERT_EQ(0, mdb_dbi_open(txn, "small", MDB_INTEGERKEY | MDB_CREATE, &g.small));
++    ASSERT_EQ(0, mdb_txn_commit(txn));
++  }
++
++  void put(MDB_txn *txn, MDB_dbi dbi, uint64_t key, const std::string &value)
++  {
++    MDB_val k = {sizeof(key), &key}, v = {value.size(), (void *)value.data()};
++    ASSERT_EQ(0, mdb_put(txn, dbi, &k, &v, 0));
++  }
++
++  // One small commit in another table: the cache drop does its work at each commit
++  void small_commit(env_guard &g, uint64_t key)
++  {
++    MDB_txn *txn;
++    ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, 0, &txn));
++    put(txn, g.small, key, std::string(8, 'x'));
++    ASSERT_EQ(0, mdb_txn_commit(txn));
++  }
++
++  void write_blobs(env_guard &g, uint64_t version)
++  {
++    MDB_txn *txn;
++    ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, 0, &txn));
++    for (uint64_t key = 0; key < BLOBS; ++key)
++      put(txn, g.blobs, key, blob(key, version));
++    ASSERT_EQ(0, mdb_txn_commit(txn));
++  }
++
++  // Read every value back through the map (this also brings the pages into the page cache)
++  void check_blobs(env_guard &g, const std::map<uint64_t, uint64_t> &model)
++  {
++    MDB_txn *txn;
++    ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, MDB_RDONLY, &txn));
++    MDB_stat st;
++    ASSERT_EQ(0, mdb_stat(txn, g.blobs, &st));
++    EXPECT_EQ(model.size(), st.ms_entries);
++    for (const auto &kv : model)
++    {
++      uint64_t key = kv.first;
++      MDB_val k = {sizeof(key), &key}, v;
++      ASSERT_EQ(0, mdb_get(txn, g.blobs, &k, &v)) << key;
++      const std::string expected = blob(key, kv.second);
++      ASSERT_EQ(expected.size(), v.mv_size);
++      EXPECT_EQ(0, memcmp(expected.data(), v.mv_data, v.mv_size)) << key;
++    }
++    mdb_txn_abort(txn);
++  }
++
++#if defined(__linux__)
++  const std::size_t os_page = (std::size_t)sysconf(_SC_PAGESIZE);
++
++  // The pages of a value's overflow run, as addresses in the environment's map
++  struct run
++  {
++    char *first;
++    std::size_t pages;
++  };
++
++  std::vector<run> blob_runs(MDB_txn *txn, MDB_dbi dbi, uint64_t from, uint64_t to, uint64_t step)
++  {
++    std::vector<run> runs;
++    for (uint64_t key = from; key < to; key += step)
++    {
++      MDB_val k = {sizeof(key), &key}, v;
++      if (mdb_get(txn, dbi, &k, &v))
++        continue;
++      char *page = (char *)((uintptr_t)v.mv_data & ~(uintptr_t)(os_page - 1));
++      runs.push_back({page, ((char *)v.mv_data + v.mv_size - page + os_page - 1) / os_page});
++    }
++    return runs;
++  }
++
++  // How many of the runs' pages are in the page cache
++  std::size_t resident(const std::vector<run> &runs)
++  {
++    std::size_t n = 0;
++    for (const run &r : runs)
++    {
++      std::vector<unsigned char> vec(r.pages);
++      if (mincore(r.first, r.pages * os_page, vec.data()) != 0)
++        return SIZE_MAX;
++      for (unsigned char c : vec)
++        n += c & 1;
++    }
++    return n;
++  }
++
++  std::size_t pages(const std::vector<run> &runs)
++  {
++    std::size_t n = 0;
++    for (const run &r : runs)
++      n += r.pages;
++    return n;
++  }
++
++  // Turn the cache drop on; false (and the test skips) where it cannot be used or measured here
++  bool cachedrop_on(env_guard &g, unsigned int delay)
++  {
++    MDB_stat st;
++    MDB_txn *txn;
++    if (mdb_txn_begin(g.env, nullptr, MDB_RDONLY, &txn))
++      return false;
++    const int rc = mdb_stat(txn, g.blobs, &st);
++    mdb_txn_abort(txn);
++    if (rc || st.ms_psize != os_page)
++      return false;
++    // the file system must let pages go (tmpfs does not): drop the first value's run and look
++    if (mdb_txn_begin(g.env, nullptr, MDB_RDONLY, &txn))
++      return false;
++    const std::vector<run> probe = blob_runs(txn, g.blobs, 0, 1, 1);
++    mdb_filehandle_t fd;
++    bool drops = false;
++    if (!probe.empty() && mdb_env_get_fd(g.env, &fd) == 0)
++    {
++      const off_t off = 0; // the whole file: the probe's run is in it
++      madvise(probe[0].first, probe[0].pages * os_page, MADV_DONTNEED);
++      posix_fadvise(fd, off, 0, POSIX_FADV_DONTNEED);
++      drops = resident(probe) == 0;
++    }
++    mdb_txn_abort(txn);
++    if (!drops)
++      return false;
++    return mdb_env_set_cachedrop(g.env, 1, delay) == 0;
++  }
++#endif
++}
++
++TEST(lmdb_cachedrop, checks_its_arguments)
++{
++  EXPECT_EQ(EINVAL, mdb_env_set_cachedrop(nullptr, 1, 0));
++  MDB_env *env;
++  ASSERT_EQ(0, mdb_env_create(&env));
++  EXPECT_EQ(EINVAL, mdb_env_set_cachedrop(env, 1, 0)); // not open
++  mdb_env_close(env);
++
++  temp_dir dir;
++  env_guard g;
++  open_env(g, dir.path.string());
++  const int rc = mdb_env_set_cachedrop(g.env, 1, 0);
++  if (rc == ENOSYS)
++    GTEST_SKIP() << "the cache drop is not available here (it needs Linux 6.5)";
++  ASSERT_EQ(0, rc);
++  MDB_txn *txn;
++  ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, 0, &txn));
++  EXPECT_EQ(EINVAL, mdb_env_set_cachedrop(g.env, 0, 0)); // a write transaction is active
++  mdb_txn_abort(txn);
++  EXPECT_EQ(0, mdb_env_set_cachedrop(g.env, 0, 0));
++  EXPECT_EQ(0, mdb_env_set_cachedrop(g.env, 0, 0)); // off twice
++  EXPECT_EQ(0, mdb_env_set_cachedrop(g.env, 1, 40));
++  EXPECT_EQ(0, mdb_env_set_cachedrop(g.env, 1, 0)); // on twice: the delay changes
++
++  temp_dir dir2;
++  env_guard w;
++  open_env(w, dir2.path.string(), MDB_WRITEMAP);
++  EXPECT_EQ(EINVAL, mdb_env_set_cachedrop(w.env, 1, 0));
++}
++
++TEST(lmdb_cachedrop, drops_freed_pages_once_no_reader_can_see_them)
++{
++#if !defined(__linux__)
++  GTEST_SKIP() << "needs mincore";
++#else
++  temp_dir dir;
++  env_guard g;
++  open_env(g, dir.path.string());
++  write_blobs(g, 0);
++  if (!cachedrop_on(g, 3600)) // a long delay: only freed pages can be dropped in this test
++    GTEST_SKIP() << "the cache drop is not available, or cannot be measured, here";
++
++  std::map<uint64_t, uint64_t> model;
++  for (uint64_t key = 0; key < BLOBS; ++key)
++    model[key] = 0;
++  check_blobs(g, model);
++
++  // a reader on the snapshot before the deletes, and the runs it sees
++  MDB_txn *reader;
++  ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, MDB_RDONLY, &reader));
++  const std::vector<run> deleted = blob_runs(reader, g.blobs, 0, BLOBS, 2);
++  const std::vector<run> kept = blob_runs(reader, g.blobs, 1, BLOBS, 2);
++  ASSERT_EQ(pages(deleted), resident(deleted));
++
++  MDB_txn *txn;
++  ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, 0, &txn));
++  for (uint64_t key = 0; key < BLOBS; key += 2)
++  {
++    MDB_val k = {sizeof(key), &key};
++    ASSERT_EQ(0, mdb_del(txn, g.blobs, &k, nullptr));
++    model.erase(key);
++  }
++  ASSERT_EQ(0, mdb_txn_commit(txn));
++  small_commit(g, 1);
++  small_commit(g, 2);
++
++  // the reader can still see the deleted values: their pages stay
++  EXPECT_EQ(pages(deleted), resident(deleted));
++  for (uint64_t key = 0; key < BLOBS; key += 2)
++  {
++    MDB_val k = {sizeof(key), &key}, v;
++    ASSERT_EQ(0, mdb_get(reader, g.blobs, &k, &v));
++    const std::string expected = blob(key, 0);
++    EXPECT_EQ(0, memcmp(expected.data(), v.mv_data, v.mv_size)) << key;
++  }
++  mdb_txn_abort(reader);
++
++  // no reader can see them now: dropped at the next commit
++  small_commit(g, 3);
++  small_commit(g, 4);
++  EXPECT_LE(resident(deleted), pages(deleted) / 10) << "of " << pages(deleted);
++  EXPECT_EQ(pages(kept), resident(kept));
++  check_blobs(g, model);
++#endif
++}
++
++TEST(lmdb_cachedrop, drops_written_overflow_pages_after_the_delay)
++{
++#if !defined(__linux__)
++  GTEST_SKIP() << "needs mincore";
++#else
++  temp_dir dir;
++  env_guard g;
++  open_env(g, dir.path.string());
++  write_blobs(g, 0);
++  if (!cachedrop_on(g, 3600))
++    GTEST_SKIP() << "the cache drop is not available, or cannot be measured, here";
++
++  // with a long delay, the runs a commit writes stay
++  write_blobs(g, 1);
++  small_commit(g, 1);
++  MDB_txn *reader;
++  ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, MDB_RDONLY, &reader));
++  const std::vector<run> runs = blob_runs(reader, g.blobs, 0, BLOBS, 1);
++  mdb_txn_abort(reader);
++  ASSERT_EQ(BLOBS, runs.size());
++  EXPECT_EQ(pages(runs), resident(runs));
++
++  // with no delay, the runs a commit writes go at the commit after it (the synced commit has cleaned them)
++  ASSERT_EQ(0, mdb_env_set_cachedrop(g.env, 1, 0));
++  write_blobs(g, 2);
++  ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, MDB_RDONLY, &reader));
++  const std::vector<run> runs2 = blob_runs(reader, g.blobs, 0, BLOBS, 1);
++  mdb_txn_abort(reader);
++  EXPECT_EQ(pages(runs2), resident(runs2));
++  small_commit(g, 2);
++  EXPECT_LE(resident(runs2), pages(runs2) / 10) << "of " << pages(runs2);
++
++  // dropped pages read back from the file intact
++  std::map<uint64_t, uint64_t> model;
++  for (uint64_t key = 0; key < BLOBS; ++key)
++    model[key] = 2;
++  check_blobs(g, model);
++#endif
++}
++
++TEST(lmdb_cachedrop, keeps_every_value_intact_over_many_commits)
++{
++  temp_dir dir;
++  std::map<uint64_t, uint64_t> model;
++  {
++    env_guard g;
++    open_env(g, dir.path.string());
++    const int rc = mdb_env_set_cachedrop(g.env, 1, 0);
++    if (rc == ENOSYS)
++      GTEST_SKIP() << "the cache drop is not available here (it needs Linux 6.5)";
++    ASSERT_EQ(0, rc);
++    std::mt19937_64 rng(11);
++    MDB_txn *reader = nullptr;
++    for (uint64_t c = 0; c < 300; ++c)
++    {
++      // a reader that lives across a few commits, now and then
++      if (reader && rng() % 4 == 0)
++      {
++        mdb_txn_abort(reader);
++        reader = nullptr;
++      }
++      else if (!reader && rng() % 8 == 0)
++      {
++        ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, MDB_RDONLY, &reader));
++      }
++      MDB_txn *txn;
++      ASSERT_EQ(0, mdb_txn_begin(g.env, nullptr, 0, &txn));
++      for (int op = 0; op < 8; ++op)
++      {
++        uint64_t key = rng() % 64;
++        if (rng() % 3 == 0 && model.count(key))
++        {
++          MDB_val k = {sizeof(key), &key};
++          ASSERT_EQ(0, mdb_del(txn, g.blobs, &k, nullptr));
++          model.erase(key);
++        }
++        else
++        {
++          put(txn, g.blobs, key, blob(key, c));
++          model[key] = c;
++        }
++      }
++      ASSERT_EQ(0, mdb_txn_commit(txn));
++      if (c % 50 == 0)
++        check_blobs(g, model);
++    }
++    if (reader)
++      mdb_txn_abort(reader);
++    check_blobs(g, model);
++  }
++  env_guard g;
++  open_env(g, dir.path.string());
++  check_blobs(g, model);
++}
+-- 
+2.43.0
+

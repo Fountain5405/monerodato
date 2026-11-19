@@ -1,0 +1,135 @@
+From a3b7807226c5f4c371d2c25c89b84ac1e47cd429 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:39:45 +0000
+Subject: [PATCH 14/27] liblmdb: add mdb_prefetch_overflow(), asking the OS for
+ the first page of a value's overflow run
+
+A function for monerod's pruning (a later commit). It looks a key up and,
+if the value is stored in overflow pages, asks the OS to read the first of
+them with madvise(MADV_WILLNEED). The value itself is not read, and the
+call does not wait for the read.
+
+The first page of a run is the page mdb_del() and mdb_cursor_del() read to
+free the run: its header holds the run's length. When an application
+deletes many large values from a database larger than RAM, each delete
+waits for that one page, one at a time, and on a spinning disk each wait is
+a seek. Called for the values about to be deleted, ahead of the deletes,
+this lets the OS read those pages in one batch, sorted and queued
+together.
+
+LMDB knows whether a value is in overflow pages (F_BIGDATA on its node), so
+the caller needs no knowledge of LMDB's page layout. The function finds the
+leaf with mdb_cursor_set() without asking for the data, so it never touches
+the overflow page itself. A run in a page this transaction wrote (dirty, or
+spilled) is in memory already and is left alone.
+
+- It returns 0 whether or not the value has an overflow run, MDB_NOTFOUND
+  for a missing key, EINVAL for a MDB_DUPSORT database (its values are
+  never in overflow pages), and ENOSYS on Windows and in MDB_VL32 builds.
+- Measured with the cache drop of the previous commit on a test VM (4 vCPUs,
+  4 GB RAM, Linux 6.8) on a 5,400 rpm disk, in the stressnet sync described
+  there, with monerod's pruning calling it 100 blocks ahead. Without a
+  memory cap, the cache drop alone ran at 0.89x the speed of the same binary
+  with it off, because each pruning delete read its run's first page back
+  synchronously. With this prefetch it ran at 0.99x (4 runs per arm); under
+  a 1,536 MB cap it raised the cache drop's 3.37x to 3.73x.
+- Checked on a 12-core Ryzen 9 3900X (16 GB RAM, SATA SSD) in the same sync.
+  With the prefetch, all 28,066 first pages that pruning freed over 1,000
+  blocks were in the page cache when it freed them; without it, none were.
+  The time spent inside pruning fell to 0.23x.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ external/db_drivers/liblmdb/lmdb.h | 27 ++++++++++++++++++++++
+ external/db_drivers/liblmdb/mdb.c  | 37 ++++++++++++++++++++++++++++++
+ 2 files changed, 64 insertions(+)
+
+diff --git a/external/db_drivers/liblmdb/lmdb.h b/external/db_drivers/liblmdb/lmdb.h
+index 863ce2284..8770e400d 100644
+--- a/external/db_drivers/liblmdb/lmdb.h
++++ b/external/db_drivers/liblmdb/lmdb.h
+@@ -1421,6 +1421,33 @@ int  mdb_set_relctx(MDB_txn *txn, MDB_dbi dbi, void *ctx);
+ 	 */
+ int  mdb_get(MDB_txn *txn, MDB_dbi dbi, MDB_val *key, MDB_val *data);
+ 
++	/** @brief Ask the OS to read the first page of a value's overflow run.
++	 *
++	 * Looks \b key up and, if its value is stored in overflow pages (a
++	 * value too large for a leaf page), asks the OS to read the first of
++	 * them into the page cache, with madvise(MADV_WILLNEED). The value
++	 * itself is not read, and the call does not wait for the read.
++	 *
++	 * The first page is the one #mdb_del() and #mdb_cursor_del() read to
++	 * free the run. An application that is about to delete many large values
++	 * from a database larger than RAM can call this for each of them first:
++	 * the OS then reads those pages in one batch, ahead of the deletes,
++	 * instead of one at a time as each delete needs its page. A value in a
++	 * leaf page, or in a page this transaction wrote, needs nothing.
++	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
++	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
++	 * @param[in] key The key to look up
++	 * @return A non-zero error value on failure and 0 on success, whether or
++	 * not the value has an overflow run. Some possible errors are:
++	 * <ul>
++	 *	<li>#MDB_NOTFOUND - the key was not in the database.
++	 *	<li>EINVAL - an invalid parameter was specified, or the database
++	 *	was opened with #MDB_DUPSORT (its values are never in overflow pages).
++	 *	<li>ENOSYS - not available on Windows, nor in builds with MDB_VL32.
++	 * </ul>
++	 */
++int  mdb_prefetch_overflow(MDB_txn *txn, MDB_dbi dbi, MDB_val *key);
++
+ 	/** @brief Store items into a database.
+ 	 *
+ 	 * This function stores key/data pairs in the database. The default behavior
+diff --git a/external/db_drivers/liblmdb/mdb.c b/external/db_drivers/liblmdb/mdb.c
+index e3f921f67..a8b54a0bb 100644
+--- a/external/db_drivers/liblmdb/mdb.c
++++ b/external/db_drivers/liblmdb/mdb.c
+@@ -7222,6 +7222,43 @@ mdb_get(MDB_txn *txn, MDB_dbi dbi,
+ 	return rc;
+ }
+ 
++int
++mdb_prefetch_overflow(MDB_txn *txn, MDB_dbi dbi, MDB_val *key)
++{
++#if defined(_WIN32) || defined(MDB_VL32)
++	(void)txn; (void)dbi; (void)key;
++	return ENOSYS;
++#else
++	MDB_cursor	mc;
++	MDB_node	*leaf;
++	MDB_page	*omp;
++	pgno_t		pgno;
++	int exact = 0, lvl, rc;
++
++	if (!key || !TXN_DBI_EXIST(txn, dbi, DB_USRVALID))
++		return EINVAL;
++	if (txn->mt_dbs[dbi].md_flags & MDB_DUPSORT)
++		return EINVAL;
++	if (txn->mt_flags & MDB_TXN_BLOCKED)
++		return MDB_BAD_TXN;
++
++	mdb_cursor_init(&mc, txn, dbi, NULL);
++	/* no data: the leaf is found, its value is not read */
++	if ((rc = mdb_cursor_set(&mc, key, NULL, MDB_SET, &exact)) != MDB_SUCCESS)
++		return rc;
++	leaf = NODEPTR(mc.mc_pg[mc.mc_top], mc.mc_ki[mc.mc_top]);
++	if (!F_ISSET(leaf->mn_flags, F_BIGDATA))
++		return MDB_SUCCESS;
++	memcpy(&pgno, NODEDATA(leaf), sizeof(pgno));
++	/* only a page of the map: a page this transaction wrote is in memory already */
++	if ((rc = mdb_page_get(&mc, pgno, &omp, &lvl)) != MDB_SUCCESS)
++		return rc;
++	if (lvl == 0)
++		madvise(omp, txn->mt_env->me_psize, MADV_WILLNEED);
++	return MDB_SUCCESS;
++#endif
++}
++
+ /** Find a sibling for a page.
+  * Replaces the page at the top of the cursor's stack with the
+  * specified sibling, if one exists.
+-- 
+2.43.0
+

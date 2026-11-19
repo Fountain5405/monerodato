@@ -1,0 +1,225 @@
+From 321f251abdc22400cda57867c36b0258bd451fea Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 03:34:09 +0000
+Subject: [PATCH 18/27] ringct: check a block's sum checks over the compute
+ pool
+
+Why: verRctSemanticsSimple checks each signature's sum (outputs plus fee
+against pseudo-outs) one by one on the calling thread, while the compute
+pool waits. For a block of about 1,300 one-input FCMP++ transactions that
+is part of a serial stretch on the block thread (with the BP+ batch and the
+key-image checks) of about 5 of every 18 s on a 4-core Core 2 Quad.
+
+The sum check moves unchanged into verRctSumsSimple. A batch of 16 or more
+signatures is checked in contiguous chunks, one per pool thread; a smaller
+batch, or a pool of one thread, on the calling thread as before. All sum
+checks now run before any range proof is verified, instead of interleaved
+with the gathering of the proofs.
+
+Safety:
+- The result is the same: true iff every signature's sum checks. An
+  exception in a chunk fails that chunk.
+- Only the order of two checks that both reject changes.
+- Verification only; public data.
+
+Tests: ringct.semantics_batch_accepts_valid, and
+ringct.semantics_batch_rejects_one_bad_sum (a broken sum at the first,
+middle and last of 64 signatures, the parallel path, and of 7, the serial
+path).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/ringct/rctSigs.cpp      | 86 +++++++++++++++++++++++++++++--------
+ tests/unit_tests/ringct.cpp | 65 ++++++++++++++++++++++++++++
+ 2 files changed, 132 insertions(+), 19 deletions(-)
+
+diff --git a/src/ringct/rctSigs.cpp b/src/ringct/rctSigs.cpp
+index a6288b816..e4c157b5b 100644
+--- a/src/ringct/rctSigs.cpp
++++ b/src/ringct/rctSigs.cpp
+@@ -1372,6 +1372,66 @@ done:
+         }
+     }
+ 
++    // A simple signature's sum check: its output commitments plus the fee commitment equal its pseudo-outs
++    static bool verRctSumsSimple(const rctSig &rv)
++    {
++      const bool bulletproof = is_rct_bulletproof(rv.type);
++      const bool bulletproof_plus = is_rct_bulletproof_plus(rv.type);
++      const keyV &pseudoOuts = bulletproof || bulletproof_plus ? rv.p.pseudoOuts : rv.pseudoOuts;
++
++      rct::keyV masks(rv.outPk.size());
++      for (size_t i = 0; i < rv.outPk.size(); i++) {
++        masks[i] = rv.outPk[i].mask;
++      }
++      key sumOutpks = addKeys(masks);
++      DP(sumOutpks);
++      const key txnFeeKey = scalarmultH(d2h(rv.txnFee));
++      addKeys(sumOutpks, txnFeeKey, sumOutpks);
++
++      key sumPseudoOuts = addKeys(pseudoOuts);
++      DP(sumPseudoOuts);
++
++      //check pseudoOuts vs Outs..
++      return equalKeys(sumPseudoOuts, sumOutpks);
++    }
++
++    // The sum checks of a batch of simple signatures. A batch of SUMS_PARALLEL_MIN_SIGS or more (a block's) is
++    // checked in contiguous chunks over the compute pool, one chunk per pool thread; a smaller batch, or a pool of one
++    // thread, on the calling thread. True iff every signature's sum checks.
++    static constexpr size_t SUMS_PARALLEL_MIN_SIGS = 16;
++    static bool verRctSumsSimpleBatch(const std::vector<const rctSig*> &rvv, tools::threadpool &tpool)
++    {
++      const size_t n_threads = tpool.get_max_concurrency();
++      if (rvv.size() < SUMS_PARALLEL_MIN_SIGS || n_threads < 2)
++      {
++        for (const rctSig *rvp: rvv)
++          if (!verRctSumsSimple(*rvp))
++            return false;
++        return true;
++      }
++
++      const size_t chunk = (rvv.size() + n_threads - 1) / n_threads;
++      std::vector<uint8_t> chunk_ok((rvv.size() + chunk - 1) / chunk, 0);
++      tools::threadpool::waiter waiter(tpool);
++      for (size_t c = 0; c < chunk_ok.size(); ++c)
++      {
++        tpool.submit(&waiter, [&rvv, &chunk_ok, c, chunk] {
++          const size_t end = std::min(rvv.size(), (c + 1) * chunk);
++          bool ok = true;
++          try
++          {
++            for (size_t s = c * chunk; s < end && ok; ++s)
++              ok = verRctSumsSimple(*rvv[s]);
++          }
++          catch (...) { ok = false; }
++          chunk_ok[c] = ok ? 1 : 0;
++        });
++      }
++      if (!waiter.wait())
++        return false;
++      return std::all_of(chunk_ok.begin(), chunk_ok.end(), [](uint8_t ok) { return ok != 0; });
++    }
++
+     //ver RingCT simple
+     //assumes only post-rct style inputs (at least for max anonymity)
+     bool verRctSemanticsSimple(const std::vector<const rctSig*> & rvv) {
+@@ -1433,6 +1493,13 @@ done:
+             max_non_bp_proofs += rv.p.rangeSigs.size();
+         }
+ 
++        // every signature's sum check, before any range proof is verified
++        if (!verRctSumsSimpleBatch(rvv, tpool))
++        {
++          LOG_PRINT_L1("Sum check failed");
++          return false;
++        }
++
+         results.resize(max_non_bp_proofs);
+         for (const rctSig *rvp: rvv)
+         {
+@@ -1440,25 +1507,6 @@ done:
+ 
+           const bool bulletproof = is_rct_bulletproof(rv.type);
+           const bool bulletproof_plus = is_rct_bulletproof_plus(rv.type);
+-          const keyV &pseudoOuts = bulletproof || bulletproof_plus ? rv.p.pseudoOuts : rv.pseudoOuts;
+-
+-          rct::keyV masks(rv.outPk.size());
+-          for (size_t i = 0; i < rv.outPk.size(); i++) {
+-            masks[i] = rv.outPk[i].mask;
+-          }
+-          key sumOutpks = addKeys(masks);
+-          DP(sumOutpks);
+-          const key txnFeeKey = scalarmultH(d2h(rv.txnFee));
+-          addKeys(sumOutpks, txnFeeKey, sumOutpks);
+-
+-          key sumPseudoOuts = addKeys(pseudoOuts);
+-          DP(sumPseudoOuts);
+-
+-          //check pseudoOuts vs Outs..
+-          if (!equalKeys(sumPseudoOuts, sumOutpks)) {
+-            LOG_PRINT_L1("Sum check failed");
+-            return false;
+-          }
+ 
+           if (bulletproof_plus)
+           {
+diff --git a/tests/unit_tests/ringct.cpp b/tests/unit_tests/ringct.cpp
+index d55ee856e..27bdf67b2 100644
+--- a/tests/unit_tests/ringct.cpp
++++ b/tests/unit_tests/ringct.cpp
+@@ -532,6 +532,71 @@ static rct::rctSig make_sample_rct_sig(int n_inputs, const uint64_t input_amount
+     return genRct(rct::zero(), sc, pc, destinations, amounts, amount_keys, 3, rct_config, hw::get_device("default"));
+ }
+ 
++// A BP+ (CLSAG) simple signature with one input and two outputs
++static rct::rctSig make_bpp_simple_rct_sig(uint64_t a, uint64_t b, uint64_t fee)
++{
++    ctkeyV sc, pc;
++    ctkey sctmp, pctmp;
++    vector<xmr_amount> inamounts{a + b + fee}, outamounts{a, b};
++    keyV destinations, amount_keys;
++    key Sk, Pk;
++    tie(sctmp, pctmp) = ctskpkGen(a + b + fee);
++    sc.push_back(sctmp);
++    pc.push_back(pctmp);
++    for (int n = 0; n < 2; ++n) {
++        amount_keys.push_back(skGen());
++        skpkGen(Sk, Pk);
++        destinations.push_back(Pk);
++    }
++    const rct::RCTConfig rct_config { RangeProofPaddedBulletproof, 4 };
++    return genRctSimple(rct::zero(), sc, pc, destinations, inamounts, outamounts, amount_keys, fee, 3, rct_config, hw::get_device("default"));
++}
++
++// 64 valid BP+ simple signatures, made once
++static const std::vector<rct::rctSig> &bpp_batch_sigs()
++{
++    static const std::vector<rct::rctSig> sigs = [] {
++        std::vector<rct::rctSig> v;
++        for (uint64_t i = 0; i < 64; ++i)
++            v.push_back(make_bpp_simple_rct_sig(1000 + i, 2000 + 3 * i, 7 + i));
++        return v;
++    }();
++    return sigs;
++}
++
++static bool ver_semantics_batch(const std::vector<rct::rctSig> &sigs)
++{
++    std::vector<const rct::rctSig*> p;
++    for (const auto &s : sigs)
++        p.push_back(&s);
++    return rct::verRctSemanticsSimple(p);
++}
++
++TEST(ringct, semantics_batch_accepts_valid)
++{
++    const auto &sigs = bpp_batch_sigs();
++    ASSERT_EQ(sigs.size(), 64);
++    ASSERT_EQ(sigs[0].type, rct::RCTTypeBulletproofPlus);
++    ASSERT_TRUE(ver_semantics_batch(sigs));
++    ASSERT_TRUE(rct::verRctSemanticsSimple(sigs[5]));
++    // below the parallel thresholds
++    ASSERT_TRUE(ver_semantics_batch(std::vector<rct::rctSig>(sigs.begin(), sigs.begin() + 7)));
++}
++
++TEST(ringct, semantics_batch_rejects_one_bad_sum)
++{
++    // 64 signatures take the parallel sum checks (with a pool of 2 or more threads), 7 the serial ones
++    for (size_t n : {64, 7})
++    {
++        for (size_t pos : {size_t(0), n / 2, n - 1})
++        {
++            std::vector<rct::rctSig> sigs(bpp_batch_sigs().begin(), bpp_batch_sigs().begin() + n);
++            sigs[pos].txnFee += 1;
++            ASSERT_FALSE(ver_semantics_batch(sigs)) << "bad sum at " << pos << " of " << n;
++        }
++    }
++}
++
+ static rct::rctSig make_sample_simple_rct_sig(int n_inputs, const uint64_t input_amounts[], int n_outputs, const uint64_t output_amounts[], uint64_t fee)
+ {
+     ctkeyV sc, pc;
+-- 
+2.43.0
+

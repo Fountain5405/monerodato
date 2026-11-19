@@ -1,0 +1,152 @@
+From 6bb32ea002498f8c77b2a25cd481ceae1fd6c692 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 03:34:09 +0000
+Subject: [PATCH 10/10] generalized-bulletproofs: skip a proof's transcript
+ without decoding its points
+
+Why: skip_verify_transcript (used by Fcmp::verify to peek the second
+proof's z past the first proof, on a clone) read every point with
+read_point, which decodes it, only to move the transcript forward. The
+first proof's verify then decodes the same points again. In a profile of
+1-input FCMP++ blocks on a Ryzen 9 3900X these decodings were 0.6-2.7% of
+the node's CPU.
+
+VerifierTranscript gains skip_point (crate-private), which transcripts a
+point's bytes exactly as read_point does and advances past them without
+decoding. skip_verify_transcript uses it for every point. Scalars are still
+read with read_scalar.
+
+Safety:
+- The transcript state after a skip is unchanged: read_point already
+  transcripted the encoded bytes, not a re-encoding of the decoded point.
+- A point that does not decode no longer fails the skip; it fails the
+  first proof's verify, which reads every one of these points with
+  read_point, on the real transcript. The proof is rejected either way.
+- Fcmp::verify still checks that the real transcript after the first
+  verify equals the skipped clone.
+- Verification only; public data.
+
+Tests: fuzz_test_arithmetic_circuit now also corrupts the first point the
+skip passes (AI) and the last (the inner-product argument's last R) in each
+generated proof: the skip succeeds and lands where it lands for the valid
+proof, and verify rejects.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../src/arithmetic_circuit_proof.rs           | 14 ++++++++-----
+ .../src/transcript.rs                         | 18 ++++++++++++++++
+ .../tests/arithmetic_circuit_proof.rs         | 21 +++++++++++++++++--
+ 3 files changed, 46 insertions(+), 7 deletions(-)
+
+diff --git a/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs b/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
+index 35ddf72f1..9f1a34b62 100644
+--- a/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
++++ b/crypto/generalized-bulletproofs/src/arithmetic_circuit_proof.rs
+@@ -224,6 +224,10 @@ where
+ /// caller may skip past one proof to peek at the next proof's challenges (`peek_z`) before either
+ /// proof's constraints exist. The skipped proof MUST still be verified on the real transcript, and
+ /// the caller SHOULD check the real transcript then matches the skipped one.
++///
++/// The proof's points are transcripted as `verify` transcripts them but not decoded, as decoding
++/// them is most of the cost of a skip and `verify` decodes them again. A proof with a point which
++/// does not decode is therefore skipped successfully, and rejected when it is verified.
+ pub fn skip_verify_transcript<C: Ciphersuite>(
+   transcript: &mut VerifierTranscript<'_>,
+   n: usize,
+@@ -237,17 +241,17 @@ where
+ 
+   // AI, AO, S, then y and z
+   for _ in 0 .. 3 {
+-    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++    transcript.skip_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+   }
+   let _y = transcript.challenge::<C>();
+   let _z = transcript.challenge::<C>();
+ 
+   // T, before and after `ni`, then x
+   for _ in (ni / 2) .. ni {
+-    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++    transcript.skip_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+   }
+   for _ in (ni + 1) .. t_poly_len {
+-    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++    transcript.skip_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+   }
+   let _x = transcript.challenge::<C>();
+ 
+@@ -263,8 +267,8 @@ where
+     lr_len += 1;
+   }
+   for _ in 0 .. lr_len {
+-    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+-    transcript.read_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++    transcript.skip_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
++    transcript.skip_point::<C>().map_err(|_| AcVerifyError::IncompleteProof)?;
+     let _x = transcript.challenge::<C>();
+   }
+   for _ in 0 .. 2 {
+diff --git a/crypto/generalized-bulletproofs/src/transcript.rs b/crypto/generalized-bulletproofs/src/transcript.rs
+index 93ef6a362..620197fa3 100644
+--- a/crypto/generalized-bulletproofs/src/transcript.rs
++++ b/crypto/generalized-bulletproofs/src/transcript.rs
+@@ -175,6 +175,24 @@ impl<'a> VerifierTranscript<'a> {
+     Ok(point)
+   }
+ 
++  /// Advance past a point as `read_point` does, without decoding it.
++  ///
++  /// The point's bytes are transcripted exactly as `read_point` transcripts them, so the
++  /// transcript's state afterwards is the same. Whether they encode a valid, canonically
++  /// serialized point is not checked. This is only for advancing a transcript past points which
++  /// are later read with `read_point`, such as when skipping past a proof which will still be
++  /// verified.
++  pub(crate) fn skip_point<C: Ciphersuite>(&mut self) -> io::Result<()> {
++    self.digest.update([POINT]);
++    let point_len = <C::G as GroupEncoding>::Repr::default().as_ref().len();
++    if self.transcript.len() < point_len {
++      Err(io::Error::other("not enough bytes to skip_point"))?;
++    }
++    self.digest.update(&self.transcript[.. point_len]);
++    self.transcript = &self.transcript[point_len ..];
++    Ok(())
++  }
++
+   /// Read the Pedersen (vector) Commitments from the transcript.
+   ///
+   /// The lengths of the vectors are not transcripted.
+diff --git a/crypto/generalized-bulletproofs/tests/arithmetic_circuit_proof.rs b/crypto/generalized-bulletproofs/tests/arithmetic_circuit_proof.rs
+index 2b2460177..538971783 100644
+--- a/crypto/generalized-bulletproofs/tests/arithmetic_circuit_proof.rs
++++ b/crypto/generalized-bulletproofs/tests/arithmetic_circuit_proof.rs
+@@ -221,9 +221,26 @@ fn fuzz_test_arithmetic_circuit() {
+     // `skip_verify_transcript` must leave a transcript exactly where `verify` leaves it
+     let mut skipped = transcript.clone();
+     skip_verify_transcript::<Ristretto>(&mut skipped, 16, C.len()).unwrap();
+-    statement.verify(&mut OsRng, &mut verifier, &mut transcript).unwrap();
++    statement.clone().verify(&mut OsRng, &mut verifier, &mut transcript).unwrap();
+     assert_eq!(skipped.clone().challenge_bytes(), transcript.clone().challenge_bytes());
+-    assert_eq!(skipped.complete(), transcript.complete());
++    let rest = skipped.complete();
++    assert_eq!(rest, transcript.complete());
+     assert!(generators.verify(verifier));
++
++    // A point which does not decode, where the skip reads its first point (AI) or its last (the
++    // inner-product argument's last R, before the two final scalars): the skip does not decode
++    // points, so it succeeds and lands where it lands for the valid proof, and `verify` rejects
++    let first_point = 32 * (C.len() + V.len());
++    for at in [first_point, proof.len() - 64 - 32] {
++      let mut bad = proof.clone();
++      bad[at .. (at + 32)].copy_from_slice(&[0xff; 32]);
++      let mut transcript = VerifierTranscript::new([0; 32], &bad);
++      transcript.read_commitments::<Ristretto>(C.len(), V.len()).unwrap();
++      let mut skipped = transcript.clone();
++      skip_verify_transcript::<Ristretto>(&mut skipped, 16, C.len()).unwrap();
++      assert_eq!(skipped.complete().len(), rest.len());
++      let mut verifier = Generators::batch_verifier();
++      assert!(statement.clone().verify(&mut OsRng, &mut verifier, &mut transcript).is_err());
++    }
+   }
+ }
+-- 
+2.43.0
+

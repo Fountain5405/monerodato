@@ -1,0 +1,179 @@
+From bd5c6b3406bc9479e8bb0b27a31b45823e3f5623 Mon Sep 17 00:00:00 2001
+From: Fountain5405 <Fountain5405@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 05:48:42 +0000
+Subject: [PATCH 16/27] blockchain_db: --db-cache-drop, to drop freed pages and
+ written-once transaction data from the page cache
+
+A new option, --db-cache-drop (off by default), makes BlockchainLMDB turn on
+LMDB's page cache drop (mdb_env_set_cachedrop(), the earlier liblmdb commit)
+right after it opens the environment, with a 40 s delay. That is the
+kernel's 30 s default writeback interval plus a margin, so that a page is
+normally clean by the time it is looked at. The option sets a new open flag,
+DBF_CACHE_DROP. With it, one line at startup says whether the drop is on:
+
+  LMDB page cache drop: on
+  LMDB page cache drop: off (needs Linux 6.5 or later)
+  LMDB page cache drop: off (not with --db-sync-mode fastest)
+  LMDB page cache drop: off (read-only)
+
+LMDB refuses the drop with MDB_WRITEMAP (--db-sync-mode fastest) and for a
+read-only environment. Without the option nothing is called and nothing is
+logged.
+
+Why. monerod writes each block's transactions as large values: the prunable
+part of each transaction in txs_prunable, the rest in txs_pruned. They are
+written once and rarely read again, and a pruned node later deletes most of
+the prunable data. With the database larger than RAM, those pages, and the
+pages the deletes free, fill the page cache and push out the branch and
+leaf pages of the indexes that every block reads. Measured on a test VM
+(4 vCPUs, 4 GB RAM, Linux 6.8) on a 5,400 rpm disk, in a sync of 7,000 heavy
+stressnet blocks onto a pruned database with memory capped at 1,536 MB by a
+cgroup:
+- without the cache drop, the sync read 145 kB per block from the disk over
+  the last 6,000 blocks, and ran at 1.57 blocks/s;
+- with it, and with pruning's prefetch (the next commit), it read 32 kB per
+  block and ran at 5.83 blocks/s (3.73x). From launch to the top it took
+  1,261 s against 4,119 s.
+Alone, without the prefetch, the cache drop gave 3.37x under the cap and
+0.89x without it.
+
+Why an option. Without memory pressure the drop gains nothing, and with the
+prefetch it still costs about 2% in that sync (0.98x), about 4% in its last
+1,000 blocks, where pruning reaches blocks written during the same sync and
+reads them back from the disk. A pruned sync from scratch is in that state
+for most of its length. So the drop is for those who need it: a hard disk
+and less memory than the database.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/blockchain_db/blockchain_db.cpp     |  8 ++++++++
+ src/blockchain_db/blockchain_db.h       |  2 ++
+ src/blockchain_db/lmdb/db_lmdb.cpp      | 24 ++++++++++++++++++++++++
+ src/blockchain_db/lmdb/db_lmdb.h        |  1 +
+ src/cryptonote_core/cryptonote_core.cpp |  3 +++
+ 5 files changed, 38 insertions(+)
+
+diff --git a/src/blockchain_db/blockchain_db.cpp b/src/blockchain_db/blockchain_db.cpp
+index 6d059a17d..aaf7276c0 100644
+--- a/src/blockchain_db/blockchain_db.cpp
++++ b/src/blockchain_db/blockchain_db.cpp
+@@ -160,6 +160,13 @@ const command_line::arg_descriptor<bool> arg_db_salvage  = {
+ , "Try to salvage a blockchain database if it seems corrupted"
+ , false
+ };
++const command_line::arg_descriptor<bool> arg_db_cache_drop  = {
++  "db-cache-drop"
++, "Drop database pages that are freed or written once from the OS page cache, so they do not push out the pages "
++  "every block reads (Linux 6.5 or later). Helps a sync on a hard disk with less memory than the database; "
++  "otherwise it can cost a few percent. Off by default"
++, false
++};
+ 
+ BlockchainDB *new_db()
+ {
+@@ -170,6 +177,7 @@ void BlockchainDB::init_options(boost::program_options::options_description& des
+ {
+   command_line::add_arg(desc, arg_db_sync_mode);
+   command_line::add_arg(desc, arg_db_salvage);
++  command_line::add_arg(desc, arg_db_cache_drop);
+ }
+ 
+ void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transaction& tx, epee::span<const std::uint8_t> blob, const std::unordered_map<uint64_t, rct::key> &transparent_amount_commitments, const crypto::hash* tx_hash_ptr, const crypto::hash* tx_prunable_hash_ptr)
+diff --git a/src/blockchain_db/blockchain_db.h b/src/blockchain_db/blockchain_db.h
+index 90a78b428..541a12f8a 100644
+--- a/src/blockchain_db/blockchain_db.h
++++ b/src/blockchain_db/blockchain_db.h
+@@ -109,6 +109,7 @@ typedef std::pair<crypto::hash, uint64_t> tx_out_index;
+ 
+ extern const command_line::arg_descriptor<std::string> arg_db_sync_mode;
+ extern const command_line::arg_descriptor<bool, false> arg_db_salvage;
++extern const command_line::arg_descriptor<bool> arg_db_cache_drop;
+ 
+ enum class relay_category : uint8_t
+ {
+@@ -226,6 +227,7 @@ static_assert(offsetof(txpool_tx_meta_t, valid_input_verification_id) == 160, "v
+ #define DBF_FASTEST    4
+ #define DBF_RDONLY     8
+ #define DBF_SALVAGE 0x10
++#define DBF_CACHE_DROP 0x20
+ 
+ /***********************************
+  * Exception Definitions
+diff --git a/src/blockchain_db/lmdb/db_lmdb.cpp b/src/blockchain_db/lmdb/db_lmdb.cpp
+index 2ce3fbd57..2f1dad249 100644
+--- a/src/blockchain_db/lmdb/db_lmdb.cpp
++++ b/src/blockchain_db/lmdb/db_lmdb.cpp
+@@ -72,6 +72,10 @@ using namespace crypto;
+ namespace
+ {
+ 
++// How long the LMDB page cache drop lets a dirty page wait before it looks at it again: the kernel's
++// writeback interval (30 s by default) plus a margin
++constexpr unsigned int CACHEDROP_DELAY_SECONDS = 40;
++
+ template <typename T>
+ inline void throw0(const T &e)
+ {
+@@ -2728,6 +2732,26 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
+     do_resize();
+   }
+ 
++  // On request (--db-cache-drop), drop the pages that commits free, and the transaction data they write once,
++  // from the OS page cache, so that they do not push the pages every block reads out of it (see mdb_env_set_cachedrop)
++  m_cache_drop = false;
++  if (db_flags & DBF_CACHE_DROP)
++  {
++    if (mdb_flags & MDB_RDONLY)
++      MGINFO("LMDB page cache drop: off (read-only)");
++    else if (mdb_flags & MDB_WRITEMAP)
++      MGINFO("LMDB page cache drop: off (not with --db-sync-mode fastest)");
++    else
++    {
++      const int result = mdb_env_set_cachedrop(m_env, 1, CACHEDROP_DELAY_SECONDS);
++      m_cache_drop = result == 0;
++      if (result == 0)
++        MGINFO("LMDB page cache drop: on");
++      else
++        MGINFO("LMDB page cache drop: off (" << (result == ENOSYS ? "needs Linux 6.5 or later" : mdb_strerror(result)) << ")");
++    }
++  }
++
+   int txn_flags = 0;
+   if (mdb_flags & MDB_RDONLY)
+     txn_flags |= MDB_RDONLY;
+diff --git a/src/blockchain_db/lmdb/db_lmdb.h b/src/blockchain_db/lmdb/db_lmdb.h
+index 707fd2b6c..33986ce7a 100644
+--- a/src/blockchain_db/lmdb/db_lmdb.h
++++ b/src/blockchain_db/lmdb/db_lmdb.h
+@@ -586,6 +586,7 @@ private:
+ 
+   bool m_batch_transactions; // support for batch transactions
+   bool m_batch_active; // whether batch transaction is in progress
++  bool m_cache_drop = false; // whether LMDB's page cache drop is on (--db-cache-drop)
+ 
+   mdb_txn_cursors m_wcursors;
+   mutable boost::thread_specific_ptr<mdb_threadinfo> m_tinfo;
+diff --git a/src/cryptonote_core/cryptonote_core.cpp b/src/cryptonote_core/cryptonote_core.cpp
+index bc076c1bf..1c99c254e 100644
+--- a/src/cryptonote_core/cryptonote_core.cpp
++++ b/src/cryptonote_core/cryptonote_core.cpp
+@@ -456,6 +456,7 @@ namespace cryptonote
+ 
+     std::string db_sync_mode = command_line::get_arg(vm, cryptonote::arg_db_sync_mode);
+     bool db_salvage = command_line::get_arg(vm, cryptonote::arg_db_salvage) != 0;
++    bool db_cache_drop = command_line::get_arg(vm, cryptonote::arg_db_cache_drop);
+     bool fast_sync = command_line::get_arg(vm, arg_fast_block_sync) != 0;
+     uint64_t blocks_threads = command_line::get_arg(vm, arg_prep_blocks_threads);
+     std::string check_updates_string = command_line::get_arg(vm, arg_check_updates);
+@@ -597,6 +598,8 @@ namespace cryptonote
+ 
+       if (db_salvage)
+         db_flags |= DBF_SALVAGE;
++      if (db_cache_drop)
++        db_flags |= DBF_CACHE_DROP;
+ 
+       db->open(filename, db_flags);
+       if(!db->m_open)
+-- 
+2.43.0
+
