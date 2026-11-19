@@ -411,6 +411,21 @@ blocks written in the same sync. That is why it is an option.
 with their ranges and methods. Each figure's data and the command that prints it are in
 [evidence/](evidence/README.md); the reports are listed in [VERIFICATION.md](VERIFICATION.md).
 
+## Patches by others, tested
+
+Measured, not human-verified. Patches that other developers published, tested against monerodato with the same kind
+of pre-registered, alternating runs as monerodato's own changes. A patch goes into monerodato only if it makes a
+measurable difference; the original work stays in its author's repository.
+
+| Patch | Source | Tested against | Result | Decision | Data | What it does |
+|---|---|---|---|---|---|---|
+| [`427968267`](https://github.com/xmrack/monero/commit/427968267b3ee1857eea8a909f176e4d1101aa82) | [xmrack/monero](https://github.com/xmrack/monero), branch [`fix-prune-tip-scan`](https://github.com/xmrack/monero/tree/fix-prune-tip-scan) | .9 candidate `22c1f9ee7`¹ | sync time no measurable change (+0.7%); CPU time no measurable change (+0.2%); each pruning pass −58%; time inside pruning −7.7% (about 9 s of 1,250 s); no fault found² | **not included:** no measurable effect on a sync; it would need more testing to show one | [data](evidence/monerodato.9/proposals/prune-tip-scan/README.md) | Each pruning pass stops walking the table of recent transactions at the first entry still within the tip window, instead of reading the table to its end. Five lines. |
+
+¹ A sync onto a pruned database from block 3,113,399, on a 12-core Ryzen 9 3900X (16 GB, SATA SSD) with the node on
+4 cores under a 1,536 MB memory cap; 3 runs a side, in the order N T T N, then T N. The CPU governor was left at its
+default, alike for both arms.  
+² All six syncs reached the top with the source's hash and no errors, and no stale entry was left in the tip table.
+
 ## Who it is for
 
 Only machines that cannot run the reference build. If your hardware runs the reference monerod, run that.
