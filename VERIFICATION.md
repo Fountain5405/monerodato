@@ -101,8 +101,13 @@ counterfeiting-class flaw found on any of these trees.
 - **Not rerun on .9:** C3, because its statement-level test vectors predate .9's transcript change, which has its own
   corruption checks in the crate; and C8, because .9 does not touch the pool-side cache it tests.
 - **Trees:** .7 = `f3c4ea5d9`; prototype = `3a8b3f68f`; .9 = `22c1f9ee7` with the adopted gate tests.
+- **Rerun by the coordinator from the published test code** (2026-11-19): the C6 serialized-route tests and the C8
+  reorganisation test, applied with `register.diff` to the .9 tag head `cb89fe43b` and built in a fresh Ubuntu 24.04
+  container: `gen_bad_ser_block_*` 8 run, 0 failures (5 from the add-on and the 3 adopted bit flips);
+  `gen_bad_reorg_clsag` 1 run, 0 failures. As in RUN.md.
 - Evidence: [report](evidence/monerodato.9/adversary/adversary/survey-parity/report.md), with the raw logs per class and tree, the standalone C3
-  test, and the commits of the tests; the adversary's [package README](evidence/monerodato.9/adversary/README.md).
+  test, and the commits of the tests; how to run every class: [RUN.md](evidence/monerodato.9/adversary/adversary/survey-parity/RUN.md); the adversary's
+  [package README](evidence/monerodato.9/adversary/README.md).
 
 ## monerodato.8, a release
 

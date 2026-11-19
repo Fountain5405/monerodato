@@ -1,0 +1,52 @@
+diff --git a/tests/core_tests/CMakeLists.txt b/tests/core_tests/CMakeLists.txt
+index 5c5594666..06a0658d4 100644
+--- a/tests/core_tests/CMakeLists.txt
++++ b/tests/core_tests/CMakeLists.txt
+@@ -29,6 +29,8 @@
+ set(core_tests_sources
+   bad_extra_tx_in_block.cpp
+   bad_miner_tx_in_block.cpp
++  bad_reorg_in_block.cpp
++  bad_ser_block_in_block.cpp
+   bad_tx_in_block.cpp
+   block_reward.cpp
+   block_validation.cpp
+@@ -56,6 +58,8 @@ set(core_tests_headers
+   bad_extra_tx_in_block.h
+   bad_miner_tx_in_block.h
+   bad_tx_in_block.h
++  bad_reorg_in_block.h
++  bad_ser_block_in_block.h
+   block_reward.h
+   block_validation.h
+   chain_split_1.h
+diff --git a/tests/core_tests/chaingen_main.cpp b/tests/core_tests/chaingen_main.cpp
+index 97b8a9c82..7fdc1f58f 100644
+--- a/tests/core_tests/chaingen_main.cpp
++++ b/tests/core_tests/chaingen_main.cpp
+@@ -127,6 +127,12 @@ int main(int argc, char* argv[])
+     GENERATE_AND_PLAY(gen_bad_ser_block_flip_0);
+     GENERATE_AND_PLAY(gen_bad_ser_block_flip_4);
+     GENERATE_AND_PLAY(gen_bad_ser_block_flip_8);
++    GENERATE_AND_PLAY(gen_bad_ser_block_bp_9);
++    GENERATE_AND_PLAY(gen_bad_ser_block_ki_9);
++    GENERATE_AND_PLAY(gen_bad_ser_block_bal_9);
++    GENERATE_AND_PLAY(gen_bad_ser_block_sig_9);
++    GENERATE_AND_PLAY(gen_bad_ser_block_perm_9);
++    GENERATE_AND_PLAY(gen_bad_reorg_clsag);
+     GENERATE_AND_PLAY(gen_bad_extra_tx_bp_first);
+     GENERATE_AND_PLAY(gen_bad_extra_tx_ki_mid);
+     GENERATE_AND_PLAY(gen_bad_extra_tx_sum_last);
+diff --git a/tests/core_tests/chaingen_tests_list.h b/tests/core_tests/chaingen_tests_list.h
+index 4a2501ff4..62fa4eabf 100644
+--- a/tests/core_tests/chaingen_tests_list.h
++++ b/tests/core_tests/chaingen_tests_list.h
+@@ -34,6 +34,8 @@
+ #include "bad_extra_tx_in_block.h"
+ #include "bad_miner_tx_in_block.h"
+ #include "bad_tx_in_block.h"
++#include "bad_ser_block_in_block.h"
++#include "bad_reorg_in_block.h"
+ #include "block_reward.h"
+ #include "block_validation.h"
+ #include "chain_split_1.h"

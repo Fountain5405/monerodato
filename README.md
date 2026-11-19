@@ -511,8 +511,10 @@ proof; no human has reviewed them.
 - **The record and the data:** the [VERIFICATION.md section](VERIFICATION.md#the-2026-counterfeiting-survey-class-by-class-adversary),
   the adversary's [report](evidence/monerodato.9/adversary/adversary/survey-parity/report.md) with the raw run logs, and its
   [corpus tools](evidence/monerodato.9/adversary/tools/) and [method notes](evidence/monerodato.9/adversary/methods/).
-- **The test code:** the C2 corpus tools and the C3 test are published; the code of the other classes' tests is
-  pending, being prepared for publication with the commands that run them.
+- **The test code and how to run it:** [RUN.md](evidence/monerodato.9/adversary/adversary/survey-parity/RUN.md) gives, for each class, where its code is, the build, the
+  command and the expected output. The C3 test, C8's reorganisation test and C6's serialized-route tests are in
+  [tests/](evidence/monerodato.9/adversary/adversary/survey-parity/tests/), with [the lines that register them](evidence/monerodato.9/adversary/adversary/survey-parity/register.diff). C1, C4, C5, C7 and C6's bit flips are
+  monerodato's own gate tests, which become public with the .9 tag. C2 runs on the corpus [tools](evidence/monerodato.9/adversary/tools/).
 
 ## Scope
 
