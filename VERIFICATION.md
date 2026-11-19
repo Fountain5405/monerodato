@@ -57,7 +57,13 @@ tag; that is the owner's decision at tag time.
   - Evidence: [method](evidence/monerodato.9/adversary/methods/differential-corpus.md), per-case verdicts [H1](evidence/monerodato.9/adversary/data/dot9-h1-compare.csv) (2,848), [H2](evidence/monerodato.9/adversary/data/dot9-h2-compare.csv) (2,050), [mutants](evidence/monerodato.9/adversary/data/dot9-parm-mut-compare.csv) (396), [tools](evidence/monerodato.9/adversary/tools/)
 - **The optimizer's test suites** (optimizer, rerun by the adversary)
   - the FCMP++ tests 16 of 16, with the differential fuzz; the unit tests green
-  - Evidence: pending (the optimizer's build report)
+  - on the tag head `cb89fe43b`: `unit_tests` 1,547 passed, 4 skipped (by design or needing a device), 1 failed:
+    `select_outputs.exact_unlock_block`, upstream's probabilistic test, unchanged from upstream, in code monerodato does
+    not touch; repeated 200 times it failed 7 times on .9 and 6 times on a stock upstream build.
+    `core_tests --generate_and_play_test_data`: 193 run, 0 failures. Crate suites, built with monerodato's patched
+    `dalek-ff-group` and `multiexp` as the daemon is: generalized-bulletproofs 4 + 3 + 1, full-chain-membership-proofs 16,
+    monero-fcmp-plus-plus 2, all passed
+  - Evidence: [test-suite report and logs](evidence/monerodato.9/data/test-suites/README.md)
 - **The gate tests as adopted into the fork: seven commits on `22c1f9ee7`** (optimizer)
   - 22 unit tests pass in 67 s; `core_tests --filter='gen_bad_*'`: 22 run, 0 failures, in 95 s. The test logic is the adversary's, unchanged; names, comments and messages rewritten
   - The adversary reviewed the adopted series: approved, with no behaviour change from the tests it wrote; the

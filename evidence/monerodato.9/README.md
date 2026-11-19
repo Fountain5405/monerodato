@@ -13,6 +13,7 @@ How each measurement was designed is in [METHODS.md](METHODS.md): the metric, th
 - `scripts/`: the scoring scripts. Python 3, standard library only. They read plain or gzipped CSVs.
 - `adversary/`: the adversary's evidence package: its review letters, method notes, corpus tools, per-case corpus verdicts, and the counterfeiting-survey tests (see its own [README](adversary/README.md)).
 - `data/perf/<kit>/`: one directory per set of runs.
+- `data/test-suites/`: the optimizer's run of the unit, core and crate test suites on the tag head, with the logs.
   - The four slow-box kits (`q6600_dot9`, `q6600_dot9b`, `g6950_dot9`) come from the lab coordinator's export, gzipped.
   - Everything else comes from this package.
 
