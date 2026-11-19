@@ -487,6 +487,33 @@ binaries must reject or accept identically, and a replay of the same chain throu
 verdicts and tip hash. The checks and their evidence are listed in [VERIFICATION.md](VERIFICATION.md). A human
 decided that the release is tagged, but no human has verified that the optimisations are correct.
 
+## Tested against known counterfeiting bugs
+
+Rucknium's [2026 Counterfeiting vulnerabilities in cryptocurrency privacy projects](https://gist.github.com/Rucknium/a38821f8a1e0e0a115c0f4bc72d3bdb1)
+describes eight bugs of 2026 that let someone create coins in other privacy projects. The adversary turned each kind
+into tests against monerodato, ran them on .7 and on the prototype of .9's range-proof split, and reran on .9 the kinds
+that the adopted gate tests cover. **No counterfeiting-class flaw was found.** That is a result of these tests, not a
+proof; no human has reviewed them.
+
+| Class | The bug elsewhere | Tested on | Result | What was tested in monerodato |
+|---|---|---|---|---|
+| C1 | Beam: transcript malleability | .7, prototype, .9 | every mutant rejected | range proofs permuted, omitted or spliced at every position, and at every batch split |
+| C2 | Firo: transactions with several inputs | .7, prototype, .9 | verdicts identical to stock's | 396 structured mutants of real multi-input transactions, checked live against stock |
+| C3 | Iron Fish: position in the tree | .7, prototype | all rejected | membership proofs with the input block swapped, the path cut short, or the root or signed hash replaced |
+| C4 | Liquid: range-proof code | .7, prototype, .9 | as C1 | covered by C1's enumeration at the batch-split thresholds |
+| C5 | Litecoin MWEB: pool and block disagree | .7, prototype, .9 | the block path checks first and refuses; the corrected block is accepted | mined blocks carrying transactions the pool stored without full checks, or never saw |
+| C6 | Pirate Chain: block and wire disagree | .7, prototype, .9 | the block parses and is refused at verification | encoding mutants, and serialized blocks with one bit flipped in a transaction-hash entry |
+| C7 | Zano: the transparent supply | .7, prototype, .9 | refused at the coinbase/reward check | coinbases that mint too much or claim too much fee, inside blocks with valid proof of work |
+| C8 | Zcash: an optimisation gone wrong | .7, prototype | a valid re-mined transaction hits the cache; a broken one on the same ring is fully verified and refused | the verification cache across a reorganisation |
+
+- **Not rerun on .9:** C3, because its test vectors predate .9's transcript change, which has its own corruption
+  checks; and C8, because .9 does not touch the cache it tests.
+- **The record and the data:** the [VERIFICATION.md section](VERIFICATION.md#the-2026-counterfeiting-survey-class-by-class-adversary),
+  the adversary's [report](evidence/monerodato.9/adversary/adversary/survey-parity/report.md) with the raw run logs, and its
+  [corpus tools](evidence/monerodato.9/adversary/tools/) and [method notes](evidence/monerodato.9/adversary/methods/).
+- **The test code:** the C2 corpus tools and the C3 test are published; the code of the other classes' tests is
+  pending, being prepared for publication with the commands that run them.
+
 ## Scope
 
 Stressnet only. FCMP++ is not on mainnet, and no mainnet binaries will be published from this base.
