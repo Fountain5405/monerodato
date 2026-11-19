@@ -1,0 +1,949 @@
+Note: Google Test filter = survey_gates_perm.*
+[==========] Running 9 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 9 tests from survey_gates_perm
+[ RUN      ] survey_gates_perm.swap_LR_rejected
+[0;31m2026-11-13 18:17:04.807	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.813	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.817	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.823	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.827	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.833	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.837	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.844	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.847	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.854	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.857	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.864	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.867	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.874	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.877	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.884	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.898	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.908	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.912	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.922	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.926	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.936	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.940	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.950	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.953	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.964	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.967	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.978	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.981	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.992	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:04.995	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.006	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.009	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.020	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.023	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.034	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.037	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.047	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.051	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.061	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.065	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.075	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.079	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.089	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.093	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.104	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.108	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.119	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.122	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.132	E [0;31mVerification failure
+[0m[       OK ] survey_gates_perm.swap_LR_rejected (825 ms)
+[ RUN      ] survey_gates_perm.reverse_L_rejected
+[0;31m2026-11-13 18:17:05.605	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.612	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.616	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.622	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.626	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.632	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.636	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.642	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.646	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.652	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.656	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.662	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.666	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.673	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.676	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.683	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.697	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.707	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.710	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.721	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.724	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.735	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.738	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.749	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.752	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.762	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.766	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.776	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.780	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.790	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.794	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.804	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.808	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.818	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.822	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.832	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.835	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.846	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.849	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.860	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.863	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.874	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.877	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.887	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.891	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.901	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.905	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.915	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.919	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:05.929	E [0;31mVerification failure
+[0m[       OK ] survey_gates_perm.reverse_L_rejected (796 ms)
+[ RUN      ] survey_gates_perm.drop_last_L_rejected
+[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.400	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.411	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[       OK ] survey_gates_perm.drop_last_L_rejected (481 ms)
+[ RUN      ] survey_gates_perm.dup_last_L_rejected
+[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.881	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-13 18:17:06.892	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[       OK ] survey_gates_perm.dup_last_L_rejected (481 ms)
+[ RUN      ] survey_gates_perm.swap_A_S_rejected
+[0;31m2026-11-13 18:17:07.366	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.372	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.376	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.382	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.386	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.392	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.396	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.402	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.406	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.413	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.416	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.423	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.426	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.433	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.436	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.443	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.457	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.467	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.471	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.481	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.485	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.495	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.499	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.509	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.512	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.523	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.526	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.537	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.540	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.551	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.554	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.564	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.568	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.578	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.582	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.592	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.596	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.606	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.610	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.620	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.623	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.634	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.637	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.648	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.651	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.662	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.665	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.676	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.679	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:07.689	E [0;31mVerification failure
+[0m[       OK ] survey_gates_perm.swap_A_S_rejected (797 ms)
+[ RUN      ] survey_gates_perm.taux_zero_rejected
+[0;31m2026-11-13 18:17:08.163	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.169	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.173	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.179	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.183	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.189	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.193	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.199	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.203	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.209	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.213	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.219	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.223	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.229	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.233	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.239	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.253	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.264	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.267	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.278	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.281	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.291	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.295	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.305	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.309	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.319	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.322	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.333	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.336	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.347	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.350	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.360	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.364	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.374	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.378	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.388	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.391	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.402	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.405	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.416	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.419	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.429	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.433	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.443	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.447	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.457	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.461	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.471	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.474	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.485	E [0;31mVerification failure
+[0m[       OK ] survey_gates_perm.taux_zero_rejected (795 ms)
+[ RUN      ] survey_gates_perm.mu_zero_rejected
+[0;31m2026-11-13 18:17:08.957	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.964	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.967	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.974	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.977	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.984	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.987	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.994	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:08.997	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.004	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.007	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.014	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.017	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.024	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.028	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.034	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.048	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.058	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.062	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.072	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.076	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.086	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.090	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.100	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.104	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.114	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.117	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.128	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.131	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.142	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.145	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.156	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.159	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.169	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.173	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.183	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.187	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.197	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.201	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.211	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.214	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.225	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.228	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.239	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.242	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.253	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.256	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.266	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.270	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.280	E [0;31mVerification failure
+[0m[       OK ] survey_gates_perm.mu_zero_rejected (795 ms)
+[ RUN      ] survey_gates_perm.t_zero_rejected
+[0;31m2026-11-13 18:17:09.752	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.759	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.762	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.769	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.772	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.779	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.782	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.789	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.792	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.799	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.802	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.809	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.813	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.819	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.823	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.829	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.843	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.853	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.857	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.867	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.871	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.881	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.885	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.895	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.899	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.909	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.913	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.923	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.926	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.937	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.940	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.951	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.954	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.964	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.968	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.978	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.982	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.992	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:09.996	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.006	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.010	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.020	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.024	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.034	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.037	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.048	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.051	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.062	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.065	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.076	E [0;31mVerification failure
+[0m[       OK ] survey_gates_perm.t_zero_rejected (795 ms)
+[ RUN      ] survey_gates_perm.splice_V_rejected
+[0;31m2026-11-13 18:17:10.547	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.554	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.557	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.564	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.568	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.574	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.578	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.584	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.588	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.594	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.598	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.604	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.608	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.614	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.618	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.624	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.638	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.649	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.652	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.662	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.666	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.676	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.680	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.690	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.694	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.704	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.708	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.718	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.721	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.732	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.735	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.746	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.749	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.760	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.763	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.773	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.777	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.787	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.791	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.801	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.805	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.815	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.819	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.829	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.832	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.843	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.846	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.857	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.860	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:10.871	E [0;31mVerification failure
+[0m[       OK ] survey_gates_perm.splice_V_rejected (794 ms)
+[----------] 9 tests from survey_gates_perm (6563 ms total)
+
+[----------] Global test environment tear-down
+[==========] 9 tests from 1 test suite ran. (6563 ms total)
+[  PASSED  ] 9 tests.
+Note: Google Test filter = survey_gates.*
+[==========] Running 6 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 6 tests from survey_gates
+[ RUN      ] survey_gates.batches_valid_baseline
+[       OK ] survey_gates.batches_valid_baseline (7488 ms)
+[ RUN      ] survey_gates.bad_proof_every_position_both_forms
+[0;31m2026-11-13 18:17:31.698	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.704	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.714	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.725	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.743	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.774	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.804	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.834	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.838	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.845	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.856	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.866	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.883	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.913	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.943	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.974	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.977	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.984	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:31.994	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.004	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.021	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.051	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.082	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.112	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.115	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.122	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.132	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.143	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.160	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.190	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.220	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.251	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.255	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.262	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.272	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.283	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.300	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.330	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.360	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.392	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.396	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.402	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.412	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.423	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.439	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.470	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.501	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.530	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.534	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.541	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.551	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.561	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.578	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.608	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.638	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.668	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.672	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.679	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.689	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.700	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.717	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.747	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.777	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.807	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.811	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.821	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.832	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.849	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.879	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.909	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.939	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.943	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.953	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.964	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:32.981	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.011	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.041	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.071	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.075	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.085	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.095	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.112	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.142	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.173	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.203	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.206	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.216	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.227	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.244	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.274	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.304	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.334	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.338	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.348	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.358	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.375	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.406	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.436	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.466	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.470	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.480	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.490	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.507	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.538	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.568	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.598	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.601	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.612	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.622	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.639	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.669	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.699	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.729	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.733	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.743	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.754	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.770	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.801	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.830	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.860	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.864	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.875	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.891	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.921	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.952	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.982	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:33.985	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.002	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.032	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.062	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.093	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.096	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.113	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.143	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.173	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.204	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.207	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.224	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.254	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.285	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.316	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.319	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.336	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.366	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.397	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.427	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.431	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.447	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.478	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.508	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.538	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.542	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.558	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.589	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.619	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.649	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.653	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.670	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.700	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.730	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.760	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.764	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.781	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.811	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.841	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.871	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.875	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.891	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.922	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.952	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.982	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:34.986	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.003	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.033	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.063	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.093	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.097	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.114	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.144	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.174	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.204	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.208	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.225	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.255	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.285	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.316	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.319	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.336	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.366	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.396	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.426	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.430	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.447	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.477	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.507	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.537	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.541	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.558	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.588	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.618	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.648	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.652	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.682	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.712	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.742	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.746	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.776	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.806	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.836	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.839	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.869	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.898	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.928	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.932	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.962	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:35.992	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.022	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.026	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.056	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.086	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.116	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.120	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.150	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.180	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.210	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.214	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.244	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.274	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.304	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.307	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.338	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.368	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.398	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.401	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.432	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.462	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.492	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.495	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.525	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.555	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.586	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.589	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.619	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.649	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.680	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.683	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.713	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.744	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.774	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.777	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.807	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.837	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.867	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.871	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.901	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.931	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.961	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.965	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:36.995	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.025	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.055	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.059	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.089	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.119	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.149	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.153	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.183	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.213	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.243	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.246	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.276	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.305	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.335	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.338	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.368	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.398	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.427	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.431	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.460	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.490	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.520	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.523	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.553	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.582	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.612	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.616	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.645	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.675	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.704	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.708	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.738	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.767	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.797	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.800	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.830	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.859	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.889	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.893	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.922	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.952	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.982	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:37.985	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.015	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.044	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.074	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.077	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.107	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.137	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.167	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.170	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.200	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.230	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.260	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.263	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.293	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.323	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.353	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.357	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.386	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.417	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.447	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.450	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.480	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.510	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.540	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.544	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.573	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.603	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:38.633	E [0;31mVerification failure
+[0m[       OK ] survey_gates.bad_proof_every_position_both_forms (8587 ms)
+[ RUN      ] survey_gates.bad_sum_every_position_both_forms
+[       OK ] survey_gates.bad_sum_every_position_both_forms (921 ms)
+[ RUN      ] survey_gates.bad_output_mask_rejected_both_forms
+[       OK ] survey_gates.bad_output_mask_rejected_both_forms (434 ms)
+[ RUN      ] survey_gates.verdicts_stable_across_repeats
+[0;31m2026-11-13 18:17:40.726	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.738	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.750	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.761	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.773	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.785	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.796	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.808	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.819	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.831	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.843	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.854	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.866	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.878	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.889	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.901	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.912	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.924	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.935	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:40.947	E [0;31mVerification failure
+[0m[       OK ] survey_gates.verdicts_stable_across_repeats (957 ms)
+[ RUN      ] survey_gates.mixed_sizes_and_duplications
+[0;31m2026-11-13 18:17:41.159	E [0;31mVerification failure
+[0m[0;31m2026-11-13 18:17:41.167	E [0;31mVerification failure
+[0m[       OK ] survey_gates.mixed_sizes_and_duplications (219 ms)
+[----------] 6 tests from survey_gates (18609 ms total)
+
+[----------] Global test environment tear-down
+[==========] 6 tests from 1 test suite ran. (18609 ms total)
+[  PASSED  ] 6 tests.

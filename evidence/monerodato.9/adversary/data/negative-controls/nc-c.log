@@ -1,0 +1,21 @@
+Note: Google Test filter = survey_gates_tx.bad_ki_domain*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from survey_gates_tx
+[ RUN      ] survey_gates_tx.bad_ki_domain_rejected_both_forms_all_thresholds
+tests/unit_tests/survey_gates_tx.cpp:152: Failure
+Value of: cryptonote::ver_non_input_consensus(ps, {}, tvc, 16)
+  Actual: true
+Expected: false
+block form accepted bad KI at n=8 pos=0
+
+[  FAILED  ] survey_gates_tx.bad_ki_domain_rejected_both_forms_all_thresholds (1554 ms)
+[----------] 1 test from survey_gates_tx (1554 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (1554 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] survey_gates_tx.bad_ki_domain_rejected_both_forms_all_thresholds
+
+ 1 FAILED TEST

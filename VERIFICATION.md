@@ -39,21 +39,22 @@ its docs and version commits. No binaries are published.
 
 **What changed against .8:** four commits, each with its own unit tests: a block's RingCT sum checks, BP+ range proofs
 and key-image checks spread over the compute pool, and the FCMP++ transcript read without decoding the points it
-does not use. Two `[fork-only]` commits update MONERODATO.md and the version string. The adversary's gate tests may
-ride the tag as seven more commits; that is the owner's decision at tag time.
+does not use. Two `[fork-only]` commits update MONERODATO.md and the version string. The adversary's gate tests,
+adopted as nine test-only commits after `22c1f9ee7` (up to `cb89fe43b`, nothing under `src/`), are proposed to ride the
+tag; that is the owner's decision at tag time.
 
 - **Review of the four commits, line by line, at `6bb32ea00`** (adversary)
   - approved. Two risk questions answered from the source: the physical-core cap on the BP+ sub-batches cannot change a verdict (a batch accepts exactly when every member does, however it is split), and the transcript skip leaves the transcript state byte-identical while every acceptance path still decodes and checks each point
-  - Evidence: pending (the adversary's evidence package)
+  - Evidence: [verdict](evidence/monerodato.9/adversary/reviews/20261116T080000Z-adversary-dot9-review-verdict.md), [second letter](evidence/monerodato.9/adversary/reviews/20261116T080200Z-adversary-dot9-verdict.md), [how the reviews are done](evidence/monerodato.9/adversary/methods/review-procedure.md)
 - **The docs and version commits after `6bb32ea00` (`b969346ab`, `22c1f9ee7`)** (adversary)
-  - pending: the confirmation, as for .8
-  - Evidence: pending
+  - confirmed: the thresholds in the docs match the code, the docs' argument for why the result is the same is the one checked at source level, the commit counts close, and the version commit has .8's form
+  - Evidence: [confirmation](evidence/monerodato.9/adversary/reviews/20261116T090000Z-adversary-dot9-docs-confirmed.md)
 - **The adversary's gate suite, rerun on the .9 tree** (adversary)
   - all green, each refusal from the expected check: unit gates, a family of 12 mined blocks, the miner-transaction boundary, and blocks whose transactions arrive with them on sync, which runs the new batched code on the real sync path
-  - Evidence: pending (the adversary's evidence package)
+  - Evidence: [gate tests and their negative controls](evidence/monerodato.9/adversary/methods/gate-tests.md), [negative-control runs](evidence/monerodato.9/adversary/data/negative-controls/), [gates report](evidence/monerodato.9/adversary/reviews/20261115T161500Z-adversary-bppsplit-gates-report.md)
 - **Transaction corpus against the .9 binary, on an offline machine** (adversary (coordinator ran the machine))
   - 5,294 cases (2,848 + 2,050 recorded, 396 structured mutants); 0 mismatches: every verdict equal to stock's and to the one recorded for .7
-  - Evidence: pending (the adversary's evidence package)
+  - Evidence: [method](evidence/monerodato.9/adversary/methods/differential-corpus.md), per-case verdicts [H1](evidence/monerodato.9/adversary/data/dot9-h1-compare.csv) (2,848), [H2](evidence/monerodato.9/adversary/data/dot9-h2-compare.csv) (2,050), [mutants](evidence/monerodato.9/adversary/data/dot9-parm-mut-compare.csv) (396), [tools](evidence/monerodato.9/adversary/tools/)
 - **The optimizer's test suites** (optimizer, rerun by the adversary)
   - the FCMP++ tests 16 of 16, with the differential fuzz; the unit tests green
   - Evidence: pending (the optimizer's build report)
@@ -61,19 +62,47 @@ ride the tag as seven more commits; that is the owner's decision at tag time.
   - 22 unit tests pass in 67 s; `core_tests --filter='gen_bad_*'`: 22 run, 0 failures, in 95 s. The test logic is the adversary's, unchanged; names, comments and messages rewritten
   - The adversary reviewed the adopted series: approved, with no behaviour change from the tests it wrote; the
     messages' corrections, and the counts, commands and times in the MONERODATO.md paragraph, checked.
-  - Evidence: pending (the adversary's evidence package)
+  - A follow-up commit (`cb89fe43b`) added three blocks with one bit flipped inside a transaction-hash entry, so that
+    the blob still parses and only verification refuses it, and updated the counts. The adversary approved it: 22 unit
+    tests pass; `gen_bad_*`: 25 run, 0 failures.
+  - Evidence: [adoption review](evidence/monerodato.9/adversary/reviews/20261118T193000Z-adversary-gates-adoption-approved.md), [the three flip blocks](evidence/monerodato.9/adversary/reviews/20261118T201500Z-adversary-flip-definitions.md)
 - **Every performance run ended on the reference chain** (optimizer, coordinator)
   - the per-commit study: all 56 runs on the 5600G and 8 on a 5,400 rpm test VM ended with the reference node's hash. The fast-box runs on a 16-core Ryzen 9 5900XT: 24 of 24 hashes equal. The slow boxes (Core 2 Quad Q6600, Pentium G6950): every hash read equalled the reference node's; on a busy node some of the driver's own checks got no answer, and a separate recorder polling every 30 s covered those runs
   - Evidence: [evidence README](evidence/monerodato.9/README.md), [methods](evidence/monerodato.9/METHODS.md), each run's README under [data/perf/](evidence/monerodato.9/data/perf/)
 - **The Atom N450 kit, .8 against .9, four runs** (coordinator)
-  - pending: running
-  - Evidence: pending
+  - .9 against .8: wall −1.9%, within run-to-run variation; CPU −2.5%. Three of the four runs ended with the reference node's hash; the fourth was not read (the busy node did not answer), which is a missing reading, not a mismatch
+  - Evidence: [Atom data](evidence/monerodato.9/data/perf/n450_dot9/README.md)
 - **Builds of `22c1f9ee7` for the test boxes: static generic (Ubuntu 24.04 container) and Debian 12** (coordinator)
   - build, and report `v0.19.0.0-beta.3.1-monerodato.9-22c1f9ee7`
   - Evidence: this file
 - **Clean build from the tag in a fresh Ubuntu 24.04 container, from an anonymous clone after publishing, and a scan of the binaries for lab names, addresses and paths** (coordinator)
   - pending: after the tag
   - Evidence: this file
+
+### The 2026 counterfeiting survey, class by class (adversary)
+
+Rucknium's [2026 Counterfeiting vulnerabilities in cryptocurrency privacy projects](https://gist.github.com/Rucknium/a38821f8a1e0e0a115c0f4bc72d3bdb1)
+describes eight counterfeiting bugs found in other privacy projects in 2026. The owner asked the adversary to turn each
+class into tests against monerodato. The adversary ran them on .7 and on the prototype of .9's range-proof split
+(2026-11-13), and reran on .9 the classes that its adopted gate tests cover (2026-11-19). Verdict: no
+counterfeiting-class flaw found on any of these trees.
+
+| Class | Case in the survey | What was tested in monerodato | Trees | Result |
+|---|---|---|---|---|
+| C1 | Beam: transcript malleability | range proofs permuted, omitted or spliced at every position, and at every batch split | .7, prototype, .9 | every mutant rejected |
+| C2 | Firo: several inputs | 396 structured mutants of real multi-input transactions, against stock, live | .7, prototype, .9 | verdicts identical to stock's |
+| C3 | Iron Fish: tree position | membership proofs with the input block swapped, the path cut short, the root or the signed hash replaced | .7, prototype | all rejected |
+| C4 | Liquid: range-proof code | covered by C1's enumeration at the batch-split thresholds | .7, prototype, .9 | as C1 |
+| C5 | Litecoin MWEB: pool against block | mined blocks carrying transactions the pool stored without full checks, or never saw | .7, prototype, .9 | the block path checks first and refuses; the corrected block is accepted |
+| C6 | Pirate Chain: block against wire | encoding mutants, and serialized blocks with one bit flipped in a transaction-hash entry | .7, prototype, .9 | the blob parses and is refused at verification |
+| C7 | Zano: transparent supply | coinbases that mint too much or claim too much fee, inside blocks with valid proof of work | .7, prototype, .9 | refused at the coinbase/reward check |
+| C8 | Zcash: an optimisation gone wrong | the verification cache across a reorganisation | .7, prototype | a valid transaction re-mined hits the cache; a broken one on the same ring is fully verified and refused |
+
+- **Not rerun on .9:** C3, because its statement-level test vectors predate .9's transcript change, which has its own
+  corruption checks in the crate; and C8, because .9 does not touch the pool-side cache it tests.
+- **Trees:** .7 = `f3c4ea5d9`; prototype = `3a8b3f68f`; .9 = `22c1f9ee7` with the adopted gate tests.
+- Evidence: [report](evidence/monerodato.9/adversary/adversary/survey-parity/report.md), with the raw logs per class and tree, the standalone C3
+  test, and the commits of the tests; the adversary's [package README](evidence/monerodato.9/adversary/README.md).
 
 ## monerodato.8, a release
 

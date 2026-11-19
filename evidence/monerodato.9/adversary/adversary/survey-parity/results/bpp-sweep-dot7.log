@@ -1,0 +1,44 @@
+Note: Google Test filter = survey_gates_tx*
+[==========] Running 6 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 6 tests from survey_gates_tx
+[ RUN      ] survey_gates_tx.valid_batch_baseline_all_sizes
+[       OK ] survey_gates_tx.valid_batch_baseline_all_sizes (1531 ms)
+[ RUN      ] survey_gates_tx.bad_ki_domain_rejected_both_forms_all_thresholds
+[       OK ] survey_gates_tx.bad_ki_domain_rejected_both_forms_all_thresholds (13162 ms)
+[ RUN      ] survey_gates_tx.bad_bp_proof_in_tx_rejected_both_forms
+[0;31m2026-11-15 13:30:01.823	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:02.032	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:02.246	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:02.454	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:02.662	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:03.074	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:03.492	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:03.925	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:04.340	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:04.777	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:05.215	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:05.653	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:06.091	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:06.534	E [0;31mVerification failure
+[0m[       OK ] survey_gates_tx.bad_bp_proof_in_tx_rejected_both_forms (4741 ms)
+[ RUN      ] survey_gates_tx.broken_balance_in_tx_rejected_both_forms
+[       OK ] survey_gates_tx.broken_balance_in_tx_rejected_both_forms (862 ms)
+[ RUN      ] survey_gates_tx.input_verification_id_binds_all_inputs
+[       OK ] survey_gates_tx.input_verification_id_binds_all_inputs (25 ms)
+[ RUN      ] survey_gates_tx.bpp_supplement_position_sweep
+[0;31m2026-11-15 13:30:07.873	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:07.885	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:07.896	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:07.908	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:08.790	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:08.809	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:08.829	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:08.849	E [0;31mVerification failure
+[0m[0;31m2026-11-15 13:30:08.868	E [0;31mVerification failure
+[0m[       OK ] survey_gates_tx.bpp_supplement_position_sweep (1470 ms)
+[----------] 6 tests from survey_gates_tx (21793 ms total)
+
+[----------] Global test environment tear-down
+[==========] 6 tests from 1 test suite ran. (21794 ms total)
+[  PASSED  ] 6 tests.

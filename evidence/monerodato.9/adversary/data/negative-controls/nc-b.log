@@ -1,0 +1,34 @@
+Note: Google Test filter = survey_gates_tx.output_type_rules
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from survey_gates_tx
+[ RUN      ] survey_gates_tx.output_type_rules
+tests/unit_tests/survey_gates_tx.cpp:422: Failure
+Value of: cryptonote::check_output_types(non_coinbase_with(key_out()), 16)
+  Actual: true
+Expected: false
+hf16 to_key accepted on non-coinbase
+
+tests/unit_tests/survey_gates_tx.cpp:424: Failure
+Value of: cryptonote::check_output_types(coinbase_with(key_out()), 16)
+  Actual: true
+Expected: false
+hf16 to_key accepted on coinbase
+
+[0;31m2026-11-18 19:41:41.563	E [0;31mwrong non-coinbase transaction output type 'N10cryptonote18txout_to_carrot_v1E' for fork v16 in transaction id=<ff325e141d9126aa20d551c19daffa6f1c47bca6dcaaa56673bf3626c286f93b>
+[0m[0;31m2026-11-18 19:41:41.563	E [0;31mwrong coinbase transaction output type 'N10cryptonote18txout_to_carrot_v1E' for fork v16 in transaction id=<60166a67d42d3967e027744528cf5309aa401f9e22560356e3edf91f7e551f45>
+[0m[0;31m2026-11-18 19:41:41.587	E [0;31mwrong non-coinbase transaction output type 'N10cryptonote15txout_to_scriptE' for fork v16 in transaction id=<9b89200a9fe34adcd71e8a6fb96721cb0accc6632fa7cbd6caf1444ed1267f2c>
+[0m[0;31m2026-11-18 19:41:41.587	E [0;31mwrong coinbase transaction output type 'N10cryptonote15txout_to_scriptE' for fork v16 in transaction id=<d890dace87d117499e84ed521fa0dea10dc510774571e9c298572c6ca4165645>
+[0m[0;31m2026-11-18 19:41:41.587	E [0;31mwrong coinbase transaction output type 'N10cryptonote19txout_to_tagged_keyE' for fork v17 in transaction id=<24c40f2e3aaed1c648b722e1da530904e0106f30dfbe52cd36770975a1f11bd9>
+[0m[0;31m2026-11-18 19:41:41.635	E [0;31mmismatched output type to tx proof type in transaction id=<3ddf46164542213531f7bda41862224eb0116a7036c8e0a46469d4ce9c1ec086>
+[0m[0;31m2026-11-18 19:41:41.660	E [0;31mmismatched output type to tx proof type in transaction id=<c8f60214792e2aedbb9e876854e86560295a0df72b3b90770e792712c35a5530>
+[0m[  FAILED  ] survey_gates_tx.output_type_rules (191 ms)
+[----------] 1 test from survey_gates_tx (191 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (191 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] survey_gates_tx.output_type_rules
+
+ 1 FAILED TEST

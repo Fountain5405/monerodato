@@ -1,0 +1,19 @@
+Note: Google Test filter = C3Merkle*
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from C3Merkle
+[ RUN      ] C3Merkle.controls_accept
+[       OK ] C3Merkle.controls_accept (2022 ms)
+[ RUN      ] C3Merkle.m4_path_truncate_rejected
+[       OK ] C3Merkle.m4_path_truncate_rejected (58 ms)
+[ RUN      ] C3Merkle.m5_root_transplant_rejected
+[       OK ] C3Merkle.m5_root_transplant_rejected (1222 ms)
+[ RUN      ] C3Merkle.m6_signable_transplant_rejected
+[       OK ] C3Merkle.m6_signable_transplant_rejected (558 ms)
+[ RUN      ] C3Merkle.m1_leaf_tuple_swap_rejected
+[       OK ] C3Merkle.m1_leaf_tuple_swap_rejected (558 ms)
+[----------] 5 tests from C3Merkle (4420 ms total)
+
+[----------] Global test environment tear-down
+[==========] 5 tests from 1 test suite ran. (4421 ms total)
+[  PASSED  ] 5 tests.

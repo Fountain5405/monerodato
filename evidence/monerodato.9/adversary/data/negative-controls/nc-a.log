@@ -1,0 +1,525 @@
+Note: Google Test filter = survey_gates*
+[==========] Running 22 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 6 tests from survey_gates
+[ RUN      ] survey_gates.batches_valid_baseline
+[       OK ] survey_gates.batches_valid_baseline (7144 ms)
+[ RUN      ] survey_gates.bad_proof_every_position_both_forms
+[0;31m2026-11-18 19:40:42.615	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:42.622	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:42.628	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:42.636	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:42.644	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:42.653	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:42.664	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:42.672	E [0;31mVerification failure
+[0mtests/unit_tests/survey_gates.cpp:99: Failure
+Value of: ver_block_form(rotated)
+  Actual: true
+Expected: false
+block form accepted bad proof (back) at 0
+
+[  FAILED  ] survey_gates.bad_proof_every_position_both_forms (1624 ms)
+[ RUN      ] survey_gates.bad_sum_every_position_both_forms
+[       OK ] survey_gates.bad_sum_every_position_both_forms (855 ms)
+[ RUN      ] survey_gates.bad_output_mask_rejected_both_forms
+[0;33m2026-11-18 19:40:43.951	W [0;33mge_frombytes_vartime failed at 497
+[0m[0;33m2026-11-18 19:40:43.968	W [0;33mge_frombytes_vartime failed at 497
+[0m[0;33m2026-11-18 19:40:43.969	W [0;33mge_frombytes_vartime failed at 497
+[0m[0;33m2026-11-18 19:40:43.969	W [0;33mge_frombytes_vartime failed at 497
+[0m[0;33m2026-11-18 19:40:43.970	W [0;33mge_frombytes_vartime failed at 497
+[0m[0;33m2026-11-18 19:40:43.970	W [0;33mge_frombytes_vartime failed at 497
+[0m[       OK ] survey_gates.bad_output_mask_rejected_both_forms (439 ms)
+[ RUN      ] survey_gates.verdicts_stable_across_repeats
+[0;31m2026-11-18 19:40:44.612	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.619	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.627	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.634	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.642	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.649	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.657	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.665	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.672	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.680	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.687	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.694	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.702	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.709	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.716	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.724	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.731	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.739	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.746	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.753	E [0;31mVerification failure
+[0m[       OK ] survey_gates.verdicts_stable_across_repeats (782 ms)
+[ RUN      ] survey_gates.mixed_sizes_and_duplications
+[0;31m2026-11-18 19:40:44.961	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:44.968	E [0;31mVerification failure
+[0m[       OK ] survey_gates.mixed_sizes_and_duplications (215 ms)
+[----------] 6 tests from survey_gates (11062 ms total)
+
+[----------] 9 tests from survey_gates_perm
+[ RUN      ] survey_gates_perm.swap_LR_rejected
+[0;31m2026-11-18 19:40:45.428	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.434	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.438	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.445	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.448	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.455	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.458	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.465	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.468	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.475	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.479	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.485	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.489	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.495	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.499	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.505	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.516	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.522	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.526	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.533	E [0;31mVerification failure
+[0mtests/unit_tests/survey_gates.cpp:193: Failure
+Value of: ver_block_form(bad)
+  Actual: true
+Expected: false
+swapLR accepted (block) at 1 n=17
+
+[  FAILED  ] survey_gates_perm.swap_LR_rejected (564 ms)
+[ RUN      ] survey_gates_perm.reverse_L_rejected
+[0;31m2026-11-18 19:40:45.993	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:45.999	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.003	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.010	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.013	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.020	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.023	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.030	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.033	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.040	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.043	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.050	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.053	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.060	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.064	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.070	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.081	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.087	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.091	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:46.099	E [0;31mVerification failure
+[0mtests/unit_tests/survey_gates.cpp:193: Failure
+Value of: ver_block_form(bad)
+  Actual: true
+Expected: false
+revL accepted (block) at 1 n=17
+
+[  FAILED  ] survey_gates_perm.reverse_L_rejected (566 ms)
+[ RUN      ] survey_gates_perm.drop_last_L_rejected
+[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.555	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.561	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:46.562	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[       OK ] survey_gates_perm.drop_last_L_rejected (462 ms)
+[ RUN      ] survey_gates_perm.dup_last_L_rejected
+[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.018	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.024	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched bulletproof L/R size
+[0m[0;31m2026-11-18 19:40:47.025	E [0;31mMismatched sizes of outPk and bulletproofs_plus
+[0m[       OK ] survey_gates_perm.dup_last_L_rejected (462 ms)
+[ RUN      ] survey_gates_perm.swap_A_S_rejected
+[0;31m2026-11-18 19:40:47.484	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.490	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.494	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.501	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.504	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.511	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.514	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.521	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.524	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.531	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.534	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.541	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.545	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.551	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.555	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.561	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.571	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.578	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.582	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:47.589	E [0;31mVerification failure
+[0mtests/unit_tests/survey_gates.cpp:193: Failure
+Value of: ver_block_form(bad)
+  Actual: true
+Expected: false
+swapAS accepted (block) at 1 n=17
+
+[  FAILED  ] survey_gates_perm.swap_A_S_rejected (564 ms)
+[ RUN      ] survey_gates_perm.taux_zero_rejected
+[0;31m2026-11-18 19:40:48.050	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.057	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.060	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.067	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.071	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.077	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.081	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.087	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.091	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.098	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.101	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.108	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.111	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.118	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.121	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.128	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.138	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.145	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.148	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.155	E [0;31mVerification failure
+[0mtests/unit_tests/survey_gates.cpp:193: Failure
+Value of: ver_block_form(bad)
+  Actual: true
+Expected: false
+taux0 accepted (block) at 1 n=17
+
+[  FAILED  ] survey_gates_perm.taux_zero_rejected (566 ms)
+[ RUN      ] survey_gates_perm.mu_zero_rejected
+[0;31m2026-11-18 19:40:48.617	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.623	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.627	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.634	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.637	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.644	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.647	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.654	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.657	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.664	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.667	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.674	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.678	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.684	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.688	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.694	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.705	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.711	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.715	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:48.722	E [0;31mVerification failure
+[0mtests/unit_tests/survey_gates.cpp:193: Failure
+Value of: ver_block_form(bad)
+  Actual: true
+Expected: false
+mu0 accepted (block) at 1 n=17
+
+[  FAILED  ] survey_gates_perm.mu_zero_rejected (566 ms)
+[ RUN      ] survey_gates_perm.t_zero_rejected
+[0;31m2026-11-18 19:40:49.180	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.187	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.190	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.197	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.200	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.207	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.210	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.217	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.221	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.227	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.231	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.237	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.241	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.247	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.251	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.257	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.269	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.276	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.279	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.286	E [0;31mVerification failure
+[0mtests/unit_tests/survey_gates.cpp:193: Failure
+Value of: ver_block_form(bad)
+  Actual: true
+Expected: false
+t0 accepted (block) at 1 n=17
+
+[  FAILED  ] survey_gates_perm.t_zero_rejected (564 ms)
+[ RUN      ] survey_gates_perm.splice_V_rejected
+[0;31m2026-11-18 19:40:49.745	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.751	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.755	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.761	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.765	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.772	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.775	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.782	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.785	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.792	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.795	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.802	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.805	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.812	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.816	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.822	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.833	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.839	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.843	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:40:49.849	E [0;31mVerification failure
+[0mtests/unit_tests/survey_gates.cpp:193: Failure
+Value of: ver_block_form(bad)
+  Actual: true
+Expected: false
+spliceV accepted (block) at 1 n=17
+
+[  FAILED  ] survey_gates_perm.splice_V_rejected (563 ms)
+[----------] 9 tests from survey_gates_perm (4881 ms total)
+
+[----------] 7 tests from survey_gates_tx
+[ RUN      ] survey_gates_tx.valid_batch_baseline_all_sizes
+[       OK ] survey_gates_tx.valid_batch_baseline_all_sizes (1445 ms)
+[ RUN      ] survey_gates_tx.bad_ki_domain_rejected_both_forms_all_thresholds
+[       OK ] survey_gates_tx.bad_ki_domain_rejected_both_forms_all_thresholds (12649 ms)
+[ RUN      ] survey_gates_tx.bad_bp_proof_in_tx_rejected_both_forms
+[0;31m2026-11-18 19:41:03.972	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:41:04.173	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:41:04.374	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:41:04.574	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:41:04.775	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:41:05.171	E [0;31mVerification failure
+[0mtests/unit_tests/survey_gates_tx.cpp:189: Failure
+Value of: cryptonote::ver_non_input_consensus(ps, {}, tvc, 16)
+  Actual: true
+Expected: false
+block form accepted bad BP+ at n=16 pos=0
+
+[  FAILED  ] survey_gates_tx.bad_bp_proof_in_tx_rejected_both_forms (1226 ms)
+[ RUN      ] survey_gates_tx.broken_balance_in_tx_rejected_both_forms
+[       OK ] survey_gates_tx.broken_balance_in_tx_rejected_both_forms (826 ms)
+[ RUN      ] survey_gates_tx.input_verification_id_binds_all_inputs
+[       OK ] survey_gates_tx.input_verification_id_binds_all_inputs (24 ms)
+[ RUN      ] survey_gates_tx.bpp_supplement_position_sweep
+[0;31m2026-11-18 19:41:06.450	E [0;31mVerification failure
+[0m[0;31m2026-11-18 19:41:06.458	E [0;31mVerification failure
+[0mtests/unit_tests/survey_gates_tx.cpp:329: Failure
+Value of: cryptonote::ver_non_input_consensus(ps, {}, tvc, 16)
+  Actual: true
+Expected: false
+block form accepted defect kind=0 at n=17 pos=8
+
+[  FAILED  ] survey_gates_tx.bpp_supplement_position_sweep (435 ms)
+[ RUN      ] survey_gates_tx.output_type_rules
+[0;31m2026-11-18 19:41:06.507	E [0;31mwrong non-coinbase transaction output type 'N10cryptonote12txout_to_keyE' for fork v16 in transaction id=<1f65d32ca157bab6d61a536bf99b2b57af17647da1dd08f1d58a7bd306e566d1>
+[0m[0;31m2026-11-18 19:41:06.507	E [0;31mwrong coinbase transaction output type 'N10cryptonote12txout_to_keyE' for fork v16 in transaction id=<22a9588cdc069e11ddcb90f02f2071b9a276d784d1dbbea6100ff316cf8ae8e3>
+[0m[0;31m2026-11-18 19:41:06.531	E [0;31mwrong non-coinbase transaction output type 'N10cryptonote18txout_to_carrot_v1E' for fork v16 in transaction id=<cb7f6576254157ac883c4cbded8248b305a72cb0b9ae9b1ce0f622723cec381a>
+[0m[0;31m2026-11-18 19:41:06.531	E [0;31mwrong coinbase transaction output type 'N10cryptonote18txout_to_carrot_v1E' for fork v16 in transaction id=<3487a7c4eab364496c0c19f4eb692580628fc9f686904811928933640916ec01>
+[0m[0;31m2026-11-18 19:41:06.556	E [0;31mwrong non-coinbase transaction output type 'N10cryptonote15txout_to_scriptE' for fork v16 in transaction id=<56f1c4e801af9fef19bc1a502e27c7263aa0c64a2b551f1b9b4fa8dcd002fb12>
+[0m[0;31m2026-11-18 19:41:06.556	E [0;31mwrong coinbase transaction output type 'N10cryptonote15txout_to_scriptE' for fork v16 in transaction id=<d890dace87d117499e84ed521fa0dea10dc510774571e9c298572c6ca4165645>
+[0m[0;31m2026-11-18 19:41:06.556	E [0;31mwrong coinbase transaction output type 'N10cryptonote19txout_to_tagged_keyE' for fork v17 in transaction id=<727181d35ddd439aaef96dd5c4b4a5310a6197bc4a8769628400afd4b399faea>
+[0m[0;31m2026-11-18 19:41:06.604	E [0;31mmismatched output type to tx proof type in transaction id=<6b2f6bc875b9210ea7f6546635fe6b72eef5d1d9986ded1a214615193e12592c>
+[0m[0;31m2026-11-18 19:41:06.628	E [0;31mmismatched output type to tx proof type in transaction id=<532faff7e013f848c8e8c9ff5d3cb8e4038c8f8ed1f6a4719fd800fa5bf7e03b>
+[0m[       OK ] survey_gates_tx.output_type_rules (170 ms)
+[----------] 7 tests from survey_gates_tx (16778 ms total)
+
+[----------] Global test environment tear-down
+[==========] 22 tests from 3 test suites ran. (32722 ms total)
+[  PASSED  ] 12 tests.
+[  FAILED  ] 10 tests, listed below:
+[  FAILED  ] survey_gates.bad_proof_every_position_both_forms
+[  FAILED  ] survey_gates_perm.swap_LR_rejected
+[  FAILED  ] survey_gates_perm.reverse_L_rejected
+[  FAILED  ] survey_gates_perm.swap_A_S_rejected
+[  FAILED  ] survey_gates_perm.taux_zero_rejected
+[  FAILED  ] survey_gates_perm.mu_zero_rejected
+[  FAILED  ] survey_gates_perm.t_zero_rejected
+[  FAILED  ] survey_gates_perm.splice_V_rejected
+[  FAILED  ] survey_gates_tx.bad_bp_proof_in_tx_rejected_both_forms
+[  FAILED  ] survey_gates_tx.bpp_supplement_position_sweep
+
+10 FAILED TESTS

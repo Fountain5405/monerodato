@@ -1,0 +1,55 @@
+Note: Google Test filter = survey_gates_tx*
+[==========] Running 7 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 7 tests from survey_gates_tx
+[ RUN      ] survey_gates_tx.valid_batch_baseline_all_sizes
+[       OK ] survey_gates_tx.valid_batch_baseline_all_sizes (1528 ms)
+[ RUN      ] survey_gates_tx.bad_ki_domain_rejected_both_forms_all_thresholds
+[       OK ] survey_gates_tx.bad_ki_domain_rejected_both_forms_all_thresholds (13090 ms)
+[ RUN      ] survey_gates_tx.bad_bp_proof_in_tx_rejected_both_forms
+[0;31m2026-11-15 15:41:48.233	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:48.442	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:48.655	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:48.862	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:49.069	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:49.479	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:49.886	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:50.295	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:50.707	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:51.144	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:51.580	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:52.016	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:52.452	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:52.889	E [0;31mVerification failure
+[0m[       OK ] survey_gates_tx.bad_bp_proof_in_tx_rejected_both_forms (4684 ms)
+[ RUN      ] survey_gates_tx.broken_balance_in_tx_rejected_both_forms
+[       OK ] survey_gates_tx.broken_balance_in_tx_rejected_both_forms (852 ms)
+[ RUN      ] survey_gates_tx.input_verification_id_binds_all_inputs
+[       OK ] survey_gates_tx.input_verification_id_binds_all_inputs (25 ms)
+[ RUN      ] survey_gates_tx.bpp_supplement_position_sweep
+[0;31m2026-11-15 15:41:54.211	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:54.219	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:54.227	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:54.236	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:55.102	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:55.117	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:55.128	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:55.141	E [0;31mVerification failure
+[0m[0;31m2026-11-15 15:41:55.161	E [0;31mVerification failure
+[0m[       OK ] survey_gates_tx.bpp_supplement_position_sweep (1421 ms)
+[ RUN      ] survey_gates_tx.output_type_rules
+[0;31m2026-11-15 15:41:55.239	E [0;31mwrong non-coinbase transaction output type 'N10cryptonote12txout_to_keyE' for fork v16 in transaction id=<a63eb9e54be330ae8e973095ed011e37ba1ecd59d05c0111059186d5712d628a>
+[0m[0;31m2026-11-15 15:41:55.239	E [0;31mwrong coinbase transaction output type 'N10cryptonote12txout_to_keyE' for fork v16 in transaction id=<efc404c86d7cb3738c9c3544a05395b8a946e432b6a29f6c457f1b0492ab2847>
+[0m[0;31m2026-11-15 15:41:55.264	E [0;31mwrong non-coinbase transaction output type 'N10cryptonote18txout_to_carrot_v1E' for fork v16 in transaction id=<d763c175e2c1c8a4e6c45cd93c06822210c2ef7f641e23d2cd1c0ce544f52141>
+[0m[0;31m2026-11-15 15:41:55.264	E [0;31mwrong coinbase transaction output type 'N10cryptonote18txout_to_carrot_v1E' for fork v16 in transaction id=<df987302bd67f661035b2d81d3601760b1a9f60c05d3ac6057a6dff2231494d6>
+[0m[0;31m2026-11-15 15:41:55.289	E [0;31mwrong non-coinbase transaction output type 'N10cryptonote15txout_to_scriptE' for fork v16 in transaction id=<b6edbe5d51139a5d1b3c04eacdd6f0b6938d1dfa819e57105505673b43cf4897>
+[0m[0;31m2026-11-15 15:41:55.289	E [0;31mwrong coinbase transaction output type 'N10cryptonote15txout_to_scriptE' for fork v16 in transaction id=<d890dace87d117499e84ed521fa0dea10dc510774571e9c298572c6ca4165645>
+[0m[0;31m2026-11-15 15:41:55.289	E [0;31mwrong coinbase transaction output type 'N10cryptonote19txout_to_tagged_keyE' for fork v17 in transaction id=<c530966e886299068eede6bad214fe782217eb6fdd894818f2bd0a787fe3e49b>
+[0m[0;31m2026-11-15 15:41:55.340	E [0;31mmismatched output type to tx proof type in transaction id=<25c4727ddfa7e4c2d96ab79066127de2faa54a5c9b0520c5ef8cb49178a95e91>
+[0m[0;31m2026-11-15 15:41:55.365	E [0;31mmismatched output type to tx proof type in transaction id=<f259666fe1a8d05da155bc8961e709ed21bed04029fe9f47fd70faf90511cf88>
+[0m[       OK ] survey_gates_tx.output_type_rules (176 ms)
+[----------] 7 tests from survey_gates_tx (21779 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 1 test suite ran. (21779 ms total)
+[  PASSED  ] 7 tests.
