@@ -194,21 +194,23 @@ cannot give back without swapping. "Idle" is anonymous memory 45 s after the blo
 stock `v0.19.0.0-beta.3.1`. The block types are those of [the commit list](#the-commits): heavy (128-input), small-tx
 (2-input) and one-input big blocks.
 
-**The whole build against the reference build.** The node's verification memory has not changed since monerodato.1;
-.8 changed only disk caching, and .9's changes are about time.
+**The latest release against the reference build.** monerodato.9, peak memory:
 
-| Build | Machine | Heavy blocks, peak | Small-tx, peak |
+| Machine | Heavy blocks | Small-tx blocks | One-input big blocks |
 |---|---|---|---|
-| .1 | 3900X, 24 threads | 5,313 → 1,451 MB (−72.7%) | −17.0% |
-| .1 | 3900X, 12 threads | 3,573 → 1,237 MB (−65.4%) | −12.9% |
-| .0 | VM, 4 vCPUs | 2,167,448 → 931,456 kB (−57%) | |
-| .9 | 5600G, 12 threads | 3,385 → 1,235 MB (−63.5%) | 566 → 470 MB (−17.0%) |
+| 3900X, 24 threads | 5,263 → 1,440 MB (−72.6%) | 645 → 535 MB (−17.1%) | 4,726 → 1,146 MB (−75.8%) |
+| 3900X, 12 threads | 3,303 → 1,289 MB (−61.0%) | 537 → 448 MB (−16.6%) | 2,900 → 921 MB (−68.2%) |
+| 5600G, 12 threads | 3,385 → 1,235 MB (−63.5%) | 566 → 470 MB (−17.0%) | not measured |
 
-- **3900X:** a 12-core Ryzen 9 3900X with 16 GB, 3 alternating rounds.
-- **VM:** 4 vCPUs, 6 GB, no swap; a replay of the chain from block 3,105,400 to the tip.
-- **5600G:** a 6-core Ryzen 5 5600G with an SSD, default threads, 3 runs a side, measured on the whole .9 build (not
-  multiplied from the per-change rows; data and commands in
-  [TABLE.md](evidence/monerodato.9/data/per-commit/TABLE.md#the-whole-9-build-against-stock-not-per-commit)). After 45 s idle: heavy 2,934 → 578 MB (−80.3%), small-tx 565 → 391 MB (−30.8%).
+- **3900X:** a 12-core Ryzen 9 3900X with 16 GB, at its default 24 threads and at `--max-concurrency 12`; 3
+  alternating rounds a cell, no overlap between the builds in any figure
+  ([data](evidence/monerodato.9/data/perf/dot9-vs-stock-3900x/README.md)). After 45 s idle: heavy −85.6% / −81.2%,
+  small-tx −30.9% / −27.7%, one-input −80.8% / −78.7% (24 / 12 threads).
+- **5600G:** a 6-core Ryzen 5 5600G with an SSD, default threads, 3 runs a side
+  ([data](evidence/monerodato.9/data/per-commit/TABLE.md#the-whole-9-build-against-stock-not-per-commit)). After 45 s
+  idle: heavy 2,934 → 578 MB (−80.3%), small-tx 565 → 391 MB (−30.8%).
+- **Earlier releases:** the node's verification memory has not changed since .1 (.8 changed only disk caching, and
+  .9's changes are about time). .1 on the same 3900X measured heavy −72.7% / −65.4% (24 / 12 threads).
 
 **Where the saving comes from.** Each change measured on its own, added to the reference build, on one machine (a
 6-core Ryzen 5 5600G, 3 rounds a side). The cells name the base where it is not the reference build alone. Every
@@ -240,17 +242,22 @@ optimisation in .9 is listed; the ones that are only about time or disk show "no
 Measured, not human-verified. "Wall" is elapsed time and "CPU" is processor time summed over all threads, for the
 node syncing a stretch of the stressnet chain of one block type.
 
-**The whole build against the reference build:**
+**The latest release against the reference build:** monerodato.9.
 
-| Build | Machine | Heavy blocks | Small-tx blocks |
+| Machine | Heavy blocks | Small-tx blocks | One-input big blocks |
 |---|---|---|---|
-| .1 | 3900X, 24 threads | wall −55.6%, CPU −82.4% | wall −7.4%, CPU −51.9% |
-| .1 | 3900X, 12 threads | wall −50.8%, CPU −64.2% | wall +4.0%, CPU −31.1% |
-| .9 | 5600G, 12 threads | wall −51.2%, CPU −73.6% | wall −23.3%, CPU −41.5% |
+| 3900X, 24 threads | wall −61.0%, CPU −82.2% | wall −18.5%, CPU −52.5% | wall −37.2%, CPU −32.3% |
+| 3900X, 12 threads | wall −52.8%, CPU −60.5% | wall −11.5%, CPU −32.9% | wall −33.7%, CPU −23.5% |
+| 5600G, 12 threads | wall −51.2%, CPU −73.6% | wall −23.3%, CPU −41.5% | wall −37.6%, CPU −31.1% |
 
-3 alternating rounds on the 3900X; on the 5600G, 3 runs a side of the whole .9 build. One-input big blocks on the
-5600G (2 runs a side): wall −37.6%, CPU −31.1%. The reference build's small-tx wall time spread 71–97 s across its
-runs, so that is the noisiest figure here.
+- **Blocks:** heavy 3,105,401 to 3,105,441 (5600G: to 3,105,444), both builds with `--block-sync-size 5`; small-tx
+  3,106,401 to 3,106,800; one-input 3,103,300 to 3,103,500 (5600G: a replay of 3,103,320 to 3,103,500).
+- **Runs:** on the 3900X, 3 alternating rounds a cell, no overlap between the builds in any figure
+  ([data](evidence/monerodato.9/data/perf/dot9-vs-stock-3900x/README.md)); on the 5600G, 3 runs a side (2 for
+  one-input). The reference build's small-tx wall time on the 5600G spread 71–97 s across its runs, the noisiest
+  figure here.
+- **Earlier releases:** .1 on the same 3900X measured heavy wall −55.6% / −50.8% (24 / 12 threads). Its small-tx wall
+  at 12 threads was +4.0%; .9 there is −11.5%.
 
 monerodato.2 to .8 left the node's verification code as it was in .1.
 
