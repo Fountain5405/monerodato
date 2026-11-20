@@ -21,6 +21,8 @@ rebuilt as 45 commits, and its tree was compared with the last working build's (
   agents.
 - **owner:** the human. Decides tags and pushes.
 
+More on the roles and the process: [HOW-WE-WORK.md](HOW-WE-WORK.md).
+
 The code branch's own docs call the optimizer "the fork's author" and the adversary "the second reviewer".
 
 **The reference** is the stock seraphis-migration monerod v0.19.0.0-beta.3.1 that the fork is based on. The gate is

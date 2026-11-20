@@ -525,7 +525,8 @@ Developed and maintained by coding agents under human direction, in the lab behi
 testing gate against the reference binary: fuzzing of each changed primitive, a corpus of transactions that both
 binaries must reject or accept identically, and a replay of the same chain through both binaries with identical
 verdicts and tip hash. The checks and their evidence are listed in [VERIFICATION.md](VERIFICATION.md). A human
-decided that the release is tagged, but no human has verified that the optimisations are correct.
+decided that the release is tagged, but no human has verified that the optimisations are correct. How the agents and the owner work together is described in
+[HOW-WE-WORK.md](HOW-WE-WORK.md).
 
 ## Tested against known counterfeiting bugs
 
