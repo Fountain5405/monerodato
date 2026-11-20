@@ -58,7 +58,7 @@ How each measurement was designed is in [METHODS.md](METHODS.md): the metric, th
 
 ## monerodato.8: `--db-cache-drop`, and pruning's prefetch
 
-All of these are from the HDD VM. The scripts that ran the HDD kits are in [../methods/hddvm-kits/](../methods/hddvm-kits/README.md). The 3900X runs' scripts (the writes, prefetch, equivalence and option rows) are in [../methods/3900x-g016/](../methods/3900x-g016/README.md). The published table is a sync of 7,000 heavy blocks (3,106,401-3,113,400) onto a pruned database. Its "heavy part" is the last 6,000 blocks, in blocks per second, with and without a 1,536 MB cgroup memory cap. "Off" is the same code path as .7.
+All of these are from the HDD VM. The scripts that ran the HDD kits are in [../methods/hddvm-kits/](../methods/hddvm-kits/README.md). The 3900X runs' scripts (the writes, prefetch, equivalence and option rows) are in [../methods/3900x-g016/](../methods/3900x-g016/README.md). The scripts that ran .9's replay and fastbox runs (3900X, 5600G, 5900XT) are in [../methods/replay-fastbox-dot9/](../methods/replay-fastbox-dot9/README.md). The published table is a sync of 7,000 heavy blocks (3,106,401-3,113,400) onto a pruned database. Its "heavy part" is the last 6,000 blocks, in blocks per second, with and without a 1,536 MB cgroup memory cap. "Off" is the same code path as .7.
 
 | published figure | data | command | prints |
 |---|---|---|---|
