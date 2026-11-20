@@ -147,7 +147,7 @@ the prefetch before pruning, which runs only while the option is on. Without the
   - wall time over the sync's last 6,000 blocks −72.9% under a 1,536 MB cap and +1.4% without (5.83 against 1.58
     and 5.91 blocks per second); every pre-registered criterion met. All eight runs ended with the reference node's
     hash at block 3,113,400 (criterion E4).
-  - Evidence: [data/perf/hddvm-dot8-kit13/](evidence/monerodato.9/data/perf/hddvm-dot8-kit13/)
+  - Evidence: [data/perf/hddvm-dot8-kit13/](evidence/monerodato.9/data/perf/hddvm-dot8-kit13/); the scripts that ran it: [methods/hddvm-kits/kit13/](evidence/methods/hddvm-kits/README.md)
 - **The published tag** (coordinator)
   - after the push, `monerodato-v0` and the tag point at `e7bae3ecf` (checked with `git ls-remote`)
   - Evidence: this file
