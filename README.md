@@ -393,6 +393,23 @@ cache, not on the node's own memory.
   pages stay cached when the database is larger than memory. Before each pruning step the node asks the disk for the
   pages pruning is about to read. Without the option, .8 behaves exactly as .7.
 
+**The whole .9 against the reference build.** A 7,000-block sync onto a pruned database (3,106,401–3,113,400) from
+one LAN peer, on a VM with 4 vCPUs, 4 GB of RAM and a 5,400 rpm disk, from a dropped page cache, 2 runs a side. The
+1,536 MB cgroup cap stands in for a chain larger than the machine's memory. Every figure has disjoint ranges:
+
+| .9 started | Memory cap | Launch to the top | CPU time | Peak anonymous memory |
+|---|---|---|---|---|
+| without options | none | **−64.9%** (1,186 s against 3,385 s) | −22.8% | −55.7% |
+| with `--db-cache-drop` | none | **−64.6%** (1,198 s against 3,385 s) | −22.8% | −59.0% |
+| without options | 1,536 MB | **−39.5%** (3,780 s against 6,252 s) | −19.1% | −56.7% |
+| with `--db-cache-drop` | 1,536 MB | **−80.8%** (1,198 s against 6,252 s) | −26.1% | −59.6% |
+
+- **Without a cap** the option makes no practical difference (+1.0%, 12 s). **Under the cap**, .9 without it re-reads
+  its database from disk (about 214,000 page refaults, against 8–58 with it) and the option cuts launch to the top by
+  68.3%. Stock fit under the cap.
+- **The data, the scorer and the predictions set before the runs:**
+  [evidence/monerodato.9/data/perf/dot9-vs-stock-hddvm/](evidence/monerodato.9/data/perf/dot9-vs-stock-hddvm/README.md).
+
 **Each change against the reference build.** Each set of commits added on its own to stock `v0.19.0.0-beta.3.1`,
 measured from a dropped page cache, 4 runs a side in alternating order unless stated. The .8 rows use a common base
 of stock plus the thread cap and the memory trim (monero 0001, 0002, 0004) for all their arms: stock alone may not get
