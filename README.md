@@ -375,6 +375,8 @@ byte the same as before.
 | 4-core Core 2 Quad Q6600 | 8 | 37.14 s | 19.20 s (−48%) |
 | | 32 | 183.54 s | 79.51 s (−57%) |
 
+Per-proof prover times, the run scripts and the data: [evidence/monerodato.9/data/proving/](evidence/monerodato.9/data/proving/README.md).
+
 **Peak memory of the wallet while proving,** before and after the three memory commits: 169.1 MB at 8 inputs
 (unchanged), 270.3 → 250.5 MB at 32 inputs (−7.3%), and 1,287.8 → 815.5 MB at 128 inputs (−36.7%). The time per
 transaction did not change beyond the spread.
