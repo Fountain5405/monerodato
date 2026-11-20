@@ -544,7 +544,15 @@ Stressnet only. FCMP++ is not on mainnet, and no mainnet binaries will be publis
 ## Not affiliated
 
 This is not a Monero project release and is not endorsed by the Monero project. "Monero" and "monerod" name the
-software this is derived from. The code keeps Monero's BSD-3-Clause license; the LICENSE file is on the code branch.
+software this is derived from.
+
+## License
+
+monerodato's code, tests, evidence and text use Monero's own license,
+[BSD-3-Clause](https://github.com/Fountain5405/monerodato/blob/monerodato-v0/LICENSE), so the Monero project can take
+any change as it would a pull request. They were written and run by AI agents and add no copyright holder or credit
+line of their own. Changes to the FCMP++ Rust crates keep those crates' MIT license, as they have upstream. The
+[patches by others](#patches-by-others-tested) remain their authors' work.
 
 ## Here be bugs
 
